@@ -21,6 +21,6 @@ if __name__ == '__main__':
         raise ValueError('Several models with name %s'%(args.path))
     else:
         model_dir = model_dir[0]
-
+    print(model_dir)
     wandb_ID = model_dir.split('/')[-1]
     evaluate_model(model_dir, wandb_ID=wandb_ID)

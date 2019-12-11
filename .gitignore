@@ -98,3 +98,4 @@ temp/
 /models
 /src/scripts/wandb
 nohup.out
+/wandb
