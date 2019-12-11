@@ -1,0 +1,26 @@
+ name: cudaCubeML
+channels:
+  - conda-forge
+  - anaconda
+  - pytorch
+dependencies:
+  - tqdm
+  - h5py
+  - pytables
+  - jupyter
+  - pydocstyle
+  - pylint
+  - flake8
+  - matplotlib
+  - git
+  - pip
+  - scikit-learn
+  - pytorch>=1.3.0
+  - torchvision
+  - cudatoolkit=10.1
+  - ignite
+  - numpy
+  - dvc[azure]
+  - pillow
+  - pip:
+    - wandb

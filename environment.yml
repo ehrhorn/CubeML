@@ -1,0 +1,26 @@
+name: cubeml
+channels:
+  - conda-forge
+  - anaconda
+  - pytorch
+dependencies:
+  - tqdm
+  - h5py
+  - pytables
+  - jupyter
+  - pydocstyle
+  - pylint
+  - flake8
+  - matplotlib
+  - git
+  - pip
+  - scikit-learn
+  - pytorch
+  - torchvision
+  - cpuonly
+  - ignite
+  - numpy
+  - dvc[azure]
+  - pillow
+  - pip:
+    - wandb

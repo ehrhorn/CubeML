@@ -1,0 +1,4 @@
+['remote "myremote"']
+url = azure://cubedata
+['remote "models"']
+url = azure://cubemodels/

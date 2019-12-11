@@ -1,0 +1,17 @@
+name: powershovel
+channels:
+  - anaconda
+dependencies:
+  - jupyter
+  - pylint
+  - pydocstyle
+  - flake8
+  - pandas
+  - tqdm
+  - pytables
+  - plotly
+  - numpy
+  - astropy
+  - pip
+  - pip:
+    - streamlit

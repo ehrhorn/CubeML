@@ -1,0 +1,21 @@
+{
+    "transform0": {
+        "transforms": [
+            "transform_lvl_1"
+        ],
+        "group_description": "Lvl 1 transform"
+    },
+    "transform1": {
+        "transforms": [
+            "clean_lvl_1"
+        ],
+        "group_description": "A4D cleaning"
+    },
+    "transform2": {
+        "transforms": [
+            "transform_lvl_1",
+            "clean_lvl_1"
+        ],
+        "group_description": "Lvl transform, A4D cleaning"
+    }
+}

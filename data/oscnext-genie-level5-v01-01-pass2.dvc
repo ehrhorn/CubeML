@@ -1,0 +1,7 @@
+md5: 2af7b6b0cd66b44f0b23c043650a8422
+outs:
+- md5: 46a08d9f8ff3810501267fb8ac566992.dir
+  path: oscnext-genie-level5-v01-01-pass2
+  cache: true
+  metric: false
+  persist: false

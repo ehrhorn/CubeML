@@ -1,0 +1,11 @@
+name: icetray
+channels:
+  - anaconda
+dependencies:
+  - python=3.7.4
+  - tqdm
+  - pytables
+  - pip
+  - pip:
+    - azure-storage-blob
+
