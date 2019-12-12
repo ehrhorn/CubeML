@@ -23,7 +23,6 @@ class AziPolarPerformance:
         prefix = 'transform'+str(data_pars['file_keys']['transform'])
         from_frac = data_pars['train_frac']
         to_frac = data_pars['train_frac'] + data_pars['val_frac']
-        print(from_frac, to_frac)
 
         self.model_dir = get_path_from_root(model_dir)
         self.data_dir = data_pars['data_dir']
@@ -47,7 +46,6 @@ class AziPolarPerformance:
         for file in Path(path_to_data).iterdir():
             if file.suffix == '.h5':
                 path = str(file)
-        
         return path
     
     def _get_keys(self):
@@ -73,15 +71,16 @@ class AziPolarPerformance:
 
         # Calculate performance as a fn of energy for polar and azi errors
         polar_error = self.data_dict['polar_error']
-        print(len(polar_error), len(energy))
-        # print('Calculating polar performance...')
-        # self.polar_sigmas, self.polar_errors = calc_perf2_as_fn_of_energy(energy, polar_error, self.bin_edges)
-        # print('Calculation finished!\n')
+        print(len(energy), len(polar_error), self.bin_edges)
+        print('\nCalculating polar performance...')
+        self.polar_sigmas, self.polar_errors = calc_perf2_as_fn_of_energy(energy, polar_error, self.bin_edges)
+        print(self.polar_sigmas, self.polar_errors)
+        print('Calculation finished!')
 
-        # azi_error = self.data_dict['azi_error']
-        # print('Calculating azimuthal performance...')
-        # self.azi_sigmas, self.azi_errors = calc_perf2_as_fn_of_energy(energy, azi_error, self.bin_edges)
-        # print('Calculation finished!\n')
+        azi_error = self.data_dict['azi_error']
+        print('\nCalculating azimuthal performance...')
+        self.azi_sigmas, self.azi_errors = calc_perf2_as_fn_of_energy(energy, azi_error, self.bin_edges)
+        print('Calculation finished!')
 
     def get_polar_dict(self):
         return {'edges': [self.bin_edges], 'y': [self.polar_sigmas], 'yerr': [self.polar_errors], 'xlabel': r'log(E) [GeV]', 'ylabel': 'Error [Deg]'}
@@ -120,9 +119,9 @@ class AziPolarPerformance:
 
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
-    
 
-model_dir = '/media/data/bjoernhm/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-12-10-10.06.08'
+
+model_dir = '/media/data/bjoernhm/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/direction_reg/test_2019.12.12-12.41.10'
 azipolar = AziPolarPerformance(model_dir)
 # #%%
 # d = azi.get_azi_dict()

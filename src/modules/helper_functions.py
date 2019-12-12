@@ -26,7 +26,6 @@ def append_list_and_save(list_address, item):
         to_update.append(item)
         pickle.dump(to_update, open(list_address, 'wb'))
     else:
-        # print(item)
         with open(list_address, 'wb') as f:
             pickle.dump([item], f)
 
@@ -173,7 +172,6 @@ def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
     
-
     sigmas, e_sigmas = [], []
     for entry in predictor_bins:
         means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75])
@@ -184,9 +182,13 @@ def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
         # Assume errors are symmetric - which they look to be (quick inspection)
         # Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
         sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
+        
+        # Ignore nans - it is due to too little statistics in a bin
+        if e_sigma != e_sigma:
+            sigma = np.nan
+            
         sigmas.append(sigma)
         e_sigmas.append(e_sigma)
-    
 
     return sigmas, e_sigmas
 
@@ -223,6 +225,18 @@ def calc_widths(sorted_data, entries, width_measure='iqr'):
         return widths_lower, widths_upper
     else:
         return widths
+
+def convert_id_to_int(file_path, id_str):
+    '''A very non-modular conversion of a file ID.. For each new dataset, a new converter must be added.
+    '''
+    dataset = get_dataset_name(file_path)
+    if dataset == 'oscnext-genie-level5-v01-01-pass2':
+        id_stripped = id_str.split('.')[-1]
+        id_int = int(id_stripped.split('__')[0])
+    elif dataset == 'MuonGun_Level2_139008':
+        id_int = int(id_str)
+    
+    return id_int
 
 def convert_iqr_to_sigma(quartiles, e_quartiles):
     '''Converts 75th and 25th percentiles (with errors) to sigma with error.
@@ -274,30 +288,26 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
     # bootstrap
     bootstrap_indices = np.random.choice(np.arange(0, n), size=(n, n_bootstraps))
     bootstrap_indices.sort(axis=0)
-    # print(bootstrap_indices)
     bootstrap_samples = data[bootstrap_indices]
 
+    # An IndexError is due to too few events in a bin. Set these to NaN, we don't care about bins with very little data, so dont log the error.
     for i in range(len(i_means)):
-        mean = bootstrap_samples[i_means[i], :]
-        means.append(np.mean(mean))
+        
+        try:    
+            mean = bootstrap_samples[i_means[i], :]
+            means.append(np.mean(mean))
 
-        plussigma = bootstrap_samples[i_plussigmas[i], :]
-        plussigmas.append(np.mean(plussigma))
+            plussigma = bootstrap_samples[i_plussigmas[i], :]
+            plussigmas.append(np.mean(plussigma))
 
-        minussigma = bootstrap_samples[i_minussigmas[i], :]
-        minussigmas.append(np.mean(minussigma))
+            minussigma = bootstrap_samples[i_minussigmas[i], :]
+            minussigmas.append(np.mean(minussigma))
+        except IndexError:
+            means.append(np.nan)
+            plussigmas.append(np.nan)
+            minussigmas.append(np.nan)
 
     return means, plussigmas, minussigmas
-    # bootstrap_mean = bootstrap_samples[mean, :]
-    # bootstrap_plussigma = bootstrap_samples[plussigma, :]
-    # bootstrap_minussigma = bootstrap_samples[minussigma , :]
-    # fig = make_plot({'data': [bootstrap_mean, bootstrap_plussigma, bootstrap_minussigma]})
-    # bootstrap_estimate_mean = np.mean(bootstrap_mean)
-    # bootstrap_estimate_plussigma = np.mean(bootstrap_plussigma)
-    # bootstrap_estimate_minussigma = np.mean(bootstrap_minussigma)
-    # print('Estimate: %.3f [%.3f, %.3f]'%(bootstrap_estimate_mean, bootstrap_estimate_plussigma, bootstrap_estimate_minussigma))
-
-
 
 def find_best_model_pars(model_dir):
     '''Scans through saved model parameters in a model directory and returns the parameter-file of the best model.
@@ -341,6 +351,20 @@ def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=N
         dataloader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
     
     return dataloader_params
+
+def get_dataset_name(file_path):
+    '''Given a path to a file, the dataset name is extracted
+    '''
+    from_root = get_path_from_root(file_path)
+    from_root_splitted = from_root.split('/')
+    
+    # Expects the format chosen for the framework
+    if from_root_splitted[1] == 'data' or from_root_splitted[1] == 'models':
+        name = from_root_splitted[2]
+    else:
+        'Unknown format given!'
+    
+    return name
 
 def get_dataset_size(data_dir):
     '''Loops over a data directory and returns the total number of events
@@ -806,16 +830,7 @@ def read_h5_directory(data_dir, keys, prefix=None, from_frac = 0, to_frac = 1):
                 values[key][file.stem] = read_h5_dataset(file, key, prefix, from_frac=from_frac, to_frac=to_frac)
     
     # Sort wrt file index
-    values_sorted = sort_wrt_file_id(values)
-    # values_sorted = {key: np.array([]) for key in keys}
-    # for key, dicts in values.items():
-    #     unsorted = []
-    #     for ID, vals in dicts.items():
-    #         unsorted.append((int(ID), vals))
-        
-    #     sorted_list = sorted(unsorted, key=lambda x: x[0])
-    #     for item in sorted_list:
-    #         values_sorted[key] = np.append(values_sorted[key], item[1])
+    values_sorted = sort_wrt_file_id(str(file), values)
 
     return values_sorted
 
@@ -838,32 +853,40 @@ def read_predicted_h5_data(file_address, keys):
                 preds[key][str(dfile)] = f[dfile+'/'+key][:]
 
     # Sort wrt file index
-    values_sorted = sort_wrt_file_id(values) 
-    {key: np.array([]) for key in keys}
-    for key, dicts in preds.items():
-        unsorted = []
-        for ID, vals in dicts.items():
-            unsorted.append((int(ID), vals))
-        
-        sorted_list = sorted(unsorted, key=lambda x: x[0])
-        for item in sorted_list:
-            values_sorted[key] = np.append(values_sorted[key], item[1])
+    values_sorted = sort_wrt_file_id(file_address, preds) 
 
     return values_sorted
 
 def remove_tests_modeldir(directory = get_project_root() + '/models/'):
+    '''Deletes all cubeml_test-models and all models that failed during training.
+    '''
     for file in Path(directory).iterdir():
         if Path(file).is_dir():
             curr_dir = str(file).split('/')[-1]
             name = curr_dir.split('_')[0]
+            
+            try:
+                _, _, _, meta_pars = load_model_pars(str(file))
+                if 'status' in meta_pars:
+                    if meta_pars['status'] == 'Failed':
+                        shutil.rmtree(file)
+                        print('Deleted', str(file))
+                if name == 'test': 
+                    shutil.rmtree(file)
+                    print('Deleted', str(file))
+                continue
+            except FileNotFoundError:
+                pass
+                
             if name == 'test': 
                 shutil.rmtree(file)
                 print('Deleted', str(file))
             else:
                 remove_tests_modeldir(file)
 
-def remove_tests_wandbdir(directory = get_project_root() + '/src/scripts/wandb/', rm_all=False):
-    
+def remove_tests_wandbdir(directory = get_project_root() + '/wandb/', rm_all=False):
+    '''Deletes all wandb-folder which failed during training or was a test-run.
+    '''
     # Check each run - if test, delete it.
     for run in Path(directory).iterdir():
         
@@ -875,15 +898,11 @@ def remove_tests_wandbdir(directory = get_project_root() + '/src/scripts/wandb/'
                     metadata = json.load(f)
                     cond1 = metadata['project'] == 'cubeml_test'
                     cond2 = metadata['state'] == 'failed'
-                    cond3 = metadata['state'] == 'finished'
                     
                     if rm_all:
-
-                        cond4 = metadata['state'] == 'killed'
-                        if cond1 or cond2 or cond3 or cond4:
-                            remove = True
+                        remove = True
                     else:
-                        if cond1 or cond2 or cond3:
+                        if cond1 or cond2:
                             remove = True
             except FileNotFoundError:
                 remove = True
@@ -901,12 +920,15 @@ def sort_pairs(l1, l2, reverse=False):
 
     return l1_sorted, l2_sorted
 
-def sort_wrt_file_id(values):
+def sort_wrt_file_id(file_path, values):
+    '''Takes a dictionary with keys equal to variable of interest and values equal to a dictionary consisting of a file ID and the values of interest. Returns a new dictionary with the same keys as values and the sorted values wrt the file index
+    '''
     values_sorted = {key: np.array([]) for key in values}
     for key, dicts in values.items():
         unsorted = []
         for ID, vals in dicts.items():
-            unsorted.append((int(ID), vals))
+            id_int = convert_id_to_int(file_path, ID)
+            unsorted.append((id_int, vals))
         
         sorted_list = sorted(unsorted, key=lambda x: x[0])
         for item in sorted_list:

@@ -289,9 +289,6 @@ def log_operation_plots(model_dir, wandb_ID=None):
     with open(lr_list, 'rb') as f:
         lr_list = pickle.load(f)
     
-    if wandb_ID is not None:
-        wandb.init(resume=wandb_ID)
-
     img_address = model_dir+'/figures/train_val_error.png'
     _ = make_plot({'x': [epochs, epochs], 'y': [train_error, val_error], 'label': ['train error', 'val. error'], 'xlabel': 'Epoch', 'ylabel': 'Loss', 'savefig': img_address})
     

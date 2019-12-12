@@ -19,6 +19,7 @@ from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 from src.modules.reporting import *
 
+
 def calc_lr_vs_loss(model, optimizer, loss, train_generator, batch_size, n_train, n_epochs = 1, start_lr = 0.000001, end_lr = 0.1):
     '''Performs a scan over a learning rate-interval of interest with an exponentially increasing learning rate.
 
@@ -74,7 +75,9 @@ def evaluate_model(model_dir, wandb_ID = None):
     # ======================================================================== #
     # SAVE OPERATION PLOTS
     # ======================================================================== #
-
+    if wandb_ID is not None:
+        WANDB_DIR = get_project_root()+'/models'
+        wandb.init(resume=wandb_ID, dir=WANDB_DIR)
     log_operation_plots(model_dir, wandb_ID=wandb_ID)
 
     # ======================================================================== #
@@ -234,17 +237,20 @@ def predict(save_dir, wandb_ID = None):
     model = model.float()
 
     # Loop over files
-    print(strftime("%d/%m %H:%M", localtime()), ': Prediction begun.')
+    print('\n', strftime("%d/%m %H:%M", localtime()), ': Prediction begun.')
     pred_filename = str(best_pars).split('.pth')[0].split('/')[-1]
     pred_full_address = save_dir+'/data/predict'+pred_filename+'.h5'
+    data_dir = data_pars['data_dir'] # Where to load data from
+    N_FILES = len(list(Path(get_project_root()+data_dir).glob('*.h5')))
+    i_file = 0
 
     with h5.File(pred_full_address, 'w') as f:
         
-        data_dir = data_pars['data_dir'] # Where to load data from
-        
         for file in Path(get_project_root()+data_dir).iterdir():
-            if str(file).split('.')[-1] == 'h5':
-
+            if file.suffix == '.h5':
+                i_file += 1
+                i_str = str(i_file) if i_file > 9 else '0'+str(i_file)
+                print('%s/%d: Predicting on %s'%(i_str, N_FILES, get_path_from_root(str(file))))
                 # Extract validation data
                 val_set = load_predictions(data_pars, 'val', file)
                 predictions = {key: [] for key in val_set.targets}
@@ -506,17 +512,9 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
         for entry in model.mods: 
             if type(entry) == nn.modules.container.Sequential:
                 for seq_entry in entry:
-                    try:
-                        i_layer = log_weights_and_grads(i_layer, seq_entry, step)
-                    except ValueError:
-                        print('NaN detected in layer', str(i_layer))
-                        i_layer += 1
-            else:
-                try:
+                    i_layer = log_weights_and_grads(i_layer, seq_entry, step)
+                    
                     i_layer = log_weights_and_grads(i_layer, entry, step)
-                except ValueError:
-                        print('NaN detected in layer', str(i_layer))
-                        i_layer += 1
         
         # Run evaluation on train- and validation-sets
         evaluator_train.run(trainerr_generator)
@@ -598,8 +596,10 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     
     # Save model parameters on W&B AND LOCALLY!
     # Shut down W&B first, if it is already running
-    wandb_name = save_dir.split('/')[-1]
-    wandb.init(project=meta_pars['project'], name=wandb_name, tags=meta_pars['tags'], id=wandb_ID, reinit=True, dir=get_project_root())
+    WANDB_NAME = save_dir.split('/')[-1]
+    WANDB_DIR = get_project_root()+'/models'
+
+    wandb.init(project=meta_pars['project'], name=WANDB_NAME, tags=meta_pars['tags'], id=wandb_ID, reinit=True, dir=WANDB_DIR)
     wandb.config.update(hyper_pars)
     wandb.config.update(data_pars)
     wandb.config.update(architecture_pars)

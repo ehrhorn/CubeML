@@ -35,7 +35,7 @@ if __name__ == '__main__':
     dataset = data_dir.split('/')[-1]
     meta_pars = {'tags':                [regression_type, dataset, error_func],
                 'group':                regression_type,
-                'project':             'cubeml',
+                'project':             'cubeml_test',
                 'objective':            objective,
                 'pretrained_path':      pretrained_path 
                 }
@@ -59,7 +59,8 @@ if __name__ == '__main__':
     data_pars = {'data_dir':     data_dir,
                 'seq_feat':    ['charge', 'dom_x', 'dom_y', 'dom_z', 'time'], 
                 'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio'],
-                'target':      ['true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'],#['true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z'],#, 'true_muon_entry_position_x', 'true_muon_entry_position_y', 'true_muon_entry_position_z', 'true_muon_energy'],
+                'target':      ['true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'],
+                # 'target':       ['true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z'],
                 'train_frac':  0.100,
                 'val_frac':    0.100,
                 'test_frac':   0.0,

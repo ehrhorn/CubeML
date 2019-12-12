@@ -244,7 +244,6 @@ class LstmPredictLoader(data.Dataset):
     def __init__(self, file, file_keys, targets, scalar_features, seq_features, set_type, train_frac, val_frac, test_frac):   
         # Retrieve wanted cleaning level and transformation
         data_address = 'transform'+str(file_keys['transform'])+'/'
-        print(file)
         with h5.File(file, 'r') as f:
             n_events = f['meta/events'][()]
 
@@ -464,26 +463,26 @@ class FullBatchLoader(data.Dataset):
             # If key does not exist, it means the key hasn't been transformed - it is therefore located at raw/key
             for key in self.seq_features:
                 try:
-                    path = self.prefix+'/'+key
+                    path = self.prefix + '/' + key
                     seq_features[key] = f[path][indices]
                 except KeyError:
-                    path = 'raw/'+key
+                    path = 'raw/' + key
                     seq_features[key] = f[path][indices]        
 
             for key in self.scalar_features:
                 try:
-                    path = self.prefix+'/'+key
+                    path = self.prefix + '/' + key
                     scalar_features[key] = f[path][indices]
                 except KeyError:
-                    path = 'raw/'+key
+                    path = 'raw/' + key
                     scalar_features[key] = f[path][indices]
 
             for key in self.targets:
                 try:
-                    path = self.prefix+'/'+key
+                    path = self.prefix + '/' + key
                     targets[key] = f[path][indices]
                 except KeyError:
-                    path = 'raw/'+key
+                    path = 'raw/' + key
                     targets[key] = f[path][indices]
         
         # Prepare batch for collate_fn
@@ -503,8 +502,7 @@ class FullBatchLoader(data.Dataset):
                 targets_array[i_target] = targets[key][i_batch]
 
             batch.append((seq_array, scalar_array, targets_array))
-        # print(batch[0][0].shape, batch[0][1].shape, batch[0][2].shape)
-        # raise ValueError('lel')
+        
         return batch
 
     def __len__(self):
