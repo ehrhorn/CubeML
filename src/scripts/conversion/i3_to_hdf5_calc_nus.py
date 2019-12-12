@@ -110,6 +110,7 @@ if __name__ == '__main__':
         'retro_crs_prefit_time',
         'retro_crs_prefit_energy',
         'muon_track_length',
+	'no_of_doms'
     ]
 
 
