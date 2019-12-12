@@ -599,7 +599,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     # Save model parameters on W&B AND LOCALLY!
     # Shut down W&B first, if it is already running
     wandb_name = save_dir.split('/')[-1]
-    wandb.init(project=meta_pars['project'], name=wandb_name, tags=meta_pars['tags'], id=wandb_ID, reinit=True)
+    wandb.init(project=meta_pars['project'], name=wandb_name, tags=meta_pars['tags'], id=wandb_ID, reinit=True, dir=get_project_root())
     wandb.config.update(hyper_pars)
     wandb.config.update(data_pars)
     wandb.config.update(architecture_pars)

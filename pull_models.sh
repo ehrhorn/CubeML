@@ -1,3 +1,3 @@
 #!/bin/bash -e
-dvc pull -r models models.dvc
+dvc pull -r models models.dvc wandb.dvc
 

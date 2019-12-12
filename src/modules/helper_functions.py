@@ -806,15 +806,16 @@ def read_h5_directory(data_dir, keys, prefix=None, from_frac = 0, to_frac = 1):
                 values[key][file.stem] = read_h5_dataset(file, key, prefix, from_frac=from_frac, to_frac=to_frac)
     
     # Sort wrt file index
-    values_sorted = {key: np.array([]) for key in keys}
-    for key, dicts in values.items():
-        unsorted = []
-        for ID, vals in dicts.items():
-            unsorted.append((int(ID), vals))
+    values_sorted = sort_wrt_file_id(values)
+    # values_sorted = {key: np.array([]) for key in keys}
+    # for key, dicts in values.items():
+    #     unsorted = []
+    #     for ID, vals in dicts.items():
+    #         unsorted.append((int(ID), vals))
         
-        sorted_list = sorted(unsorted, key=lambda x: x[0])
-        for item in sorted_list:
-            values_sorted[key] = np.append(values_sorted[key], item[1])
+    #     sorted_list = sorted(unsorted, key=lambda x: x[0])
+    #     for item in sorted_list:
+    #         values_sorted[key] = np.append(values_sorted[key], item[1])
 
     return values_sorted
 
@@ -837,7 +838,8 @@ def read_predicted_h5_data(file_address, keys):
                 preds[key][str(dfile)] = f[dfile+'/'+key][:]
 
     # Sort wrt file index
-    values_sorted = {key: np.array([]) for key in keys}
+    values_sorted = sort_wrt_file_id(values) 
+    {key: np.array([]) for key in keys}
     for key, dicts in preds.items():
         unsorted = []
         for ID, vals in dicts.items():
@@ -898,6 +900,19 @@ def sort_pairs(l1, l2, reverse=False):
     l1_sorted = sorted(l1, reverse=reverse)
 
     return l1_sorted, l2_sorted
+
+def sort_wrt_file_id(values):
+    values_sorted = {key: np.array([]) for key in values}
+    for key, dicts in values.items():
+        unsorted = []
+        for ID, vals in dicts.items():
+            unsorted.append((int(ID), vals))
+        
+        sorted_list = sorted(unsorted, key=lambda x: x[0])
+        for item in sorted_list:
+            values_sorted[key] = np.append(values_sorted[key], item[1])
+
+    return values_sorted
 
 def show_train_val_error(x_address, train_address, val_address, save_address=None):
     
