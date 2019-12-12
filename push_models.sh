@@ -1,2 +1,2 @@
 #!/bin/bash -e
-dvc push -r models models.dvc
+dvc push -r models models.dvc wandb.dvc
