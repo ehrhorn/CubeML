@@ -76,7 +76,7 @@ def polar_error(pred, truth, units = 'degrees'):
 
 def directional_error(pred, truth, units = 'degrees'):
     
-    # ensure cartesian coordinates are used
+    #* ensure cartesian coordinates are used
     if 'true_muon_direction_x' in pred and 'true_muon_direction_y' in pred and 'true_muon_direction_z' in pred:
         x_key, y_key, z_key = 'true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'
     elif 'true_neutrino_direction_x' in pred and 'true_neutrino_direction_y' in pred and 'true_neutrino_direction_z' in pred:
@@ -131,5 +131,67 @@ def directional_error_from_cartesian(pred, truth, units = 'degrees'):
     
     return angles
 
-def get_retro_crs_prefit_azi_error(retro_dict, true_dict):
-    pass
+def get_retro_crs_prefit_azi_error(retro_dict, true_dict, units='degrees'):
+    """Calculates the difference in zenith angle between retro_crs_prefit and true values.
+    
+    Arguments:
+        retro_dict {dictionary} -- predictions from retro_crs_prefit with keys as in h5-files. Expects key 'azi'
+        true_dict {dictionary} -- true values as unit vectors with keys 'x', 'y'
+    
+    Keyword Arguments:
+        units {str} -- 'degrees' or 'radians' (default: {'degrees'})
+    
+    Returns:
+        torch.tensor -- difference in polar angle between retro and truth
+    """     
+
+    #* use atan2 to calculate angle 
+    #* - see https://pytorch.org/docs/stable/torch.html#torch.atan
+    pi = 3.14159265359
+
+    xy_truth = torch.tensor([true_dict['x'], true_dict['y']])
+    azi_truth_signed = torch.atan2(xy_truth[1, :], xy_truth[0, :])
+
+    #* Convert retro_crs to signed angle
+    pred_signed = [entry if entry < pi else entry - 2*pi for entry in retro_dict['azi']]
+
+    #? add 180 degrees - retro_crs appears to predict direction neutrino came from and not neutrino direction..
+    pred_signed = torch.tensor([entry-pi if entry > 0 else entry + pi for entry in pred_signed], dtype=azi_truth_signed.dtype)
+    diff = pred_signed-azi_truth_signed
+    true_diff = torch.where(abs(diff)>pi, -2*torch.sign(diff)*pi+diff, diff)
+
+    if units == 'radians':
+        return true_diff 
+
+    elif units == 'degrees':
+        return true_diff*(180/pi)
+
+def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
+    """Calculates the difference in polar angle between retro_crs_prefit and true values.
+    
+    Arguments:
+        retro_dict {dictionary} -- predictions from retro_crs_prefit with keys as in h5-files. Expects key 'zen'
+        true_dict {dictionary} -- true values as unit vectors with keys 'x', 'y', 'z'
+    
+    Keyword Arguments:
+        units {str} -- 'degrees' or 'radians' (default: {'degrees'})
+    
+    Returns:
+        torch.tensor -- difference in polar angle between retro and truth
+    """     
+    
+    pi = 3.14159265359
+
+    x_true, y_true, z_true = true_dict['x'], true_dict['y'], true_dict['z']
+    dir_truth = torch.tensor([x_true, y_true, z_true])
+    length_truth = torch.sum(dir_truth*dir_truth, dim=0)**0.5
+    polar_truth = torch.acos(dir_truth[2, :]/length_truth)
+
+    #? retro_crs seems to predit the direction the neutrino came from and not the neutrinos direction - therefore do a parity.
+    polar_preds = pi-torch.tensor(retro_dict['zen'], dtype=polar_truth.dtype)
+    if units == 'radians':
+        diff = polar_preds-polar_truth
+    elif units == 'degrees':
+        diff = (180/pi)*(polar_preds-polar_truth)
+    
+    return diff

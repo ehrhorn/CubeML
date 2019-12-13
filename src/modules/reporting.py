@@ -94,8 +94,14 @@ class AziPolarHists:
                 wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit = False)
 
 class AziPolarPerformance:
-    '''A class to create azimuthal and polar error plots - one 2D-histogram and two performance plots.
-    '''
+    """A class to create and save performance plots for azimuthal and polar predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell     
+    
+    Raises:
+        KeyError: If an unknown dataset is encountered.
+    
+    Returns:
+        [type] -- Instance of class.
+    """    
 
     def __init__(self, model_dir, wandb_ID=None):
         _, data_pars, _, meta_pars = load_model_pars(model_dir)
@@ -107,6 +113,9 @@ class AziPolarPerformance:
         self.data_dir = data_pars['data_dir']
         self.meta_pars = meta_pars
         self.prefix = prefix
+        self._get_energy_key()
+        self._get_reco_keys()
+
         self.from_frac = from_frac
         self.to_frac = to_frac
         self.wandb_ID = wandb_ID
@@ -119,7 +128,18 @@ class AziPolarPerformance:
         keys = self._get_keys()
         data_dict = read_predicted_h5_data(full_pred_address, keys)
         return data_dict
-    
+
+    def _get_energy_key(self):
+        dataset_name = get_dataset_name(self.data_dir)
+
+        if dataset_name == 'MuonGun_Level2_139008':
+            self.energy_key = ['true_muon_energy']
+        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
+            self.energy_key = ['true_neutrino_energy']
+        else:
+            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
+        
+
     def _get_pred_path(self):
         path_to_data = get_project_root() + self.model_dir + '/data'
         for file in Path(path_to_data).iterdir():
@@ -135,20 +155,27 @@ class AziPolarPerformance:
             keys.append(func.__name__)
         return keys
 
-    def calculate(self):
-        # Read data
-        try:
-            energy = read_h5_directory(self.data_dir, ['true_neutrino_energy'], self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
-        except KeyError:
-            energy = read_h5_directory(self.data_dir, ['true_muon_energy'], self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+    def _get_reco_keys(self):
+        dataset_name = get_dataset_name(self.data_dir)
 
-        # Transform back and extract values into list
+        if dataset_name == 'MuonGun_Level2_139008':
+            self._reco_keys = None
+        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
+            self._reco_keys = ['retro_crs_prefit_azi', 'retro_crs_prefit_zen']
+            self._true_xyz = ['true_neutrino_direction_x', 'true_neutrino_direction_y',  'true_neutrino_direction_z']
+        else:
+            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
+
+
+    def calculate(self):
+        energy = read_h5_directory(self.data_dir, self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+
+        #* Transform back and extract values into list
         energy = inverse_transform(energy, get_project_root() + self.model_dir)
         energy = [y for _, y in energy.items()]
         energy = [x[0] for x in energy[0]]
-        self.bin_edges = np.linspace(min(energy), max(energy), 13)
-
-        # Calculate performance as a fn of energy for polar and azi errors
+        self.counts, self.bin_edges = np.histogram(energy, bins=12)
+        
         polar_error = self.data_dict['polar_error']
         print('\nCalculating polar performance...')
         self.polar_sigmas, self.polar_errors = calc_perf2_as_fn_of_energy(energy, polar_error, self.bin_edges)
@@ -159,22 +186,78 @@ class AziPolarPerformance:
         self.azi_sigmas, self.azi_errors = calc_perf2_as_fn_of_energy(energy, azi_error, self.bin_edges)
         print('Calculation finished!')
 
-    def get_polar_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.polar_sigmas], 'yerr': [self.polar_errors], 'xlabel': r'log(E) [GeV]', 'ylabel': 'Error [Deg]'}
+        #* If an I3-reconstruction exists, get it
+        if self._reco_keys:
+            azi_crs = read_h5_directory(self.data_dir, self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+            true = read_h5_directory(self.data_dir, self._true_xyz, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+
+            #* Ensure keys are proper so the angle calculations work
+            true = inverse_transform(true, get_project_root() + model_dir)
+            azi_crs = convert_keys(azi_crs, [key for key in azi_crs], ['azi', 'zen'])
+            true = convert_keys(true, [key for key in true], ['x', 'y', 'z'])
+
+            azi_crs_error = get_retro_crs_prefit_azi_error(azi_crs, true)
+            polar_crs_error = get_retro_crs_prefit_polar_error(azi_crs, true)
+
+            print('\nCalculating crs polar performance...')
+            self.polar_crs_sigmas, self.polar_crs_errors = calc_perf2_as_fn_of_energy(energy, polar_crs_error, self.bin_edges)
+            print('Calculation finished!')
+
+            azi_error = self.data_dict['azi_error']
+            print('\nCalculating crs azimuthal performance...')
+            self.azi_crs_sigmas, self.azi_crs_errors = calc_perf2_as_fn_of_energy(energy, azi_crs_error, self.bin_edges)
+            print('Calculation finished!')            
+
+            #* Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive result
+            a, b = calc_relative_error(self.polar_crs_sigmas, self.polar_sigmas, self.polar_crs_errors, self.polar_errors)
+            self.polar_relative_improvements, self.polar_sigma_improvements = -a, b
+            a, b = calc_relative_error(self.azi_crs_sigmas, self.azi_sigmas, self.azi_crs_errors, self.azi_errors)
+            self.azi_relative_improvements, self.azi_sigma_improvements = -a, b
+        else:
+            self.polar_relative_improvements = None
+            self.polar_sigma_improvements = None
+            self.azi_relative_improvements = None
+            self.azi_sigma_improvements = None
 
     def get_azi_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.azi_sigmas], 'yerr': [self.azi_errors], 'xlabel': r'log(E) [GeV]', 'ylabel': 'Error [Deg]'}
+        return {'edges': [self.bin_edges], 'y': [self.azi_sigmas], 'yerr': [self.azi_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [Deg]', 'grid': False}
+    
+    def get_energy_dict(self):
+        return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+
+    def get_polar_dict(self):
+        return {'edges': [self.bin_edges], 'y': [self.polar_sigmas], 'yerr': [self.polar_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [Deg]', 'grid': False}
+
+    def get_rel_azi_dict(self):
+        return {'edges': [self.bin_edges], 'y': [self.azi_relative_improvements], 'yerr': [self.azi_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
+
+    def get_rel_polar_dict(self):
+        return {'edges': [self.bin_edges], 'y': [self.polar_relative_improvements], 'yerr': [self.polar_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
 
     def save(self):
 
-        # Save Azi first
+        #* Save Azi first
         perf_savepath = get_project_root()+self.model_dir+'/data/AziErrorPerformance.pickle'
         img_address = get_project_root()+self.model_dir+'/figures/AziErrorPerformance.png'
         d = self.get_azi_dict()
-        d['savefig'] = img_address
-        _ = make_plot(d)
+        h_fig = make_plot(d)
+        
+        if self._reco_keys:
+            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
+            d = self.get_rel_azi_dict()
+            d['subplot'] = True
+            d['axhline'] = [0.0]
+            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
+            d_energy = self.get_energy_dict()
+            d_energy['savefig'] = img_address
+            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
+        else:
+            h_fig = make_plot(d)
+            d_energy = self.get_energy_dict()
+            d_energy['savefig'] = img_address
+            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
 
-        # Load img with PIL - this format can be logged
+        #* Load img with PIL - this format can be logged
         if self.wandb_ID is not None:
             im = PIL.Image.open(img_address)
             wandb.log({'AziErrorPerformance': wandb.Image(im, caption='AziErrorPerformance')}, commit = False)
@@ -182,14 +265,28 @@ class AziPolarPerformance:
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
         
-        # Save polar next
+        #* Save polar next
         perf_savepath = get_project_root()+self.model_dir+'/data/PolarErrorPerformance.pickle'
         img_address = get_project_root()+self.model_dir+'/figures/PolarErrorPerformance.png'
         d = self.get_polar_dict()
-        d['savefig'] = img_address
-        _ = make_plot(d)
+        h_fig = make_plot(d)
+        
+        if self._reco_keys:
+            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
+            d = self.get_rel_polar_dict()
+            d['subplot'] = True
+            d['axhline'] = [0.0]
+            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
+            d_energy = self.get_energy_dict()
+            d_energy['savefig'] = img_address
+            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
+        else:
+            h_fig = make_plot(d)
+            d_energy = self.get_energy_dict()
+            d_energy['savefig'] = img_address
+            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
 
-        # Load img with PIL - this format can be logged
+        #* Load img with PIL - this format can be logged
         if self.wandb_ID is not None:
             im = PIL.Image.open(img_address)
             wandb.log({'PolarErrorPerformance': wandb.Image(im, caption='PolarErrorPerformance')}, commit = False)
@@ -327,85 +424,93 @@ def log_performance_plots(model_dir, wandb_ID=None):
         print('Unknown regression type - no plots have been produced.')
     print(strftime("%d/%m %H:%M", localtime()), ': Logging finished!')
 
-def make_plot(plot_dict):
-    '''A custom plot function using PyPlot. If 'x' AND 'y' are in plot_dict, a xy-graph is returned, if 'data' is given, a histogram is returned. 
+def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 0.775, 0.77]):
+    """A custom plot function using PyPlot. If 'x' AND 'y' are in plot_dict, a xy-graph is returned, if 'data' is given, a histogram is returned.
+    
+    Arguments:
+        plot_dict {dictionary} -- a dictionary with custom keywords, see each plotting function.
+    
+    Keyword Arguments:
+        h_figure {plt.figure_handle} -- a figure handle to plot more stuff to (default: {None})
+        axes_index {int} -- which axis to plot on (in case of several axes on one figure) (default: {None})
+        position {list} -- the position of the plot as [x_left_lower_corner, y_left_lower_corner, width, height] (default: {[0.125, 0.11, 0.775, 0.77]})
+    
+    Raises:
+        ValueError: If unknown plot wanted
+    
+    Returns:
+        [plt.figure_handle] -- handle to figure.
+    """    
+    
+    plt.style.use('default')
+    alpha = 0.25
+    if 'grid' in plot_dict:
+        grid_on = plot_dict['grid']
+    else:
+        grid_on = True
 
-    Example dictionary: 
-    plot_dict = {'data': [set1, set2], 'xlabel': '<LABEL_NAME>', 'ylabel': '<LABEL_NAME>', 'label':['<PLOT1_NAME>', '<PLOT2_NAME>']}
-
-    Input: Figure dictionary
-    Output: Figure handle
-    '''
-    # Make a xy-plot
-    if 'x' in plot_dict and 'y' in plot_dict:
-        alpha = 0.5
-        plt.style.use('default')
+    if h_figure == None:
 
         h_figure = plt.figure()
-        h_subfig = plt.subplot(1, 1, 1)
-        if 'xlabel' in plot_dict: h_subfig.set_xlabel(plot_dict['xlabel'])
-        if 'ylabel' in plot_dict: h_subfig.set_ylabel(plot_dict['ylabel'])
+        h_axis = h_figure.add_axes(position)
+
+    if 'twinx' in plot_dict and h_figure != None:
+        if plot_dict['twinx']:
+            if axes_index == None:
+                h_axis = h_figure.axes[0].twinx()
+            else:
+                h_axis = h_figure.axes[axes_index].twinx()
+    
+    if 'subplot' in plot_dict:
+        h_axis = h_figure.add_axes(position)
+    
+    #* Make a xy-plot
+    if 'x' in plot_dict and 'y' in plot_dict:
+        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
+        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
         
         for i_set, dataset in enumerate(plot_dict['y']):
             plot_keys = ['label']
-            # Set baseline
+            #* Set baseline
             d = {'linewidth': 1.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
             plt.plot(plot_dict['x'][i_set], dataset, **d)
             
-            if 'xscale' in plot_dict: h_subfig.set_xscale(plot_dict['xscale'])
-            if 'yscale' in plot_dict: h_subfig.set_yscale(plot_dict['yscale'])
-        
-        # Plot vertical lines if wanted
-        if 'axvline' in plot_dict:
-            for vline in plot_dict['axvline']:
-                h_subfig.axvline(x=vline, color = 'k', ls = ':')
+            if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
+            if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
             
-        if 'label' in plot_dict: h_subfig.legend()
-        h_subfig.grid(alpha = alpha)
+        if 'label' in plot_dict: h_axis.legend()
         
     elif 'data' in plot_dict:
-        
-        alpha = 0.5
-        plt.style.use('default')
-
-        h_figure = plt.figure()
-        h_subfig = plt.subplot(1, 1, 1)
-        h_subfig.grid(alpha = alpha)
-        if 'xlabel' in plot_dict: h_subfig.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_subfig.set_ylabel(plot_dict['ylabel'])
-        else: h_subfig.set_ylabel('Density')
-
+        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
+        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
 
         for i_set, data in enumerate(plot_dict['data']):
             
-            plot_keys = ['label', 'alpha', 'density']
+            plot_keys = ['label', 'alpha', 'density', 'bins', 'weights', 'histtype', 'log', 'color']
             
-            # Set baseline
+            #* Set baseline
             if len(plot_dict['data']) > 1:
-                d = {'alpha': 0.6, 'density': True, 'bins': 'fd'}
+                d = {'alpha': 0.6, 'density': False, 'bins': 'fd'}
             else:
-                d = {'alpha': 1.0, 'density': True, 'bins': 'fd'}
+                d = {'alpha': 1.0, 'density': False, 'bins': 'fd'}
+
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
+            
             plt.hist(data, **d)
 
-            if 'label' in plot_dict: h_subfig.legend()
+            if 'label' in plot_dict: h_axis.legend()
         
-        if 'yscale' in plot_dict: h_subfig.set_yscale(plot_dict['yscale'])
-        if 'xscale' in plot_dict: h_subfig.set_xscale(plot_dict['xscale'])
+        if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
+        if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
 
     elif 'hist2d' in plot_dict:
 
-        plt.style.use('default')
+        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
 
-        h_figure = plt.figure()
-        h_subfig = plt.subplot(1, 1, 1)
-        if 'xlabel' in plot_dict: h_subfig.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_subfig.set_ylabel(plot_dict['ylabel'])
+        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
 
         set1 = plot_dict['hist2d'][0]
         set2 = plot_dict['hist2d'][1]
@@ -413,25 +518,20 @@ def make_plot(plot_dict):
         if type(set1) == torch.Tensor: set1 = set1.cpu().numpy()
         if type(set2) == torch.Tensor: set2 = set2.cpu().numpy()
 
-        # Get bin-widths
+        #* Get bin-widths
         _, widths1 = np.histogram(set1, bins='fd')
         _, widths2 = np.histogram(set2, bins='fd')
 
-        # Rescale 
+        #* Rescale 
         widths1 = np.linspace(min(widths1), max(widths1), int(0.5 + widths1.shape[0]/4.0))
         widths2 = np.linspace(min(widths2), max(widths2), int(0.5 + widths2.shape[0]/4.0))
         plt.hist2d(set1, set2, bins = [widths1, widths2])
         plt.colorbar()
 
     elif 'hexbin' in plot_dict:
+        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
 
-        plt.style.use('default')
-
-        h_figure = plt.figure()
-        h_subfig = plt.subplot(1, 1, 1)
-        if 'xlabel' in plot_dict: h_subfig.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_subfig.set_ylabel(plot_dict['ylabel'])
+        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
 
         set1 = plot_dict['hexbin'][0]
         set2 = plot_dict['hexbin'][1]
@@ -439,7 +539,7 @@ def make_plot(plot_dict):
         if type(set1) == torch.Tensor: set1 = set1.cpu().numpy()
         if type(set2) == torch.Tensor: set2 = set2.cpu().numpy()
 
-        # Get bin-widths - my attempt to modularize generation of 2d-histograms
+        #* Get bin-widths - my attempt to modularize generation of 2d-histograms
         _, widths1 = np.histogram(set1, bins='fd')
         _, widths2 = np.histogram(set2, bins='fd')
 
@@ -466,7 +566,7 @@ def make_plot(plot_dict):
                 ymin = min(set2)
                 ymax = max(set2)
             
-        # Rescale. Factor of 4 comes form trial and error
+        #* Rescale. Factor of 4 comes form trial and error
         n1 = int(0.5 + widths1.shape[0]/4.0)
         n2 = int(0.5 + widths2.shape[0]/4.0)
         plt.hexbin(set1, set2, gridsize = (n1, n2))
@@ -474,17 +574,11 @@ def make_plot(plot_dict):
         plt.colorbar()
         
     elif 'edges' in plot_dict:
-        alpha = 0.5
-        plt.style.use('default')
+        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
 
-        h_figure = plt.figure()
-        h_subfig = plt.subplot(1, 1, 1)
-        h_subfig.grid(alpha = alpha)
-        if 'xlabel' in plot_dict: h_subfig.set_xlabel(plot_dict['xlabel'])
+        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
 
-        if 'ylabel' in plot_dict: h_subfig.set_ylabel(plot_dict['ylabel'])
-
-        # Calculate bin centers and 'x-error'
+        #* Calculate bin centers and 'x-error'
         centers = []
         xerrs = []
         for edges in plot_dict['edges']:
@@ -499,29 +593,36 @@ def make_plot(plot_dict):
             edges = plot_dict['edges'][i_set]
 
             plot_keys = ['label']
-            # Set baseline
+            #* Set baseline
             d = {'linewidth': 1.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
             
             plt.errorbar(x, y, yerr=yerr, xerr=xerr, fmt='.', **d)
             
-        if 'xscale' in plot_dict: h_subfig.set_xscale(plot_dict['xscale'])
-        if 'yscale' in plot_dict: h_subfig.set_yscale(plot_dict['yscale'])
+        if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
+        if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
 
-        # Plot vertical lines if wanted
-        if 'axvline' in plot_dict:
-            for vline in plot_dict['axvline']:
-                h_subfig.axvline(x=vline, color = 'k', ls = ':')
-            
-        if 'label' in plot_dict: h_subfig.legend()
-        h_subfig.grid(alpha = alpha)
+        if 'label' in plot_dict: h_axis.legend()
 
     else:
         raise ValueError('Unknown plot wanted!')
+    
+    #* Plot vertical lines if wanted
+    if 'axvline' in plot_dict:
+        for vline in plot_dict['axvline']:
+            h_axis.axvline(y=vline, color = 'k', ls = ':')
+    
+    #* ... And horizontal lines
+    if 'axhline' in plot_dict:
+        for hline in plot_dict['axhline']:
+            h_axis.axhline(y=hline, color = 'k', ls = '--')
+
+    if grid_on:
+        h_axis.grid(alpha=alpha)
 
     if 'text' in plot_dict:
-        plt.text(*plot_dict['text'], transform=h_subfig.transAxes)
+        plt.text(*plot_dict['text'], transform=h_axis.transAxes)
     
     if 'savefig' in plot_dict: 
             h_figure.savefig(plot_dict['savefig'])

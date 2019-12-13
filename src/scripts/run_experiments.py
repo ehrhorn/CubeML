@@ -6,8 +6,3 @@ from main_funcs import *
 
 if __name__ == '__main__':
     run_experiments()
-
-
-
-                
-                        
