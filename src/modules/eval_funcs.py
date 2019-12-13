@@ -130,3 +130,6 @@ def directional_error_from_cartesian(pred, truth, units = 'degrees'):
         angles = (180/3.14159)*torch.acos(dot_prods/(length_truth*length_preds))
     
     return angles
+
+def get_retro_crs_prefit_azi_error(retro_dict, true_dict):
+    pass

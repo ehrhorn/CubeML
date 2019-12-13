@@ -639,15 +639,16 @@ def load_model_pars(model_dir):
     '''loads and returns hyper-pars, data-pars, arch-pars and meta-pars from a directory
 
     Input:
-    model_dir: Full path to model directory as a string.
+    model_dir: Path to model directory as a string.
     '''    
-    with open(model_dir+"/architecture_pars.json", 'r') as f: 
+    model_dir = get_path_from_root(model_dir)
+    with open(get_project_root() + model_dir + "/architecture_pars.json", 'r') as f: 
         arch_pars = json.load(f)
-    with open(model_dir+"/data_pars.json", 'r') as f: 
+    with open(get_project_root() + model_dir + "/data_pars.json", 'r') as f: 
         data_pars = json.load(f)
-    with open(model_dir+"/hyper_pars.json", 'r') as f: 
+    with open(get_project_root() + model_dir + "/hyper_pars.json", 'r') as f: 
         hyper_pars = json.load(f)
-    with open(model_dir+"/meta_pars.json", 'r') as f: 
+    with open(get_project_root() + model_dir + "/meta_pars.json", 'r') as f: 
         meta_pars = json.load(f)
     
     return hyper_pars, data_pars, arch_pars, meta_pars

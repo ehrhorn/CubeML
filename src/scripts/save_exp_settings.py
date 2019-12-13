@@ -20,8 +20,8 @@ if __name__ == '__main__':
     # DEFINE SCRIPT OBJECTIVE
     # ========================================================================
 
-    data_dir = '/data/MuonGun_Level2_139008'
-    # data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
+    # data_dir = '/data/MuonGun_Level2_139008'
+    data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
     pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
 
     # Options: 'full_reg', 'direction_reg'
@@ -40,7 +40,7 @@ if __name__ == '__main__':
                 'pretrained_path':      pretrained_path 
                 }
 
-    hyper_pars = {'batch_size':        128,
+    hyper_pars = {'batch_size':        10,
                 'max_epochs':          1,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
@@ -59,15 +59,15 @@ if __name__ == '__main__':
     data_pars = {'data_dir':     data_dir,
                 'seq_feat':    ['charge', 'dom_x', 'dom_y', 'dom_z', 'time'], 
                 'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio'],
-                'target':      ['true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'],
-                # 'target':       ['true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z'],
-                'train_frac':  0.100,
-                'val_frac':    0.100,
+                # 'target':      ['true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'],
+                'target':       ['true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z'],
+                'train_frac':  0.0500,
+                'val_frac':    0.0500,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   0},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      256
+                'val_batch_size':      10
                 }
 
 
