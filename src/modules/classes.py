@@ -7,13 +7,13 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as unpack
 from random import shuffle as shuffler
 from math import sqrt
-# from pynvml.smi import nvidia_smi
+# * from pynvml.smi import nvidia_smi
 
 from src.modules.helper_functions import *
 
-# ======================================================================== 
-# DATALOADERS
-# ========================================================================
+# * ======================================================================== 
+# * DATALOADERS
+# * ========================================================================
 
 class LstmLoader(data.Dataset):
     '''A Pytorch dataloader for LSTM-like NN, which takes sequences and scalar variables as input. 
@@ -23,10 +23,10 @@ class LstmLoader(data.Dataset):
     def __init__(self, directory, file_keys, targets, scalar_features, seq_features, set_type, train_frac, val_frac, test_frac):   
         root = get_project_root()
         directory = root+directory
-        # Retrieve wanted cleaning level and transformation
+        # * Retrieve wanted cleaning level and transformation
         data_address = 'transform'+str(file_keys['transform'])+'/'
     
-        # Loop over files in directory - first time to get number of datapoints
+        # * Loop over files in directory - first time to get number of datapoints
         n_data = 0
         for file in Path(directory).iterdir():
             
@@ -39,14 +39,14 @@ class LstmLoader(data.Dataset):
                     elif set_type == 'val': n_data += n_val
                     else: n_data += n_test
 
-        # Initialize dataholders
-        # print('%s: n_data: %d'%(set_type, n_data))
+        # * Initialize dataholders
+        # * print('%s: n_data: %d'%(set_type, n_data))
         self.scalar_features = {key: np.empty(n_data) for key in scalar_features}
         self.seq_features = {key: [[] for i in range(n_data)] for key in seq_features}
         self.targets = {key: np.empty(n_data) for key in targets}
         
         added = 0
-        # Actually load the data
+        # * Actually load the data
         for file in Path(directory).iterdir():
             
             if str(file).split('.')[-1] == 'h5':
@@ -54,7 +54,7 @@ class LstmLoader(data.Dataset):
                 with h5.File(file, 'r') as f:
                     n_events = f['meta/events'][()]
                     
-                    # Get indices
+                    # * Get indices
                     if set_type == 'train':
                         indices, _, _ = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
                     elif set_type == 'val':
@@ -62,7 +62,7 @@ class LstmLoader(data.Dataset):
                     else:
                         _, _, indices = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
                     
-                    # Append to or make dictionaries of data
+                    # * Append to or make dictionaries of data
                     n_to_add = len(indices)
                     for key in scalar_features:
                         
@@ -70,7 +70,7 @@ class LstmLoader(data.Dataset):
                             to_add = f[data_address+key][indices]
                             self.scalar_features[key][added:added+n_to_add] = to_add
                         
-                        # If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+                        # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
                         except KeyError:
                             self.scalar_features[key][added:added+n_to_add] = f['raw/'+key][indices]
 
@@ -83,7 +83,7 @@ class LstmLoader(data.Dataset):
                         try:
                             self.targets[key][added:added+n_to_add] = f[data_address+key][indices]
                         
-                        # If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+                        # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
                         except KeyError:
                             self.targets[key][added:added+n_to_add] = f['raw/'+key][indices]
 
@@ -133,11 +133,11 @@ class CnnLoader(data.Dataset):
     ):   
         root = get_project_root()
         directory = root + directory
-        # Retrieve wanted cleaning level and transformation
+        #* Retrieve wanted cleaning level and transformation
         data_address = 'transform' + str(file_keys['transform']) + '/'
         self.longest_seq = longest_seq
     
-        # Loop over files in directory - first time to get number of datapoints
+        #* Loop over files in directory - first time to get number of datapoints
         n_data = 0
         for file in Path(directory).iterdir():
             if str(file).split('.')[-1] == 'h5':
@@ -155,7 +155,7 @@ class CnnLoader(data.Dataset):
                         n_data += n_val
                     else:
                         n_data += n_test
-        # Initialize dataholders
+        #* Initialize dataholders
         self.scalar_features = {
             key: np.empty(n_data) for key in scalar_features
         }
@@ -166,12 +166,12 @@ class CnnLoader(data.Dataset):
         }
         self.targets = {key: np.empty(n_data) for key in targets}
         added = 0
-        # Actually load the data
+        # * Actually load the data
         for file in Path(directory).iterdir():
             if str(file).split('.')[-1] == 'h5':
                 with h5.File(file, 'r') as f:
                     n_events = f['meta/events'][()]
-                    # Get indices
+                    # * Get indices
                     if set_type == 'train':
                         indices, _, _ = get_train_val_test_indices(
                             n_events,
@@ -196,12 +196,12 @@ class CnnLoader(data.Dataset):
                             test_frac=test_frac,
                             shuffle=False
                         )
-                    # Append to or make dictionaries of data
+                    # * Append to or make dictionaries of data
                     n_to_add = len(indices)
                     for key in scalar_features:                        
                         try:
                             self.scalar_features[key][added:added + n_to_add] = f[data_address + key][indices]
-                        # If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+                        # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
                         except KeyError:
                             self.scalar_features[key][added:added + n_to_add] = f['raw/' + key][indices]
                     for key in seq_features:
@@ -211,7 +211,7 @@ class CnnLoader(data.Dataset):
                     for key in targets:
                         try:
                             self.targets[key][added:added + n_to_add] = f[data_address + key][indices]
-                        # If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+                        # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
                         except KeyError:
                             self.targets[key][added:added + n_to_add] = f['raw/' + key][indices]
 
@@ -242,23 +242,23 @@ class LstmPredictLoader(data.Dataset):
     '''Loads a datafile and returns a data.Dataset object for PyTorch's dataloader. The object has the indices of the data from its parent datafile.
     '''
     def __init__(self, file, file_keys, targets, scalar_features, seq_features, set_type, train_frac, val_frac, test_frac):   
-        # Retrieve wanted cleaning level and transformation
+        # * Retrieve wanted cleaning level and transformation
         data_address = 'transform'+str(file_keys['transform'])+'/'
         with h5.File(file, 'r') as f:
             n_events = f['meta/events'][()]
 
-            # Get indices
+            # * Get indices
             if set_type == 'train':
                 indices = get_indices_from_fraction(n_events, 0.0, train_frac)
-                # indices, _, _ = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
+                # * indices, _, _ = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
             elif set_type == 'val':
                 indices = get_indices_from_fraction(n_events, train_frac, train_frac+val_frac)
 
-                # _, indices, _ = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
+                # * _, indices, _ = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
             else:
                 indices = get_indices_from_fraction(n_events, train_frac+val_frac, train_frac+val_frac+test_frac)
 
-                # _, _, indices = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
+                # * _, _, indices = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
 
             self.indices = indices
             self.scalar_features = {}
@@ -269,7 +269,7 @@ class LstmPredictLoader(data.Dataset):
                 try:
                     self.scalar_features[key] = f[data_address+key][indices]
                 
-                # If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+                # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
                 except KeyError:
                     self.scalar_features[key] = f['raw/'+key][indices]
 
@@ -281,7 +281,7 @@ class LstmPredictLoader(data.Dataset):
                 try:
                     self.targets[key] = f[data_address+key][indices]
                 
-                # If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+                # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
                 except KeyError:
                     self.targets[key] = f['raw/'+key][indices]
 
@@ -342,19 +342,19 @@ class SeqScalarTargetLoader(data.Dataset):
 
     def __getitem__(self, index):
 
-        # Find right file
+        # * Find right file
         fname_index = np.searchsorted(self.n_events_including, index, side='right')
         fname = self.file_names[fname_index]
 
         indices_index = index-self.n_events_without[fname_index]
         true_index = self.file_indices[fname][indices_index]
 
-        # Extract relevant data
+        # * Extract relevant data
         with h5.File(fname, 'r', swmr=True) as f:
             
-            # If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+            # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
              
-            # Sequential data
+            # * Sequential data
             for i, key in enumerate(self.seq_features):
                 if i == 0:
                     n_doms = f[self.prefix+key][true_index].shape[0]
@@ -446,21 +446,21 @@ class FullBatchLoader(data.Dataset):
 
         self._get_meta_information()
         self.make_batches()
-        # print(self.batches[0])
+        # * print(self.batches[0])
 
     def __getitem__(self, index):
-        # Find right file and get sorted indices to load
+        # * Find right file and get sorted indices to load
         fname = self.batches[index]['path']
         indices = self.batches[index]['indices']
         
-        # Extract relevant data from h5-file
+        # * Extract relevant data from h5-file
         seq_features = {} 
         scalar_features = {}
         targets = {}
         
         with h5.File(fname, 'r', swmr=True) as f:
             
-            # If key does not exist, it means the key hasn't been transformed - it is therefore located at raw/key
+            # * If key does not exist, it means the key hasn't been transformed - it is therefore located at raw/key
             for key in self.seq_features:
                 try:
                     path = self.prefix + '/' + key
@@ -485,7 +485,7 @@ class FullBatchLoader(data.Dataset):
                     path = 'raw/' + key
                     targets[key] = f[path][indices]
         
-        # Prepare batch for collate_fn
+        # * Prepare batch for collate_fn
         batch = []
         for i_batch in range(self.batch_size):
             
@@ -535,7 +535,7 @@ class FullBatchLoader(data.Dataset):
                     indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac)
                     file_ID = str(ID)
                    
-                    # Ignore last batch if not a full batch
+                    # * Ignore last batch if not a full batch
                     self.file_path[file_ID] = str(file)
                     self.file_indices[file_ID] = indices
                     self.n_batches[file_ID] = int(len(indices)/self.batch_size)
@@ -558,7 +558,7 @@ class FullBatchLoader(data.Dataset):
         
         self.batches = next_epoch_batches
         shuffler(self.batches)
-        # Free up some memory
+        # * Free up some memory
         del batches
         del next_epoch_batches
 
@@ -567,26 +567,26 @@ class PadSequence:
     '''
     def __call__(self, batch):
         
-        # Each element in "batch" is a tuple (sequentialdata, scalardata, label).
-        # Each instance of data is an array of shape (5, *), where 
-        # * is the sequence length
-        # Sort the batch in the descending order
+        # * Each element in "batch" is a tuple (sequentialdata, scalardata, label).
+        # * Each instance of data is an array of shape (5, *), where 
+        # * * is the sequence length
+        # * Sort the batch in the descending order
         sorted_batch = sorted(batch, key=lambda x: x[0].shape[1], reverse=True)
         sequences = [torch.tensor(np.transpose(x[0])) for x in sorted_batch]
 
-        # Also need to store the length of each sequence
-        # This is later needed in order to unpad the sequences
+        # * Also need to store the length of each sequence
+        # * This is later needed in order to unpad the sequences
         lengths = torch.ShortTensor([len(x) for x in sequences])
         
-        # pad_sequence returns a tensor(seqlen, batch, n_features)
+        # * pad_sequence returns a tensor(seqlen, batch, n_features)
         sequences_padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
         
-        # Grab the labels and scalarvars of the *sorted* batch
+        # * Grab the labels and scalarvars of the *sorted* batch
         scalar_vars = torch.Tensor([x[1] for x in sorted_batch])
         targets = torch.Tensor([x[2] for x in sorted_batch])
         return (sequences_padded.float(), lengths, scalar_vars.float()), targets.float()
 
-        # return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
+        # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
 
 class CnnCollater:
     def __call__(self, batch):
@@ -595,35 +595,35 @@ class CnnCollater:
         out_seq = (sequences.float(), )
         return out_seq, targets.float()
 
-# ======================================================================== 
-# DATALOADER FUNCTIONS
-# ========================================================================
+#*======================================================================== 
+#* DATALOADER FUNCTIONS
+#*========================================================================
 
 def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
 
     if 'LstmLoader' == data_pars['dataloader']:
 
-        data_dir = data_pars['data_dir'] # WHere to load data from
-        seq_features = data_pars['seq_feat'] # feature names in sequences (if using LSTM-like network)
-        scalar_features = data_pars['scalar_feat'] # feature names
-        targets = data_pars['target'] # target names
-        train_frac = data_pars['train_frac'] # how much data should be trained on?
-        val_frac = data_pars['val_frac'] # how much data should be used for validation?
-        test_frac = data_pars['test_frac'] # how much data should be used for training
-        file_keys = data_pars['file_keys'] # which cleaning lvl and transform should be applied?
+        data_dir = data_pars['data_dir'] # * WHere to load data from
+        seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
+        scalar_features = data_pars['scalar_feat'] # * feature names
+        targets = data_pars['target'] # * target names
+        train_frac = data_pars['train_frac'] # * how much data should be trained on?
+        val_frac = data_pars['val_frac'] # * how much data should be used for validation?
+        test_frac = data_pars['test_frac'] # * how much data should be used for training
+        file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
 
         dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
     
     elif 'SeqScalarTargetLoader' == data_pars['dataloader']:
 
-        data_dir = data_pars['data_dir'] # WHere to load data from
-        seq_features = data_pars['seq_feat'] # feature names in sequences (if using LSTM-like network)
-        scalar_features = data_pars['scalar_feat'] # feature names
-        targets = data_pars['target'] # target names
-        train_frac = data_pars['train_frac'] # how much data should be trained on?
-        val_frac = data_pars['val_frac'] # how much data should be used for validation?
-        test_frac = data_pars['test_frac'] # how much data should be used for training
-        file_keys = data_pars['file_keys'] # which cleaning lvl and transform should be applied?
+        data_dir = data_pars['data_dir'] # * WHere to load data from
+        seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
+        scalar_features = data_pars['scalar_feat'] # * feature names
+        targets = data_pars['target'] # * target names
+        train_frac = data_pars['train_frac'] # * how much data should be trained on?
+        val_frac = data_pars['val_frac'] # * how much data should be used for validation?
+        test_frac = data_pars['test_frac'] # * how much data should be used for training
+        file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
 
         prefix = 'transform'+str(file_keys['transform'])+'/'
 
@@ -631,14 +631,14 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
     
     elif 'FullBatchLoader' == data_pars['dataloader']:
 
-        data_dir = data_pars['data_dir'] # WHere to load data from
-        seq_features = data_pars['seq_feat'] # feature names in sequences (if using LSTM-like network)
-        scalar_features = data_pars['scalar_feat'] # feature names
-        targets = data_pars['target'] # target names
-        train_frac = data_pars['train_frac'] # how much data should be trained on?
-        val_frac = data_pars['val_frac'] # how much data should be used for validation?
-        test_frac = data_pars['test_frac'] # how much data should be used for training
-        file_keys = data_pars['file_keys'] # which cleaning lvl and transform should be applied?
+        data_dir = data_pars['data_dir'] # * WHere to load data from
+        seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
+        scalar_features = data_pars['scalar_feat'] # * feature names
+        targets = data_pars['target'] # * target names
+        train_frac = data_pars['train_frac'] # * how much data should be trained on?
+        val_frac = data_pars['val_frac'] # * how much data should be used for validation?
+        test_frac = data_pars['test_frac'] # * how much data should be used for training
+        file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
         if keyword == 'train':
             batch_size = hyper_pars['batch_size']
         elif keyword == 'val':
@@ -665,13 +665,13 @@ def load_predictions(data_pars, keyword, file):
     cond3 = 'FullBatchLoader' == data_pars['dataloader']
     if cond1 or cond2 or cond3:
         
-        seq_features = data_pars['seq_feat'] # feature names in sequences (if using LSTM-like network)
-        scalar_features = data_pars['scalar_feat'] # feature names
-        targets = data_pars['target'] # target names
-        train_frac = data_pars['train_frac'] # how much data should be trained on?
-        val_frac = data_pars['val_frac'] # how much data should be used for validation?
-        test_frac = data_pars['test_frac'] # how much data should be used for training
-        file_keys = data_pars['file_keys'] # which cleaning lvl and transform should be applied?
+        seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
+        scalar_features = data_pars['scalar_feat'] # * feature names
+        targets = data_pars['target'] # * target names
+        train_frac = data_pars['train_frac'] # * how much data should be trained on?
+        val_frac = data_pars['val_frac'] # * how much data should be used for validation?
+        test_frac = data_pars['test_frac'] # * how much data should be used for training
+        file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
 
         return LstmPredictLoader(file, file_keys, targets, scalar_features, seq_features, 'val', train_frac, val_frac, test_frac)
     
@@ -706,7 +706,7 @@ def sort_indices(dataset, data_pars, dataloader_params=None):
     if collate_fn == None:
         indices = dataset.indices
     
-    # Since PadSequence sorts each batch wrt the longest sequence, the indices must be sorted aswell!
+    # * Since PadSequence sorts each batch wrt the longest sequence, the indices must be sorted aswell!
     elif collate_fn == 'PadSequence':
         batch_size = dataloader_params['batch_size']
         indices = dataset.indices
@@ -723,13 +723,13 @@ def sort_indices(dataset, data_pars, dataloader_params=None):
         else:
             end = batch_size
 
-        # While a whole batch is extracted, sort per batch
+        # * While a whole batch is extracted, sort per batch
         while end <= n_indices:
             index_seq_pairs[end-batch_size:end] = sorted(index_seq_pairs[end-batch_size:end], key=lambda x: x[1].shape[0], reverse=True)
             
             end += batch_size
         
-        # Sort remaining aswell
+        # * Sort remaining aswell
         index_seq_pairs[end-batch_size:-1] = sorted(index_seq_pairs[end-batch_size:-1], key=lambda x: x[1].shape[0], reverse=True)
 
         indices = [x[0] for x in index_seq_pairs]
@@ -739,9 +739,9 @@ def sort_indices(dataset, data_pars, dataloader_params=None):
 
     return indices
 
-# ======================================================================== 
-# MODELS
-# ========================================================================
+#*======================================================================== 
+#* MODELS
+#*========================================================================
 
 class LSTM2Linear(nn.Module):
     '''Pytorch LSTM Model - maybe LSTM2Linear
@@ -772,38 +772,38 @@ class LSTM2Linear(nn.Module):
 
     def forward(self, batch):
     #def forward(self, seq, lengths, scalars):
-        # Unpack batch - it is calculated in 
-        # seq, lengths, scalars, targets = batch
+        # * Unpack batch - it is calculated in 
+        # * seq, lengths, scalars, targets = batch
         seq, lengths, scalars = batch
         
-        # Reshape input (batch first), torch wants a certain form..
+        # * Reshape input (batch first), torch wants a certain form..
         batch_size = seq.shape[0]
         n_seq_vars = seq.shape[1]
         
         seq_vars = seq.view(batch_size, -1, n_seq_vars)
 
-        # Pack it and send to RNN
+        # * Pack it and send to RNN
         packed = PACK(seq_vars, lengths, batch_first=True)
         
-        # Initialize hidden and cell state to random
+        # * Initialize hidden and cell state to random
         hidden = self.init_hidden(batch_size)
 
-        # Input: (batch, seq_len, n_seq_vars)
-        # hidden: (num_layers * num_directions, batch, hidden_size)
+        # * Input: (batch, seq_len, n_seq_vars)
+        # * hidden: (num_layers * num_directions, batch, hidden_size)
         _, hidden = self.lstm(packed, hidden)
 
-        # Concatenate (and remove redundant dimension)
+        # * Concatenate (and remove redundant dimension)
         hidden = hidden[0].view((batch_size, self.n_hidden[0]))
         last_out = torch.cat((scalars, hidden), 1)
         
-        # Decode with a fully connected layer
+        # * Decode with a fully connected layer
         output = self.hidden2label(last_out)
         
         return output
 
     def init_hidden(self, batch_size):
-        # Initialize hidden and cell states
-        # (num_layers * num_directions, batch, hidden_size)
+        # * Initialize hidden and cell states
+        # * (num_layers * num_directions, batch, hidden_size)
         return (torch.randn(self.n_layers[0], batch_size, self.n_hidden[0]),
                 torch.randn(self.n_layers[0], batch_size, self.n_hidden[0]))
 
@@ -819,48 +819,49 @@ class MakeModel(nn.Module):
         self.device = device
         self.count = 0
 
-    # Input must be a tuple to be unpacked!
+    # * Input must be a tuple to be unpacked!
     def forward(self, batch):
         
-        # For linear layers
+        # * For linear layers
         if len(batch) == 1: 
             x, = batch
 
-        # For RNNs with additional scalar values
+        # * For RNNs with additional scalar values
         if len(batch) == 3: 
             seq, lengths, scalars = batch
             add_scalars = True 
             batch_size = seq.shape[0]
             n_seq_vars = seq.shape[1]
-            # 'Reshape' input (batch first), torch wants a certain form..
-            # seq = seq.view(batch_size, -1, n_seq_vars)
+            # * 'Reshape' input (batch first), torch wants a certain form..
+            # * seq = seq.view(batch_size, -1, n_seq_vars)
         for layer_name, entry in zip(self.layer_names, self.mods):
-            # Handle different layers in different ways! 
+            # * Handle different layers in different ways! 
+            
             if layer_name == 'LSTM':
-                # A padded sequence is expected
-                # Initialize hidden layer
+                # * A padded sequence is expected
+                # * Initialize hidden layer
                 h = self.init_hidden(batch_size, entry, self.device)
 
-                # Send to LSTM!
+                # * Send to LSTM!
                 seq = pack(seq, lengths, batch_first=True)
                 
                 seq, h = entry(seq, h)
                 x, _ = h
                 seq, lengths = unpack(seq, batch_first=True)
                 if entry.bidirectional:
-                    # Add hidden states from forward and backward pass to encode information
+                    # * Add hidden states from forward and backward pass to encode information
                     seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
                     x = (x[0,:,:] + x[1,:,:]) 
                 else:
                     x = x.view(batch_size, entry.hidden_size)
             
             elif layer_name == 'Linear':
-                # If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
+                # * If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
                 if 'scalars' in locals(): 
                     if add_scalars: 
                         x, add_scalars = self.concat_scalars(x, scalars)
                 
-                # Send through layers!
+                # * Send through layers!
                 x = entry(x)
             
             elif layer_name == 'Conv1d':
@@ -869,8 +870,11 @@ class MakeModel(nn.Module):
             elif layer_name == 'Linear_embedder':
                 seq = entry(seq)
             
+            elif layer_name == 'SelfAttention':
+                seq = entry((seq, lengths))
+
             else:
-                raise ValueError('An unknown Module could not be processed.')
+                raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
 
         return x
 
@@ -879,20 +883,56 @@ class MakeModel(nn.Module):
         if layer.bidirectional: num_dir = 2
         else: num_dir = 1
 
-        # Initialize hidden and cell states - to either random nums or 0's
-        # (num_layers * num_directions, batch, hidden_size)
+        # * Initialize hidden and cell states - to either random nums or 0's
+        # * (num_layers * num_directions, batch, hidden_size)
         return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
                 torch.zeros(num_dir, batch_size, hidden_size, device=device))
-        # return (torch.randn(num_dir, batch_size, hidden_size, device=device),
-        #         torch.randn(num_dir, batch_size, hidden_size, device=device))
+        # * return (torch.randn(num_dir, batch_size, hidden_size, device=device),
+        # *         torch.randn(num_dir, batch_size, hidden_size, device=device))
     
     def concat_scalars(self, x, scalars):
-        # x and scalars must be of shape (batch, features)
+        # * x and scalars must be of shape (batch, features)
         return torch.cat((x, scalars), 1), False
 
-# ======================================================================== 
-# MODEL FUNCTIONS
-# ========================================================================
+class SelfAttention(nn.Module):
+    """Implementation of Self Attention as described in 'Attention is All You Need'
+    (or https://jalammar.github.io/illustrated-transformer/) - calculates query-, key- and valuevectors, softmaxes and scales the dotproducts and returns weighted sum of values vectors.
+    
+    Returns:
+        nn.Module -- A Self-attention layer 
+    """
+    def __init__(self, arch_dict, layer_dict, n_in, n_out):
+                
+        super(SelfAttention, self).__init__()
+        self.arch_dict = arch_dict
+        self.layer_dict = layer_dict
+        self.n_in = n_in
+        self.n_out = n_out
+
+        self.Q = nn.Linear(in_features=n_in, out_features=n_out, bias=False)
+        self.K = nn.Linear(in_features=n_in, out_features=n_out, bias=False)
+        self.V = nn.Linear(in_features=n_in, out_features=n_out, bias=False)
+        self.softmax = nn.Softmax(dim=-1)
+    
+    def forward(self, args):
+        seq, lengths = args
+        q = self.Q(seq)
+        k = self.K(seq)
+        v = self.V(seq)
+        print(q.shape, k.shape, v.shape)
+        print(lengths)
+        # * The matrix multiplication is always done with using the last two dimensions
+        # * The transpose means swap second to last and last dimension
+        dotprods = torch.matmul(q, k.transpose(-2, -1))
+        print(dotprods[-1, -1, :])
+        print(seq[-1, -1, :])
+        softmaxed = self.softmax(dotprods)
+        print(softmaxed[5, -1, :], torch.sum(softmaxed[5, -1, :]))
+        
+
+# * ======================================================================== 
+# * MODEL FUNCTIONS
+# * ========================================================================
 
 def add_conv1d(arch_dict, layer_dict):
     n_layers = len(layer_dict['input_sizes']) - 1
@@ -910,7 +950,7 @@ def add_conv1d(arch_dict, layer_dict):
                 dilation=layer_dict['dilations'][i_layer]
             )
         )
-        # init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
+        # * init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
         layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
         layers.append(add_norm(arch_dict, arch_dict['norm'], in_channels))
         if 'pool' in layer_dict:
@@ -947,7 +987,7 @@ def add_linear_embedder(arch_dict, layer_dict):
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
         init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
         # else:
-        #     raise ValueError('Unknown nonlinearity in embedding wanted!')
+        #    raise ValueError('Unknown nonlinearity in embedding wanted!')
         layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
     
     return nn.Sequential(*layers)
@@ -955,24 +995,24 @@ def add_linear_embedder(arch_dict, layer_dict):
 def add_linear_layers(arch_dict, layer_dict):
     n_layers = len(layer_dict['input_sizes'])-1
     
-    # Add n_layers linear layers with non-linearity and normalization
+    # * Add n_layers linear layers with non-linearity and normalization
     layers = []
     for i_layer in range(n_layers):
         isize = layer_dict['input_sizes'][i_layer]
         hsize = layer_dict['input_sizes'][i_layer+1]
 
-        # Add layer and initialize its weights
+        # * Add layer and initialize its weights
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
         init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
 
-        # If last layer, do not add non-linearities or normalization
+        # * If last layer, do not add non-linearities or normalization
         if i_layer+1 == n_layers: continue
 
-        # If not, add non-linearities and normalization in required order
+        # * If not, add non-linearities and normalization in required order
         else:
             if layer_dict['norm_before_nonlin']:
 
-                # Only add normalization layer if wanted!
+                # * Only add normalization layer if wanted!
                 if arch_dict['norm']['norm'] != None:
                     layers.append(add_norm(arch_dict, arch_dict['norm'], hsize))
                 layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
@@ -985,12 +1025,14 @@ def add_linear_layers(arch_dict, layer_dict):
     return nn.Sequential(*layers)
 
 def add_non_lin(arch_dict, layer_dict):
-    if layer_dict['func'] == 'ReLU': return nn.ReLU()
+    if layer_dict['func'] == 'ReLU': 
+        return nn.ReLU()
+    
     elif layer_dict['func'] == 'LeakyReLU':
-
-        if 'negative_slope' in layer_dict: negslope = layer_dict['negative_slope']
-        else: negslope = 0.01
-        
+        if 'negative_slope' in layer_dict: 
+            negslope = layer_dict['negative_slope']
+        else: 
+            negslope = 0.01
         return nn.LeakyReLU(negative_slope = negslope)
 
     else:
@@ -1009,6 +1051,14 @@ def add_norm(arch_dict, layer_dict, n_features):
         return nn.BatchNorm1d(n_features, eps=eps, momentum=mom)
     else: 
         raise ValueError('An unknown normalization could not be added in model generation.')
+
+def add_SelfAttention_layer(arch_dict, layer_dict):
+
+    layers = []
+    for n_in, n_out in zip(layer_dict['input_sizes'][:-1], layer_dict['input_sizes'][1:]):
+        layers.append(SelfAttention(arch_dict, layer_dict, n_in, n_out))
+
+    return nn.Sequential(*layers)
 
 def init_weights(arch_dict, layer_dict, layer):
 
@@ -1035,19 +1085,21 @@ def make_model_architecture(arch_dict):
     for layer in arch_dict['layers']:
         for key, layer_dict in layer.items():
         
-            # has to split, since identical keys would get overwritten in OrderedDict
-            # key = name.split('_')[-1]
+            # * has to split, since identical keys would get overwritten in OrderedDict
+            # * key = name.split('_')[-1]
 
-            # Add modules of LSTMs, since we need to iterate over LSTM layers
+            # * Add modules of LSTMs, since we need to iterate over LSTM layers
             if key == 'LSTM': 
                 modules = add_LSTM_module(arch_dict, layer_dict, modules)
-            # Add a Sequential layer consisting of a linear block with normalization and nonlinearities
+            # * Add a Sequential layer consisting of a linear block with normalization and nonlinearities
             elif key == 'Linear': 
                 modules.append(add_linear_layers(arch_dict, layer_dict))
             elif key == 'Conv1d':
                 modules.append(add_conv1d(arch_dict, layer_dict))
             elif key == 'Linear_embedder':
                 modules.append(add_linear_embedder(arch_dict, layer_dict))
+            elif key == 'SelfAttention':
+                modules.append(add_SelfAttention_layer(arch_dict, layer_dict))
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 
