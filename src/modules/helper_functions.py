@@ -17,8 +17,13 @@ import src.modules.loss_funcs
 
 
 def append_list_and_save(list_address, item):
-    '''Opens or creates a .pickle-file containing a list and appends a number to it.
-    '''
+    """Opens or creates a .pickle-file containing a list and appends a number to it.
+    
+    Arguments:
+        list_address {string} -- Full path to file of interest.
+        item {float} -- Number to add to list.
+    """    
+    
     if Path(list_address).is_file():
         with open(list_address, 'rb') as f:
             to_update = pickle.load(f)
@@ -30,8 +35,17 @@ def append_list_and_save(list_address, item):
             pickle.dump([item], f)
 
 def bin_data(l1, l2, bin_edges):
-    '''Expects sorted lists. Splits lists into several lists induced by l1 and edges.
-    '''
+    """Expects sorted lists. Splits lists into several lists induced by l1 and edges.
+    
+    Arguments:
+        l1 {array-like} -- Dataset of independent variable to create bins from
+        l2 {array-like} -- Dataset of dependent variables.
+        bin_edges {array-like} -- Array of bin edges
+    
+    Returns:
+        l1_bins [List] -- List of lists containing the binned data
+        l2_bins [List] -- List of lists containing the binned data
+    """    
     l1_bins = []
     l2_bins = []
     n = 0
@@ -51,14 +65,14 @@ def delete_nohup_file(path='/src/scripts/nohup.out'):
         pass
 
 def calc_bin_centers(edges):
-    '''Calculates the bin centers of a histogram given a list of bin widths.
+    """Calculates the bin centers of a histogram given a list of bin widths.
     
-    Input
-    edges: list of edges in a histogram
-
-    Output
-    list of bin centers
-    '''
+    Arguments:
+        edges {List} -- list of edges in a histogram
+    
+    Returns:
+        List -- list of bin centers
+    """    
     centers = []
 
     for lower, upper in zip(edges[:-1], edges[1:]):
