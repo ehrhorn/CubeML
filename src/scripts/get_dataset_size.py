@@ -13,8 +13,9 @@ if __name__ == '__main__':
         raise ValueError('No path supplied!')
 
     dataset_name = data_dir.split('/')[-1]
-    n_files, n_events = get_dataset_size(data_dir)
+    n_files, mean, std = get_dataset_size(data_dir)
 
     print('Dataset:', dataset_name)
-    print('# of files:', n_files)
-    print('# of events:', n_events)
+    print('# of files: %d'%(n_files))
+    print('# of events: %d'%(n_files*mean))
+    print('# of events pr. file: %.0f +- %.0f'%(mean, std))

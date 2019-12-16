@@ -12,6 +12,7 @@ from src.modules.main_funcs import *
 description = 'Saves settings for an experiment to be run.'
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument('-r', '--run', action='store_true', help='Runs experiment immediately.')
+parser.add_argument('-t', '--test', action='store_true', help='Initiates testmode - logging is turned off.')
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -104,5 +105,8 @@ if __name__ == '__main__':
         json.dump(json_dict, name)
     
     if args.run:
-        run_experiments()
+        if args.test:
+            run_experiments(log=False)
+        else:
+            run_experiments()
 

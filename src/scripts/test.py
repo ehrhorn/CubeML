@@ -14,25 +14,34 @@ from src.modules.eval_funcs import *
 from src.modules.reporting import make_plot
 # from src.modules.main_funcs import *
 
-def deriv(x, eps):
-        len_x = torch.sum(x*x)**0.5
-        print(len_x)
-        num = 1/(len_x*1+eps)**2
-        print(num)
-        denom = (1-(x[0]/(len_x+eps))**2)**0.5
-        print(denom)
-        return num/denom        
+def deriv(x, y):
+        print(x.shape, y.shape)
+        return (y[1:]-y[:-1])/(x[1:]-x[:-1])
+       
 
 y = torch.tensor([[1.0, 0.0, 0.0]])
 angle_loss = lf.angle_loss()
 loss = []
-x_vals = np.linspace(0.0, 0.1, 100)
+x_vals = np.linspace(0.1, 0.0000, 10000)
 for x0 in x_vals:
         x = torch.tensor([[x0, 0.0, 0.0]])
         loss.append(angle_loss.forward(x, y).item())
+print(len(x_vals), len(loss))
+derivs = deriv(np.array(x_vals), np.array(loss))
+x_derivs = (x_vals[1:]+x_vals[:-1])/2
 
-print(loss)
-plt.plot(x_vals, loss)
+# print(loss)
+# plt.figure()
+# plt.plot(x_vals, loss)
+# plt.figure()
+# plt.plot(x_derivs, derivs)
+#%%
+x = np.linspace(-np.pi, np.pi, 1000)
+loss = 1-np.cos(x)
+loss2 = np.sqrt(loss)
+d = {'x': [x, x], 'y': [loss, loss2], 'label': ['$1 - \cos(x)$', '$\sqrt{1-\cos(x)}$']}
+_ = make_plot(d)
+
 #* #* print(bootstrap_samples)
 #* #%%
 #* fig = make_plot({'data': [dist_sorted, bootstrap_samples]})
@@ -126,9 +135,9 @@ plt.plot(x_vals, loss)
 #* predictor_vals = inverse_transform(predictor_vals, get_project_root() + model_dir)
 #* energy = inverse_transform(energy, get_project_root() + model_dir)
 
-#* expected_keys = ['x', 'y', 'z']
-#* predictor_keys = [key for key in predictor_vals]
-#* true_keys = [key for key in true_vals]
+# expected_keys = ['x', 'y', 'z']
+#! predictor_keys = [key for key in predictor_vals]
+#? true_keys = [key for key in true_vals]
 #* energy_key = [key for key in energy]
 
 #* true_vals = convert_keys(true_vals, true_keys, expected_keys)

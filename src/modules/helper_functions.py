@@ -420,17 +420,28 @@ def get_dataset_name(file_path):
     return name
 
 def get_dataset_size(data_dir):
-    '''Loops over a data directory and returns the total number of events
-    '''
-    n_events = 0
+    """Loops over a data directory and returns the total number of events
+    
+    Arguments:
+        data_dir {str} -- relative or full path to data directory
+    
+    Returns:
+        float -- number of files, average number of events per file and std on number of events pr file
+    """    
+    
+    n_events = 0.0
+    n_events_sqr = 0.0
     path = get_project_root() + get_path_from_root(data_dir)
-    n_files = 0
+    n_files = 0.0
     for file in Path(path).iterdir():
         if file.suffix == '.h5':  
-            n_files += 1  
+            n_files += 1.0  
             with h5.File(file, 'r') as f:
                 n_events += f['meta/events'][()]
-    return n_files, n_events
+                n_events_sqr += f['meta/events'][()]**2
+    mean = n_events/n_files
+    std = np.sqrt(n_events_sqr/n_files - mean**2)
+    return n_files, mean, std
 
 def get_device(ID=0):
     cuda = 'cuda:'+str(ID)
