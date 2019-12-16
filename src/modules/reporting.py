@@ -261,9 +261,6 @@ class AziPolarPerformance:
         if self.wandb_ID is not None:
             im = PIL.Image.open(img_address)
             wandb.log({'AziErrorPerformance': wandb.Image(im, caption='AziErrorPerformance')}, commit = False)
-
-        with open(perf_savepath, 'wb') as f:
-            pickle.dump(self, f)
         
         #* Save polar next
         perf_savepath = get_project_root()+self.model_dir+'/data/PolarErrorPerformance.pickle'

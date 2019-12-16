@@ -8,60 +8,31 @@ from time import time
 from scipy.stats import norm
 
 # from src.modules.classes import *
-# from src.modules.loss_funcs import *
+import src.modules.loss_funcs as lf
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 from src.modules.reporting import make_plot
 # from src.modules.main_funcs import *
 
-#* _ = make_plot({'data': [azi_crs_error]})
+def deriv(x, eps):
+        len_x = torch.sum(x*x)**0.5
+        print(len_x)
+        num = 1/(len_x*1+eps)**2
+        print(num)
+        denom = (1-(x[0]/(len_x+eps))**2)**0.5
+        print(denom)
+        return num/denom        
 
-        #* prefix = 'transform'+str(data_pars['file_keys']['transform'])
-        #* from_frac = data_pars['train_frac']
-        #* to_frac = data_pars['train_frac'] + data_pars['val_frac']
+y = torch.tensor([[1.0, 0.0, 0.0]])
+angle_loss = lf.angle_loss()
+loss = []
+x_vals = np.linspace(0.0, 0.1, 100)
+for x0 in x_vals:
+        x = torch.tensor([[x0, 0.0, 0.0]])
+        loss.append(angle_loss.forward(x, y).item())
 
-        #* self.model_dir = get_path_from_root(model_dir)
-#* [0.125, 0.11, 0.775, 0.77]
-#* azipolar.save()
-
-#* for key, item in azi.data_dict.items():
-#*    print(key, item)
-#* #%%
-#* n = 1000
-#* n_bootstraps = 1000
-#* dist_sorted = np.random.normal(size=n)
-#* dist_sorted.sort()
-#* indices = np.arange(0, n)
-
-
-#* p = 0.75
-#* sigma = np.sqrt(p*n*(1-p))
-#* mean = int(n*p)
-#* plussigma = int(mean+sigma+1)
-#* minussigma = int(mean-sigma-1)
-#* print(mean, plussigma, minussigma)
-#* print('True: %.3f [%.3f, %.3f]'%(norm.ppf(p), norm.ppf(p+np.sqrt(p*(1-p)/n)), norm.ppf(p-np.sqrt(p*(1-p)/n))))
-
-
-#* #* bootstrap
-#* bootstrap_indices = np.random.choice(indices, size=(n, n_bootstraps))
-#* bootstrap_indices.sort(axis=0)
-#* #* print(bootstrap_indices)
-#* bootstrap_samples = dist_sorted[bootstrap_indices]
-
-#* bootstrap_mean = bootstrap_samples[mean, :]
-#* bootstrap_plussigma = bootstrap_samples[plussigma, :]
-#* bootstrap_minussigma = bootstrap_samples[minussigma , :]
-#* fig = make_plot({'data': [bootstrap_mean, bootstrap_plussigma, bootstrap_minussigma]})
-#* bootstrap_estimate_mean = np.mean(bootstrap_mean)
-#* bootstrap_estimate_plussigma = np.mean(bootstrap_plussigma)
-#* bootstrap_estimate_minussigma = np.mean(bootstrap_minussigma)
-#* print('Estimate: %.3f [%.3f, %.3f]'%(bootstrap_estimate_mean, bootstrap_estimate_plussigma, bootstrap_estimate_minussigma))
-
-
-
-
-
+print(loss)
+plt.plot(x_vals, loss)
 #* #* print(bootstrap_samples)
 #* #%%
 #* fig = make_plot({'data': [dist_sorted, bootstrap_samples]})
