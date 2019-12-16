@@ -596,9 +596,12 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
 
     if log:
         save_dir = make_model_dir(group, data_dir, file_keys, project)
-    wandb_ID = save_dir.split('/')[-1]
+        wandb_ID = save_dir.split('/')[-1]
     
-    print('Model saved at', save_dir)
+        print('Model saved at', save_dir)
+    else:
+        save_dir = None
+        wandb_ID = None
 
     #* If training is on a pretrained model, copy and update data- and hyperpars with potential new things
     if meta_pars['objective'] == 'continue_training':
