@@ -22,46 +22,57 @@ def h5_groups_reader(data_file):
     return groups
 
 
-def h5_variables_reader(DATA_SETS, group):
+def h5_variables_reader(data_set, group):
     variables = {}
-    for data_set in DATA_SETS:
-        variables[data_set.stem] = []
-        with File(data_set, 'r') as f:
-            array_iter = f.root.histograms._f_get_child(group).values.__iter__()
-            for array in array_iter:
-                variables[data_set.stem].append(array._v_name)
+    variables[data_set.stem] = []
+    with File(data_set, 'r') as f:
+        array_iter = f.root.histograms._f_get_child(group).values.__iter__()
+        for array in array_iter:
+            variables[data_set.stem].append(array._v_name)
     return variables
 
 
-HISTS_DIR = Path('/home/mads/')
-DATA_SETS = [
+HISTS_DIR = Path(__file__).resolve().parent
+DATA_SETS = sorted([
     f for f in HISTS_DIR.glob('*.h5') if f.is_file() and f.stem != 'geom'
-]
+])
 
-groups = h5_groups_reader(DATA_SETS[0])
+data_set = st.sidebar.selectbox(
+    label='Chose particle type',
+    options=DATA_SETS,
+    format_func=lambda x: x.stem
+)
+
+groups = h5_groups_reader(data_set)
 
 group = st.sidebar.selectbox(
     label='Choose transform',
     options=groups
 )
 
-variables = h5_variables_reader(DATA_SETS, group)
+variables = h5_variables_reader(data_set, group)
 
 variable = st.sidebar.selectbox(
     label='Choose variable',
-    options=variables[DATA_SETS[0].stem],
+    options=variables[data_set.stem],
     format_func=lambda x: x.replace('muon', 'particle')
 )
 
-hist, edges = h5_file_reader(DATA_SETS[0], group, variable)
+hist, edges = h5_file_reader(data_set, group, variable)
 centers = (edges[:-1] + edges[1:]) / 2
+width = edges[1] - edges[0]
 
 fig = go.Figure(
     data=go.Bar(
         x=centers,
-        y=hist
+        y=hist,
+        width=width
     )
 )
-if variable == 'dom_charge':
+if variable == 'dom_charge' or variable == 'dom_n_hit_multiple_doms' or variable == 'retro_crs_prefit_energy':
     fig.update_layout(yaxis_type='log')
+fig.update_traces(
+    marker_color='black',
+    marker_line_color='black',
+)
 st.plotly_chart(fig)
