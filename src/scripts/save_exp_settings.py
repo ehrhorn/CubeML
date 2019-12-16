@@ -83,7 +83,8 @@ if __name__ == '__main__':
                         'norm':                {'norm':      None, #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 32, 64]}},
+                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64]}},
+                                                {'SelfAttention':   {'input_sizes':        [64, 64]}},
                                                 {'LSTM':            {'input_sizes':        [64, 128],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       True}},

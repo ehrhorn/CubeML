@@ -576,7 +576,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
 
     #* ======================================================================== #
     #* START TRAINING
-    #* ======================================================================== #* 
+    #* ======================================================================== # 
            
     print('Training begun')
     trainer.run(train_generator, max_epochs=max_epochs)
@@ -597,7 +597,6 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     if log:
         save_dir = make_model_dir(group, data_dir, file_keys, project)
         wandb_ID = save_dir.split('/')[-1]
-    
         print('Model saved at', save_dir)
     else:
         save_dir = None
