@@ -203,7 +203,8 @@ if __name__ == '__main__':
 
         # Get the uncleaned pulses
         # <icecube.dataclasses.I3RecoPulseSeriesMap>
-        uncleaned_pulses = frame['SplitInIcePulses'].apply(frame)
+        # uncleaned_pulses = frame['SplitInIcePulses'].apply(frame)
+        uncleaned_pulses = frame['SRTInIcePulses'].apply(frame)
 
         dom_geom = frame['I3Geometry'].omgeo
 
