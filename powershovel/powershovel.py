@@ -61,7 +61,7 @@ def meta_data(events_file, group):
     """
     with File(events_file, 'r') as f:
         data = f.root.__getattr__(group)
-        all_integrated_charge = data.charge.read()
+        all_integrated_charge = data.dom_charge.read()
         integrated_charge = list(
             map(
                 sum,
@@ -74,7 +74,7 @@ def meta_data(events_file, group):
         try:
             all_energy = f.root.raw.true_muon_energy.read()
         except:
-            all_energy = f.root.raw.true_neutrino_energy.read()
+            all_energy = f.root.raw.true_primary_energy.read()
         toi_eval_ratios = f.root.raw.toi_evalratio.read()
         toi_ratios = pd.Series(toi_eval_ratios)
         energy = pd.Series(all_energy)
@@ -108,7 +108,7 @@ def read_event(events_file, event_no, group):
         vlen_dict = {}
         scalar_dict = {}
         data = f.root.__getattr__(group)
-        all_integrated_charge = data.charge.read()
+        all_integrated_charge = data.dom_charge.read()
         integrated_charge = list(
             map(
                 sum,
@@ -136,25 +136,25 @@ def read_event(events_file, event_no, group):
             else:
                 scalar_dict[key] = event[key]
         activations = pd.DataFrame.from_dict(vlen_dict)
-        temp_charge = np.array(f.root.raw.charge.read(
+        temp_charge = np.array(f.root.raw.dom_charge.read(
             start=event_no,
             stop=event_no + 1
         ))
-        activations.charge.loc[activations.charge > 20] = 20
-        activations.charge = (
+        activations.dom_charge.loc[activations.dom_charge > 20] = 20
+        activations.dom_charge = (
             (
-                activations.charge - min_charge
+                activations.dom_charge - min_charge
             )
             / (
                 max_charge - min_charge
             )
         )
-        activations.time = (
+        activations.dom_time = (
             (
-                activations.time - activations.time.min()
+                activations.dom_time - activations.dom_time.min()
             )
             / (
-                activations.time.max() - activations.time.min()
+                activations.dom_time.max() - activations.dom_time.min()
             )
         )
         truth = pd.DataFrame.from_dict(scalar_dict)
@@ -177,7 +177,7 @@ def direction_vectors(truth, scale):
     """
     output = {'true': [], 'toi': []}
     keys = []
-    keys.append(['true_' + particle_type_dict[data_set] + '_entry_position', 'true_' + particle_type_dict[data_set] + '_direction'])
+    keys.append(['true_primary_position', 'true_primary_direction'])
     keys.append(['toi_point_on_line', 'toi_direction'])
     keys_iter = iter(keys)
     for output_type in output:
@@ -193,9 +193,9 @@ def direction_vectors(truth, scale):
         z = [pol_z - dir_z, dir_z + pol_z]
         output[output_type] = (x, y, z)
     output['entry'] = (
-        truth['true_' + particle_type_dict[data_set] + '_entry_position_x'].values[0],
-        truth['true_' + particle_type_dict[data_set] + '_entry_position_y'].values[0],
-        truth['true_' + particle_type_dict[data_set] + '_entry_position_z'].values[0]
+        truth['true_primary_position_x'].values[0],
+        truth['true_primary_position_y'].values[0],
+        truth['true_primary_position_z'].values[0]
     )
     return output
 
@@ -216,7 +216,7 @@ def direction_vectors2(truth, scale):
     """
     output = {'true': []}
     keys = []
-    keys.append(['true_' + particle_type_dict[data_set] + '_entry_position', 'true_' + particle_type_dict[data_set] + '_direction'])
+    keys.append(['true_primary_entry_position', 'true_primary_direction'])
     keys_iter = iter(keys)
     for output_type in output:
         key = next(keys_iter)
@@ -249,7 +249,7 @@ def create_animation(data, template):
         y='dom_y',
         z='dom_z',
         animation_frame='bin',
-        size='charge',
+        size='dom_charge',
         template=template,
         range_x=[-axis_lims, axis_lims],
         range_y=[-axis_lims, axis_lims],
@@ -277,14 +277,14 @@ def create_static(
 
     """
     # Create plot of activations
-    truth = direction_vectors(truth, 2000)
+    vectors = direction_vectors(truth, 2000)
     fig = px.scatter_3d(
         activations,
         x='dom_x',
         y='dom_y',
         z='dom_z',
-        size='charge',       
-        color='time',
+        size='dom_charge',       
+        color='dom_time',
         template=template,
         range_x=[-axis_lims, axis_lims],
         range_y=[-axis_lims, axis_lims],
@@ -293,6 +293,7 @@ def create_static(
         range_color=time_range,
         size_max=20
     )
+    st.write(truth)
     # Add DOM geometry
     fig.add_scatter3d(
         x=geom.x,
@@ -304,26 +305,37 @@ def create_static(
     )
     if 'Truth' in superpose:
         fig.add_scatter3d(
-            x=truth['true'][0],
-            y=truth['true'][1],
-            z=truth['true'][2],
+            x=vectors['true'][0],
+            y=vectors['true'][1],
+            z=vectors['true'][2],
             mode='lines',
             name='Truth',
             marker={'size': 6.0, 'color': 'red'}
         )
         fig.add_scatter3d(
-            x=[truth['entry'][0]],
-            y=[truth['entry'][1]],
-            z=[truth['entry'][2]],
+            x=[vectors['entry'][0]],
+            y=[vectors['entry'][1]],
+            z=[vectors['entry'][2]],
             marker={'color': 'red'},
             mode='markers',
             name='Entry'
         )
+        fig.add_trace(
+            go.Cone(
+                x=[vectors['entry'][0]],
+                y=[vectors['entry'][1]],
+                z=[vectors['entry'][2]],
+                u=100 * truth.true_primary_direction_x,
+                v=100 * truth.true_primary_direction_y,
+                w=100 * truth.true_primary_direction_z
+            )
+        )
+
     if 'ToI' in superpose:
         fig.add_scatter3d(
-            x=truth['toi'][0],
-            y=truth['toi'][1],
-            z=truth['toi'][2],
+            x=vectors['toi'][0],
+            y=vectors['toi'][1],
+            z=vectors['toi'][2],
             mode='lines',
             name='ToI',
             marker={'size': 6.0, 'color': 'orange'}
@@ -350,7 +362,7 @@ def selection_func(choice):
         energy_label (str): Stringified energy value.
 
     """
-    label = str(round(select_meta.loc[choice], 2))
+    label = str(round(10**select_meta.loc[choice], 2))
     return label
 
 
@@ -500,13 +512,13 @@ truth_cols = [
     'toi_point_on_line_x',
     'toi_point_on_line_y',
     'toi_point_on_line_z',
-    'true_' + particle_type_dict[data_set] + '_direction_x',
-    'true_' + particle_type_dict[data_set] + '_direction_y',
-    'true_' + particle_type_dict[data_set] + '_direction_z',
-    'true_' + particle_type_dict[data_set] + '_energy',
-    'true_' + particle_type_dict[data_set] + '_entry_position_x',
-    'true_' + particle_type_dict[data_set] + '_entry_position_y',
-    'true_' + particle_type_dict[data_set] + '_entry_position_z',
+    'true_primary_direction_x',
+    'true_primary_direction_y',
+    'true_primary_direction_z',
+    'true_primary_energy',
+    'true_primary_position_x',
+    'true_primary_position_y',
+    'true_primary_position_z',
     'toi_direction_x',
     'toi_direction_y',
     'toi_direction_z',
@@ -522,10 +534,10 @@ transformed_cols = [
     'toi_point_on_line_x',
     'toi_point_on_line_y',
     'toi_point_on_line_z',
-    'true_' + particle_type_dict[data_set] + '_energy',
-    'true_' + particle_type_dict[data_set] + '_entry_position_x',
-    'true_' + particle_type_dict[data_set] + '_entry_position_y',
-    'true_' + particle_type_dict[data_set] + '_entry_position_z'
+    'true_primary_energy',
+    'true_primary_position_x',
+    'true_primary_position_y',
+    'true_primary_position_z'
 ]
 
 groups = group_finder(data_set)
@@ -593,7 +605,7 @@ if show_dists == 'Events':
         events_file = st.sidebar.selectbox(
             'Select file',
             options=events_files,
-            format_func=lambda x: x.stem.split('.')[-1],
+            format_func=lambda x: x.stem,
             index=0
         )
         meta = meta_data(str(events_file), group)
@@ -661,12 +673,11 @@ if show_dists == 'Events':
         event_no,
         group,
     )
-
     true_muon_entry_pos = truth[
         [
-            'true_' + particle_type_dict[data_set] + '_entry_position_x',
-            'true_' + particle_type_dict[data_set] + '_entry_position_y',
-            'true_' + particle_type_dict[data_set] + '_entry_position_z',
+            'true_primary_position_x',
+            'true_primary_position_y',
+            'true_primary_position_z',
         ]
     ]
     if predict_path.exists():
@@ -683,7 +694,7 @@ if show_dists == 'Events':
         event_prediction_df.drop(['index'], axis=1, inplace=True)
         event_prediction_vector = direction_vectors2(event_prediction_df, 1000)
 
-    activations = activations.sort_values('time')
+    activations = activations.sort_values('dom_time')
     time_range = [0, 1]
     st.write(
         'Selected event no. {}, length of event {}, ToI ratio {}, energy {}'
@@ -691,7 +702,7 @@ if show_dists == 'Events':
             event_no,
             len(activations),
             round(truth.toi_evalratio.values[0], 3),
-            float(round(truth['true_' + particle_type_dict[data_set] + '_energy'], 3))
+            float(round(10**truth['true_primary_energy'], 3))
         )
     )
     if predict_path.exists():
@@ -718,7 +729,7 @@ if show_dists == 'Events':
     # Plot plotly figure
     st.plotly_chart(fig, width=0, height=700)
     st.text('Event dataframe:')
-    st.write(activations.sort_values('time'))
+    st.write(activations.sort_values('dom_time'))
     doms_fig = px.histogram(meta, x='no_of_doms', log_y=False)
     st.plotly_chart(doms_fig)
     st.write('Mean number of DOMs:', meta.no_of_doms.mean())

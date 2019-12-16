@@ -1,5 +1,5 @@
-from src.modules.main_funcs import evaluate_model
-from src.modules.helper_functions import find_files
+import src.modules.main_funcs as mf
+import src.modules.helper_functions as hf
 import argparse
 
 description = 'Loops over a directory containing a dataset of h5-files and reports the total number of events.'
@@ -13,7 +13,7 @@ if __name__ == '__main__':
     if 'model_dir' not in locals():
         raise ValueError('No path supplied!')
     
-    model_dir = find_files(model_dir)
+    model_dir = hf.find_files(model_dir)
     
     if len(model_dir ) > 1:
         for name in model_dir:
@@ -23,4 +23,4 @@ if __name__ == '__main__':
         model_dir = model_dir[0]
     print(model_dir)
     wandb_ID = model_dir.split('/')[-1]
-    evaluate_model(model_dir, wandb_ID=wandb_ID)
+    mf.evaluate_model(model_dir, wandb_ID=wandb_ID)

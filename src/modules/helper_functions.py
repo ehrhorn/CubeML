@@ -17,8 +17,13 @@ import src.modules.loss_funcs
 
 
 def append_list_and_save(list_address, item):
-    '''Opens or creates a .pickle-file containing a list and appends a number to it.
-    '''
+    """Opens or creates a .pickle-file containing a list and appends a number to it.
+    
+    Arguments:
+        list_address {string} -- Full path to file of interest.
+        item {float} -- Number to add to list.
+    """    
+    
     if Path(list_address).is_file():
         with open(list_address, 'rb') as f:
             to_update = pickle.load(f)
@@ -26,13 +31,21 @@ def append_list_and_save(list_address, item):
         to_update.append(item)
         pickle.dump(to_update, open(list_address, 'wb'))
     else:
-        # print(item)
         with open(list_address, 'wb') as f:
             pickle.dump([item], f)
 
 def bin_data(l1, l2, bin_edges):
-    '''Expects sorted lists. Splits lists into several lists induced by l1 and edges.
-    '''
+    """Expects sorted lists. Splits lists into several lists induced by l1 and edges.
+    
+    Arguments:
+        l1 {array-like} -- Dataset of independent variable to create bins from
+        l2 {array-like} -- Dataset of dependent variables.
+        bin_edges {array-like} -- Array of bin edges
+    
+    Returns:
+        l1_bins [List] -- List of lists containing the binned data
+        l2_bins [List] -- List of lists containing the binned data
+    """    
     l1_bins = []
     l2_bins = []
     n = 0
@@ -52,14 +65,14 @@ def delete_nohup_file(path='/src/scripts/nohup.out'):
         pass
 
 def calc_bin_centers(edges):
-    '''Calculates the bin centers of a histogram given a list of bin widths.
+    """Calculates the bin centers of a histogram given a list of bin widths.
     
-    Input
-    edges: list of edges in a histogram
-
-    Output
-    list of bin centers
-    '''
+    Arguments:
+        edges {List} -- list of edges in a histogram
+    
+    Returns:
+        List -- list of bin centers
+    """    
     centers = []
 
     for lower, upper in zip(edges[:-1], edges[1:]):
@@ -80,7 +93,7 @@ def calc_histogram(sorted_data, n_bins=10, mode='equal_amount'):
     '''
 
     if mode == 'equal_amount':
-        # put equal amount in each bin
+        #*put equal amount in each bin
         edges = [sorted_data[0]]
         entries = []
         
@@ -129,7 +142,7 @@ def calc_MAEs(sorted_data, entries, error_measure='median'):
     '''
     from_to = np.append(0, np.cumsum(entries))
 
-    # calculate MAE
+    #*calculate MAE
     maes = []
     for lower, upper in zip(from_to[:-1], from_to[1:]):
         
@@ -173,7 +186,6 @@ def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
     
-
     sigmas, e_sigmas = [], []
     for entry in predictor_bins:
         means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75])
@@ -181,14 +193,57 @@ def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
         e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
         e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
 
-        # Assume errors are symmetric - which they look to be (quick inspection)
-        # Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
+        #*Assume errors are symmetric - which they look to be (quick inspection)
+        #*Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
         sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
+        
+        #*Ignore nans - it is due to too little statistics in a bin
+        if e_sigma != e_sigma:
+            sigma = np.nan
+            
         sigmas.append(sigma)
         e_sigmas.append(e_sigma)
-    
 
     return sigmas, e_sigmas
+
+def calc_relative_error(l1, l2, e1=None, e2=None):
+    """Calculates the relative error (l2-l1) / l1 wrt the values of l1 and propagates uncertainties if given.
+
+    Arguments:
+        l1 {array-like} -- list of values
+        l2 {array_like} -- list of values, must be equal in length to l1
+
+    Keyword Arguments:
+        e1 {array_like} -- Potential list of errors (default: {None})
+        e2 {array_like} -- potential list of errors (default: {None})
+    
+    Returns:
+        [np.array] -- relative errors, error on relative errors
+    """    
+    
+    if isinstance(l1, list):
+        l1 = np.array(l1)
+    if isinstance(l2, list):
+        l2 = np.array(l2)  
+    
+    if isinstance(e1, list):
+        e1 = np.array(e1) 
+    elif e1 is None:
+        e1 = np.zeros(l1.shape)
+
+    if isinstance(e2, list):
+        e2 = np.array(e2)
+    elif e2 is None:
+        e2 = np.zeros(l2.shape)    
+    
+    rel_e = (l2-l1)/l1
+
+    term1 = (e2/l1)**2
+    term2 = (e1*l2/l1**2)**2
+
+    sigma_e = np.sqrt(term1 + term2)
+
+    return rel_e, sigma_e
 
 def calc_widths(sorted_data, entries, width_measure='iqr'):
     '''Calculates the width-measure ('std' or 'iqr', default = 'iqr', IGNORES NANS) of the data in each bin induced by entries.
@@ -224,6 +279,18 @@ def calc_widths(sorted_data, entries, width_measure='iqr'):
     else:
         return widths
 
+def convert_id_to_int(file_path, id_str):
+    '''A very non-modular conversion of a file ID.. For each new dataset, a new converter must be added.
+    '''
+    dataset = get_dataset_name(file_path)
+    if dataset == 'oscnext-genie-level5-v01-01-pass2':
+        id_stripped = id_str.split('.')[-1]
+        id_int = int(id_stripped.split('__')[0])
+    elif dataset == 'MuonGun_Level2_139008':
+        id_int = int(id_str)
+    
+    return id_int
+
 def convert_iqr_to_sigma(quartiles, e_quartiles):
     '''Converts 75th and 25th percentiles (with errors) to sigma with error.
     
@@ -253,7 +320,7 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
 
     A confidence interval of +-1 sigma is created for each percentile 
     '''
-    # Convert to np-array and sort (if it hasnt been already)
+    #*Convert to np-array and sort (if it hasnt been already)
     data = np.array(data)
     n = data.shape[0]
     data.sort()
@@ -263,7 +330,7 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
 
 
     for percentile in percentiles:
-        # THe order statistic is binomially distributed - we approximate it with a gaussian. 
+        #*THe order statistic is binomially distributed - we approximate it with a gaussian. 
         sigma = np.sqrt(percentile*n*(1-percentile))
         mean = n*percentile
         i_means.append(int(mean))
@@ -271,33 +338,29 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
         i_minussigmas.append(int(mean-sigma))
     
     
-    # bootstrap
+    #*bootstrap
     bootstrap_indices = np.random.choice(np.arange(0, n), size=(n, n_bootstraps))
     bootstrap_indices.sort(axis=0)
-    # print(bootstrap_indices)
     bootstrap_samples = data[bootstrap_indices]
 
+    #*An IndexError is due to too few events in a bin. Set these to NaN, we don't care about bins with very little data, so dont log the error.
     for i in range(len(i_means)):
-        mean = bootstrap_samples[i_means[i], :]
-        means.append(np.mean(mean))
+        
+        try:    
+            mean = bootstrap_samples[i_means[i], :]
+            means.append(np.mean(mean))
 
-        plussigma = bootstrap_samples[i_plussigmas[i], :]
-        plussigmas.append(np.mean(plussigma))
+            plussigma = bootstrap_samples[i_plussigmas[i], :]
+            plussigmas.append(np.mean(plussigma))
 
-        minussigma = bootstrap_samples[i_minussigmas[i], :]
-        minussigmas.append(np.mean(minussigma))
+            minussigma = bootstrap_samples[i_minussigmas[i], :]
+            minussigmas.append(np.mean(minussigma))
+        except IndexError:
+            means.append(np.nan)
+            plussigmas.append(np.nan)
+            minussigmas.append(np.nan)
 
     return means, plussigmas, minussigmas
-    # bootstrap_mean = bootstrap_samples[mean, :]
-    # bootstrap_plussigma = bootstrap_samples[plussigma, :]
-    # bootstrap_minussigma = bootstrap_samples[minussigma , :]
-    # fig = make_plot({'data': [bootstrap_mean, bootstrap_plussigma, bootstrap_minussigma]})
-    # bootstrap_estimate_mean = np.mean(bootstrap_mean)
-    # bootstrap_estimate_plussigma = np.mean(bootstrap_plussigma)
-    # bootstrap_estimate_minussigma = np.mean(bootstrap_minussigma)
-    # print('Estimate: %.3f [%.3f, %.3f]'%(bootstrap_estimate_mean, bootstrap_estimate_plussigma, bootstrap_estimate_minussigma))
-
-
 
 def find_best_model_pars(model_dir):
     '''Scans through saved model parameters in a model directory and returns the parameter-file of the best model.
@@ -342,18 +405,43 @@ def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=N
     
     return dataloader_params
 
-def get_dataset_size(data_dir):
-    '''Loops over a data directory and returns the total number of events
+def get_dataset_name(file_path):
+    '''Given a path to a file, the dataset name is extracted
     '''
-    n_events = 0
+    from_root = get_path_from_root(file_path)
+    from_root_splitted = from_root.split('/')
+    
+    #*Expects the format chosen for the framework
+    if from_root_splitted[1] == 'data' or from_root_splitted[1] == 'models':
+        name = from_root_splitted[2]
+    else:
+        'Unknown format given!'
+    
+    return name
+
+def get_dataset_size(data_dir):
+    """Loops over a data directory and returns the total number of events
+    
+    Arguments:
+        data_dir {str} -- relative or full path to data directory
+    
+    Returns:
+        float -- number of files, average number of events per file and std on number of events pr file
+    """    
+    
+    n_events = 0.0
+    n_events_sqr = 0.0
     path = get_project_root() + get_path_from_root(data_dir)
-    n_files = 0
+    n_files = 0.0
     for file in Path(path).iterdir():
         if file.suffix == '.h5':  
-            n_files += 1  
+            n_files += 1.0  
             with h5.File(file, 'r') as f:
                 n_events += f['meta/events'][()]
-    return n_files, n_events
+                n_events_sqr += f['meta/events'][()]**2
+    mean = n_events/n_files
+    std = np.sqrt(n_events_sqr/n_files - mean**2)
+    return n_files, mean, std
 
 def get_device(ID=0):
     cuda = 'cuda:'+str(ID)
@@ -381,38 +469,38 @@ def get_lr(optimizer):
 
 def get_lr_scheduler(lr_dict, optimizer, batch_size, n_train):
 
-    # Simply multiplies lr by 1 on every iteration - equal to no lr-schedule
+    #*Simply multiplies lr by 1 on every iteration - equal to no lr-schedule
     if lr_dict['lr_scheduler'] == None:
         lambda1 = lambda step: 1.0
         
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
     
     elif lr_dict['lr_scheduler'] == 'CyclicLR':
-        # Some default values
-        # {'lr_scheduler':   'CyclicLR',
-        # 'base_lr':        0.00001,
-        # 'max_lr':         0.001,
-        # 'period':         12, # in epochs
-        # 'cycle_momentum': False}
+        #*Some default values
+        #*{'lr_scheduler':   'CyclicLR',
+        #*'base_lr':        0.00001,
+        #*'max_lr':         0.001,
+        #*'period':         12, #*in epochs
+        #*'cycle_momentum': False}
 
         if 'cycle_momentum' in lr_dict: 
             cycle_momentum = lr_dict['cycle_momentum']
         else: 
-            cycle_momentum = True # default value from Torch
+            cycle_momentum = True #*default value from Torch
         
         if 'period' in lr_dict: 
             n_steps = 0.5*n_train*lr_dict['period']/batch_size
             step_size_up = int(n_steps)
-        else: step_size_up = 2000 # default value from Torch
+        else: step_size_up = 2000 #*default value from Torch
 
         scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=lr_dict['base_lr'], max_lr = lr_dict['max_lr'], step_size_up=step_size_up, cycle_momentum=cycle_momentum)
     
     elif lr_dict['lr_scheduler'] == 'ReduceLROnPlateau':
-        # Some default values
-        # {'lr_scheduler':   'ReduceLROnPlateau',
-        # 'factor':         0.1,
-        # 'patience':       2,
-        # }
+        #*Some default values
+        #*{'lr_scheduler':   'ReduceLROnPlateau',
+        #*'factor':         0.1,
+        #*'patience':       2,
+        #*}
 
         pars = {}
         if 'factor' in lr_dict:
@@ -471,16 +559,16 @@ def get_optimizer(model_pars, d_opt):
     '''
     if d_opt['optimizer'] == 'Adam':
         if 'lr' in d_opt: lr = d_opt['lr']
-        else: lr = 0.001 # standard Adam lr
+        else: lr = 0.001 #*standard Adam lr
 
         if 'betas' in d_opt: betas = d_opt['betas']
-        else: betas = (0.9, 0.999) # standard Adam par
+        else: betas = (0.9, 0.999) #*standard Adam par
 
         if 'eps' in d_opt: eps = d_opt['eps']
-        else: eps = 1e-08 # default Adam par
+        else: eps = 1e-08 #*default Adam par
 
         if 'weight_decay' in d_opt: weight_decay = d_opt['eps']
-        else: weight_decay = 0 # default Adam par
+        else: weight_decay = 0 #*default Adam par
         
         return optim.Adam(model_pars, lr = lr, betas = betas, eps = eps, weight_decay = weight_decay)
     
@@ -527,7 +615,7 @@ def get_project_root():
     Output
     path as a string to project root.
     '''
-    # Find project root
+    #*Find project root
     current_dir_splitted = str(Path.cwd()).split('/')
     i = 0
     while current_dir_splitted[i] != 'CubeML':
@@ -572,9 +660,9 @@ def inverse_transform(data, model_dir):
             if transformers[key] == None: 
                 transformed[key] = data[key]
 
-            # The reshape is required for scikit to function...
+            #*The reshape is required for scikit to function...
             else: 
-                # Input might be given as a dictionary of lists
+                #*Input might be given as a dictionary of lists
                 try: 
                     transformed[key] = transformers[key].inverse_transform(data[key].reshape(-1, 1))
                 except AttributeError: 
@@ -582,7 +670,7 @@ def inverse_transform(data, model_dir):
 
     return transformed
 
-# TODO: delete inverse_transform_predictions and only use inverse_transform, predict() needs adjusting
+#*TODO: delete inverse_transform_predictions and only use inverse_transform, predict() needs adjusting
 def inverse_transform_predictions(preds, keys, model_dir):
 
     try:
@@ -601,9 +689,9 @@ def inverse_transform_predictions(preds, keys, model_dir):
             if transformers[key] == None: 
                 transformed[key] = preds[key]
 
-            # The reshape is required for scikit to function...
+            #*The reshape is required for scikit to function...
             else: 
-                # Input might be given as a dictionary of lists
+                #*Input might be given as a dictionary of lists
                 try: 
                     transformed[key] = transformers[key].inverse_transform(preds[key].reshape(-1, 1))
                 except AttributeError: 
@@ -615,15 +703,16 @@ def load_model_pars(model_dir):
     '''loads and returns hyper-pars, data-pars, arch-pars and meta-pars from a directory
 
     Input:
-    model_dir: Full path to model directory as a string.
+    model_dir: Path to model directory as a string.
     '''    
-    with open(model_dir+"/architecture_pars.json", 'r') as f: 
+    model_dir = get_path_from_root(model_dir)
+    with open(get_project_root() + model_dir + "/architecture_pars.json", 'r') as f: 
         arch_pars = json.load(f)
-    with open(model_dir+"/data_pars.json", 'r') as f: 
+    with open(get_project_root() + model_dir + "/data_pars.json", 'r') as f: 
         data_pars = json.load(f)
-    with open(model_dir+"/hyper_pars.json", 'r') as f: 
+    with open(get_project_root() + model_dir + "/hyper_pars.json", 'r') as f: 
         hyper_pars = json.load(f)
-    with open(model_dir+"/meta_pars.json", 'r') as f: 
+    with open(get_project_root() + model_dir + "/meta_pars.json", 'r') as f: 
         meta_pars = json.load(f)
     
     return hyper_pars, data_pars, arch_pars, meta_pars
@@ -679,10 +768,10 @@ def make_lr_dir(data_folder_address, project, batch_size):
     '''Makes a lr-finder folder at CubeML/models/<DATA_TRAINED_ON>/lr_finders/BS#_<WHEN_CREATED>.
     '''
 
-    # Get CubeML/models/ directory
+    #*Get CubeML/models/ directory
     models_dir = get_project_root()+'/models/'
 
-    # See if model/dataset exists - if not, make it
+    #*See if model/dataset exists - if not, make it
     data_name = data_folder_address.split('/')
     if data_name[-1] == '': 
         data_name = data_name[-2]
@@ -693,12 +782,12 @@ def make_lr_dir(data_folder_address, project, batch_size):
         Path(models_dir+data_name).mkdir()
     data_dir = models_dir+data_name+'/'
 
-    # Make lr-finder directory if it doesnt exist
+    #*Make lr-finder directory if it doesnt exist
     if not Path(data_dir+'lr_finders').is_dir(): 
         Path(data_dir+'lr_finders').mkdir()
     lr_finders_dir = data_dir+'lr_finders/'
 
-    # Finally! lr-finder dir
+    #*Finally! lr-finder dir
     if project.split('_')[-1] == 'test':
         base_name = 'test_BS'+str(batch_size)+'_'+strftime("%Y-%m-%d-%H.%M.%S", localtime())
     else:
@@ -713,10 +802,10 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project):
     '''Makes a model folder at CubeML/models/<DATA_TRAINED_ON>/regression/<REGRESSION_TYPE>/<WHEN_TRAINED>/ with subdirectories figures and data.
     '''
 
-    # Get CubeML/models/ directory
+    #*Get CubeML/models/ directory
     models_dir = get_project_root()+'/models/'
 
-    # See if model/dataset exists - if not, make it
+    #*See if model/dataset exists - if not, make it
     data_name = data_folder_address.split('/')
     if data_name[-1] == '': data_name = data_name[-2]
     else: data_name = data_name[-1]
@@ -724,15 +813,15 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project):
     if not Path(models_dir+data_name).is_dir(): Path(models_dir+data_name).mkdir()
     data_dir = models_dir+data_name+'/'
 
-    # Make regression directory if it doesnt exist
+    #*Make regression directory if it doesnt exist
     if not Path(data_dir+'regression').is_dir(): Path(data_dir+'regression').mkdir()
     regression_dir = data_dir+'regression/'
 
-    # Make regression type directory if it doesnt exist
+    #*Make regression type directory if it doesnt exist
     if not Path(regression_dir+reg_type).is_dir(): Path(regression_dir+reg_type).mkdir()
     reg_type_dir = regression_dir+reg_type
     
-    # Finally! Make model directory
+    #*Finally! Make model directory
     if project.split('_')[-1] == 'test':
         base_name = 'test_'+strftime("%Y.%m.%d-%H.%M.%S", localtime())
     else:
@@ -741,11 +830,11 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project):
     Path(reg_type_dir+'/'+base_name).mkdir()
     model_dir = reg_type_dir+'/'+base_name
     
-    # Add subdirectories
+    #*Add subdirectories
     Path(model_dir+'/figures').mkdir()
     Path(model_dir+'/data').mkdir()
 
-    # Copy transform dicts
+    #*Copy transform dicts
     transformer_address = get_project_root()+'/data/'+data_name+'/transformers/'+'transform'+str(clean_keys['transform'])+'.pickle'
     try:
         data_dir = shutil.copy(transformer_address, model_dir+'/transformers.pickle')
@@ -772,7 +861,7 @@ def read_h5_dataset(file_address, key, prefix=None, from_frac=0, to_frac=1, indi
         if indices == None:
             indices = get_indices_from_fraction(n_events, from_frac, to_frac)
         
-        # If not transformed, it is found under raw/
+        #*If not transformed, it is found under raw/
         try:
             path = prefix+'/'+key
             data = f[path][indices]
@@ -805,17 +894,8 @@ def read_h5_directory(data_dir, keys, prefix=None, from_frac = 0, to_frac = 1):
             for key in keys:
                 values[key][file.stem] = read_h5_dataset(file, key, prefix, from_frac=from_frac, to_frac=to_frac)
     
-    # Sort wrt file index
-    values_sorted = sort_wrt_file_id(values)
-    # values_sorted = {key: np.array([]) for key in keys}
-    # for key, dicts in values.items():
-    #     unsorted = []
-    #     for ID, vals in dicts.items():
-    #         unsorted.append((int(ID), vals))
-        
-    #     sorted_list = sorted(unsorted, key=lambda x: x[0])
-    #     for item in sorted_list:
-    #         values_sorted[key] = np.append(values_sorted[key], item[1])
+    #*Sort wrt file index
+    values_sorted = sort_wrt_file_id(str(file), values)
 
     return values_sorted
 
@@ -837,34 +917,42 @@ def read_predicted_h5_data(file_address, keys):
             for key in keys:
                 preds[key][str(dfile)] = f[dfile+'/'+key][:]
 
-    # Sort wrt file index
-    values_sorted = sort_wrt_file_id(values) 
-    {key: np.array([]) for key in keys}
-    for key, dicts in preds.items():
-        unsorted = []
-        for ID, vals in dicts.items():
-            unsorted.append((int(ID), vals))
-        
-        sorted_list = sorted(unsorted, key=lambda x: x[0])
-        for item in sorted_list:
-            values_sorted[key] = np.append(values_sorted[key], item[1])
+    #*Sort wrt file index
+    values_sorted = sort_wrt_file_id(file_address, preds) 
 
     return values_sorted
 
 def remove_tests_modeldir(directory = get_project_root() + '/models/'):
+    '''Deletes all cubeml_test-models and all models that failed during training.
+    '''
     for file in Path(directory).iterdir():
         if Path(file).is_dir():
             curr_dir = str(file).split('/')[-1]
             name = curr_dir.split('_')[0]
+            
+            try:
+                _, _, _, meta_pars = load_model_pars(str(file))
+                if 'status' in meta_pars:
+                    if meta_pars['status'] == 'Failed':
+                        shutil.rmtree(file)
+                        print('Deleted', str(file))
+                if name == 'test': 
+                    shutil.rmtree(file)
+                    print('Deleted', str(file))
+                continue
+            except FileNotFoundError:
+                pass
+                
             if name == 'test': 
                 shutil.rmtree(file)
                 print('Deleted', str(file))
             else:
                 remove_tests_modeldir(file)
 
-def remove_tests_wandbdir(directory = get_project_root() + '/src/scripts/wandb/', rm_all=False):
-    
-    # Check each run - if test, delete it.
+def remove_tests_wandbdir(directory = get_project_root() + '/wandb/', rm_all=False):
+    '''Deletes all wandb-folder which failed during training or was a test-run.
+    '''
+    #*Check each run - if test, delete it.
     for run in Path(directory).iterdir():
         
         remove = False
@@ -875,15 +963,11 @@ def remove_tests_wandbdir(directory = get_project_root() + '/src/scripts/wandb/'
                     metadata = json.load(f)
                     cond1 = metadata['project'] == 'cubeml_test'
                     cond2 = metadata['state'] == 'failed'
-                    cond3 = metadata['state'] == 'finished'
                     
                     if rm_all:
-
-                        cond4 = metadata['state'] == 'killed'
-                        if cond1 or cond2 or cond3 or cond4:
-                            remove = True
+                        remove = True
                     else:
-                        if cond1 or cond2 or cond3:
+                        if cond1 or cond2:
                             remove = True
             except FileNotFoundError:
                 remove = True
@@ -901,12 +985,15 @@ def sort_pairs(l1, l2, reverse=False):
 
     return l1_sorted, l2_sorted
 
-def sort_wrt_file_id(values):
+def sort_wrt_file_id(file_path, values):
+    '''Takes a dictionary with keys equal to variable of interest and values equal to a dictionary consisting of a file ID and the values of interest. Returns a new dictionary with the same keys as values and the sorted values wrt the file index
+    '''
     values_sorted = {key: np.array([]) for key in values}
     for key, dicts in values.items():
         unsorted = []
         for ID, vals in dicts.items():
-            unsorted.append((int(ID), vals))
+            id_int = convert_id_to_int(file_path, ID)
+            unsorted.append((id_int, vals))
         
         sorted_list = sorted(unsorted, key=lambda x: x[0])
         for item in sorted_list:
@@ -916,7 +1003,7 @@ def sort_wrt_file_id(values):
 
 def show_train_val_error(x_address, train_address, val_address, save_address=None):
     
-    # Load pickle-files
+    #*Load pickle-files
     x = pickle.load( open( x_address, "rb" ) )
     train = pickle.load( open( train_address, "rb" ) )
     val = pickle.load( open( val_address, "rb" ) )
@@ -952,7 +1039,7 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
     Output:
     Updated hyperparameter-, dataparameter and metaparameter-dictionaries.
     '''
-    # Load hyperparameters of experiment - metapars has to be path from project root
+    #*Load hyperparameters of experiment - metapars has to be path from project root
     model_dir = get_project_root() + meta_pars['pretrained_path']    
     hyper_pars, data_pars, arch_pars, _ = load_model_pars(model_dir)
     
@@ -961,22 +1048,22 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
 
     checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
 
-    # Get last epoch number
+    #*Get last epoch number
     hyper_pars['epochs_completed'] = checkpoint['epochs_completed']
 
-    # Update the old pars - do not update arch-pars: 
+    #*Update the old pars - do not update arch-pars: 
     for key, item in new_hyper_pars.items():
         
-        # Let optimizer be fixed
+        #*Let optimizer be fixed
         if key == 'optimizer':
             continue
 
         hyper_pars[key] = item
 
-    # LR should be updated though
+    #*LR should be updated though
     hyper_pars['optimizer']['lr'] = new_hyper_pars['optimizer']['lr']    
 
-    # Update the old pars
+    #*Update the old pars
     for key, item in new_data_pars.items():
         data_pars[key] = item
 

@@ -1,13 +1,6 @@
 import json
 from pathlib import Path
-# from src.modules.main_funcs import *
-# from src.modules.loss_funcs import *
-from main_funcs import *
+import src.modules.main_funcs as mf
 
 if __name__ == '__main__':
-    run_experiments()
-
-
-
-                
-                        
+    mf.run_experiments()
