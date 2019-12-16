@@ -22,7 +22,7 @@ def h5_file_reader(DATA_SETS, group, variable):
 def h5_groups_reader(data_file):
     groups = []
     with File(data_file, 'r') as f:
-        group_iter = f.root.__iter__()
+        group_iter = f.root.histograms.__iter__()
         for group in group_iter:
             groups.append(group._v_name)
     return groups
@@ -39,7 +39,7 @@ def h5_variables_reader(DATA_SETS, group):
     return variables
 
 
-HISTS_DIR = Path(__file__).resolve().parent
+HISTS_DIR = Path('/groups/hep/ehrhorn/')
 DATA_SETS = [
     f for f in HISTS_DIR.glob('**/*.h5') if f.is_file() and f.stem != 'geom'
 ]
@@ -72,7 +72,7 @@ for i, ax in enumerate(axes):
         density=True,
         color=plot_colors[i]
     )
-    if variable == 'charge':
+    if variable == 'dom_charge':
         ax.set_yscale('log')
     ax.set(
         xlabel=variable,
