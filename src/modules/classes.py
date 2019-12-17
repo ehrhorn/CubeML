@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as unpack
 from random import shuffle as shuffler
 from math import sqrt
-# * from pynvml.smi import nvidia_smi
+# from pynvml.smi import nvidia_smi
 
 from src.modules.helper_functions import *
 
@@ -576,7 +576,7 @@ class PadSequence:
 
         # * Also need to store the length of each sequence
         # * This is later needed in order to unpad the sequences
-        lengths = torch.ShortTensor([len(x) for x in sequences])
+        lengths = torch.LongTensor([len(x) for x in sequences])
         
         # * pad_sequence returns a tensor(seqlen, batch, n_features)
         sequences_padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
@@ -743,81 +743,18 @@ def sort_indices(dataset, data_pars, dataloader_params=None):
 #* MODELS
 #*========================================================================
 
-class LSTM2Linear(nn.Module):
-    '''Pytorch LSTM Model - maybe LSTM2Linear
-    '''
-
-    def __init__(self, 
-                n_seq_vars, 
-                n_scalar_vars,
-                n_targets,
-                n_hidden = 64, 
-                n_lstm_layers = 1, 
-                dropout = 0.5, 
-                batch_first = True):
-
-        super(LSTM2Linear, self).__init__()
-        self.lstm = nn.LSTM(input_size=n_seq_vars,
-                            hidden_size=n_hidden, 
-                            num_layers=n_lstm_layers, 
-                            dropout = dropout, 
-                            batch_first=batch_first)
-
-        self.hidden2label = nn.Linear(n_hidden + n_scalar_vars, n_targets) 
-        
-        self.n_seq_vars = n_seq_vars,
-        self.n_hidden = n_hidden, 
-        self.n_layers = n_lstm_layers, 
-        self.dropout = dropout, 
-
-    def forward(self, batch):
-    #def forward(self, seq, lengths, scalars):
-        # * Unpack batch - it is calculated in 
-        # * seq, lengths, scalars, targets = batch
-        seq, lengths, scalars = batch
-        
-        # * Reshape input (batch first), torch wants a certain form..
-        batch_size = seq.shape[0]
-        n_seq_vars = seq.shape[1]
-        
-        seq_vars = seq.view(batch_size, -1, n_seq_vars)
-
-        # * Pack it and send to RNN
-        packed = PACK(seq_vars, lengths, batch_first=True)
-        
-        # * Initialize hidden and cell state to random
-        hidden = self.init_hidden(batch_size)
-
-        # * Input: (batch, seq_len, n_seq_vars)
-        # * hidden: (num_layers * num_directions, batch, hidden_size)
-        _, hidden = self.lstm(packed, hidden)
-
-        # * Concatenate (and remove redundant dimension)
-        hidden = hidden[0].view((batch_size, self.n_hidden[0]))
-        last_out = torch.cat((scalars, hidden), 1)
-        
-        # * Decode with a fully connected layer
-        output = self.hidden2label(last_out)
-        
-        return output
-
-    def init_hidden(self, batch_size):
-        # * Initialize hidden and cell states
-        # * (num_layers * num_directions, batch, hidden_size)
-        return (torch.randn(self.n_layers[0], batch_size, self.n_hidden[0]),
-                torch.randn(self.n_layers[0], batch_size, self.n_hidden[0]))
-
 class MakeModel(nn.Module):
     '''A modular PyTorch model builder
     '''
 
-    def __init__(self, arch_dict, device):
+    def __init__(self, arch_dict, device, batch_first=True):
         super(MakeModel, self).__init__()
         self.mods = make_model_architecture(arch_dict)
         self.layer_names = get_layer_names(arch_dict)
         self.arch_dict = arch_dict
         self.device = device
         self.count = 0
+        self.batch_first = batch_first
 
     # * Input must be a tuple to be unpacked!
     def forward(self, batch):
@@ -834,6 +771,7 @@ class MakeModel(nn.Module):
             n_seq_vars = seq.shape[1]
             # * 'Reshape' input (batch first), torch wants a certain form..
             # * seq = seq.view(batch_size, -1, n_seq_vars)
+        
         for layer_name, entry in zip(self.layer_names, self.mods):
             # * Handle different layers in different ways! 
             
@@ -843,11 +781,11 @@ class MakeModel(nn.Module):
                 h = self.init_hidden(batch_size, entry, self.device)
 
                 # * Send to LSTM!
-                seq = pack(seq, lengths, batch_first=True)
+                seq = pack(seq, lengths, batch_first=self.batch_first)
                 
                 seq, h = entry(seq, h)
                 x, _ = h
-                seq, lengths = unpack(seq, batch_first=True)
+                seq, lengths = unpack(seq, batch_first=self.batch_first)
                 if entry.bidirectional:
                     # * Add hidden states from forward and backward pass to encode information
                     seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
@@ -871,7 +809,8 @@ class MakeModel(nn.Module):
                 seq = entry(seq)
             
             elif layer_name == 'SelfAttention':
-                seq = entry((seq, lengths))
+
+                seq = entry((seq, lengths, self.batch_first))
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -895,8 +834,9 @@ class MakeModel(nn.Module):
         return torch.cat((x, scalars), 1), False
 
 class SelfAttention(nn.Module):
-    """Implementation of Self Attention as described in 'Attention is All You Need'
-    (or https://jalammar.github.io/illustrated-transformer/) - calculates query-, key- and valuevectors, softmaxes and scales the dotproducts and returns weighted sum of values vectors.
+    """Implementation of Self Attention almost as described in 'Attention is All You Need'.
+    
+    (or https://jalammar.github.io/illustrated-transformer/) - calculates query-, key- and valuevectors, softmaxes a padded sequence and scales the dotproducts and returns weighted sum of values vectors.
     
     Returns:
         nn.Module -- A Self-attention layer 
@@ -909,30 +849,66 @@ class SelfAttention(nn.Module):
         self.n_in = n_in
         self.n_out = n_out
 
-        self.Q = nn.Linear(in_features=n_in, out_features=n_out, bias=False)
-        self.K = nn.Linear(in_features=n_in, out_features=n_out, bias=False)
-        self.V = nn.Linear(in_features=n_in, out_features=n_out, bias=False)
+        self.Q = nn.Linear(in_features=n_in, out_features=n_out)
+        self.K = nn.Linear(in_features=n_in, out_features=n_out)
+        self.V = nn.Linear(in_features=n_in, out_features=n_out)
         self.softmax = nn.Softmax(dim=-1)
+        if self.layer_dict.get('LayerNorm', False):
+            self.norm = nn.LayerNorm(n_out)
+        self.linear_out = nn.Linear(in_features=n_out, out_features=n_out)
+        self.nonlin = add_non_lin(arch_dict, arch_dict['non_lin'])
+        if self.layer_dict.get('LayerNorm', False):
+            self.norm2 = nn.LayerNorm(n_out)
+        if self.layer_dict.get('Residual', False):
+            self.residual_connection = True
     
     def forward(self, args):
-        seq, lengths = args
+        seq, lengths, batch_first = args
         q = self.Q(seq)
         k = self.K(seq)
         v = self.V(seq)
-        print(q.shape, k.shape, v.shape)
-        print(lengths)
-        # * The matrix multiplication is always done with using the last two dimensions
-        # * The transpose means swap second to last and last dimension
-        dotprods = torch.matmul(q, k.transpose(-2, -1))
-        print(dotprods[-1, -1, :])
-        print(seq[-1, -1, :])
-        softmaxed = self.softmax(dotprods)
-        print(softmaxed[5, -1, :], torch.sum(softmaxed[5, -1, :]))
         
+        # * Attention -> potential norm and residual connection
+        post_attention = self._calc_self_attention(q, k, v, lengths, batch_first=batch_first)
+        if self.residual_connection:
+            post_attention = seq+post_attention
+        if self.norm:
+            post_attention = self.norm(post_attention)
+        
+        # * linear layer -> nonlin -> potential norm and residual connection
+        output = self.nonlin(self.linear_out(post_attention))
+        if self.residual_connection:
+            output = output + post_attention
+        if self.norm:
+            output = self.norm2(output)
 
-# * ======================================================================== 
-# * MODEL FUNCTIONS
-# * ========================================================================
+        return output
+
+    def _calc_self_attention(self, q, k, v, lengths, batch_first=False):
+        # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
+        # * The transpose means swap second to last and last dimension
+        # * masked_fill_ is in-place, masked_fill creates a new tensor
+        weights = torch.matmul(q, k.transpose(-2, -1)) / sqrt(self.n_out)
+        mask = self._get_mask(lengths, batch_first=batch_first)
+        weights = weights.masked_fill(~mask, float('-inf'))
+        weights = self.softmax(weights)
+
+        # * Calculate weighted sum of v-vectors.
+        output = torch.matmul(weights, v)
+        
+        return output
+
+    def _get_mask(self, lengths, batch_first=False):
+        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        maxlen = lengths[0]
+        if batch_first:
+            mask = torch.arange(maxlen)[None, :] < lengths[:, None]
+            mask = mask.unsqueeze(1)
+        return mask
+
+#*======================================================================== 
+#* MODEL FUNCTIONS
+#*========================================================================
 
 def add_conv1d(arch_dict, layer_dict):
     n_layers = len(layer_dict['input_sizes']) - 1
@@ -986,8 +962,8 @@ def add_linear_embedder(arch_dict, layer_dict):
         # Add a matrix to linearly 
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
         init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
-        # else:
-        #    raise ValueError('Unknown nonlinearity in embedding wanted!')
+        if layer_dict.get('LayerNorm', False):
+            layers.append(nn.LayerNorm(hsize))
         layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
     
     return nn.Sequential(*layers)
@@ -1052,13 +1028,12 @@ def add_norm(arch_dict, layer_dict, n_features):
     else: 
         raise ValueError('An unknown normalization could not be added in model generation.')
 
-def add_SelfAttention_layer(arch_dict, layer_dict):
+def add_SelfAttention_modules(arch_dict, layer_dict, modules):
 
-    layers = []
     for n_in, n_out in zip(layer_dict['input_sizes'][:-1], layer_dict['input_sizes'][1:]):
-        layers.append(SelfAttention(arch_dict, layer_dict, n_in, n_out))
-
-    return nn.Sequential(*layers)
+        modules.append(SelfAttention(arch_dict, layer_dict, n_in, n_out))
+    
+    return modules
 
 def init_weights(arch_dict, layer_dict, layer):
 
@@ -1099,7 +1074,7 @@ def make_model_architecture(arch_dict):
             elif key == 'Linear_embedder':
                 modules.append(add_linear_embedder(arch_dict, layer_dict))
             elif key == 'SelfAttention':
-                modules.append(add_SelfAttention_layer(arch_dict, layer_dict))
+                modules = add_SelfAttention_modules(arch_dict, layer_dict, modules)
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 
@@ -1111,6 +1086,10 @@ def get_layer_names(arch_dict):
     layer_names = []
     for layer in arch_dict['layers']:
         for layer_name in layer:
-            layer_names.append(layer_name)
-    
+            if layer_name == 'SelfAttention':
+                n_attention_modules = len(layer.get(layer_name))-1
+                for nth_attention_layer in range(n_attention_modules):
+                    layer_names.append(layer_name)
+            else:
+                layer_names.append(layer_name)
     return layer_names
