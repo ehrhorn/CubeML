@@ -14,34 +14,13 @@ from src.modules.eval_funcs import *
 from src.modules.reporting import make_plot
 # from src.modules.main_funcs import *
 
-def deriv(x, y):
-        print(x.shape, y.shape)
-        return (y[1:]-y[:-1])/(x[1:]-x[:-1])
-       
+a = torch.tensor([[0.0, 1.0, 2.0], [10.5, 11.0, 11.5]])
+print(a)
+b = torch.nn.Softmax(dim=1)
 
-y = torch.tensor([[1.0, 0.0, 0.0]])
-angle_loss = lf.angle_loss()
-loss = []
-x_vals = np.linspace(0.1, 0.0000, 10000)
-for x0 in x_vals:
-        x = torch.tensor([[x0, 0.0, 0.0]])
-        loss.append(angle_loss.forward(x, y).item())
-print(len(x_vals), len(loss))
-derivs = deriv(np.array(x_vals), np.array(loss))
-x_derivs = (x_vals[1:]+x_vals[:-1])/2
-
-# print(loss)
-# plt.figure()
-# plt.plot(x_vals, loss)
-# plt.figure()
-# plt.plot(x_derivs, derivs)
-#%%
-x = np.linspace(-np.pi, np.pi, 1000)
-loss = 1-np.cos(x)
-loss2 = np.sqrt(loss)
-d = {'x': [x, x], 'y': [loss, loss2], 'label': ['$1 - \cos(x)$', '$\sqrt{1-\cos(x)}$']}
-_ = make_plot(d)
-
+print(b(a))
+if a[0]<a[2]:
+        print(a[0],'is less than',a[2])
 #* #* print(bootstrap_samples)
 #* #%%
 #* fig = make_plot({'data': [dist_sorted, bootstrap_samples]})

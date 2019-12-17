@@ -943,13 +943,16 @@ def remove_tests_modeldir(directory = get_project_root() + '/models/'):
             except FileNotFoundError:
                 pass
                 
-            if name == 'test': 
-                shutil.rmtree(file)
-                print('Deleted', str(file))
+            if name == 'test':
+                try:
+                    shutil.rmtree(file)
+                    print('Deleted', str(file))
+                except FileNotFoundError:
+                    pass
             else:
                 remove_tests_modeldir(file)
 
-def remove_tests_wandbdir(directory = get_project_root() + '/wandb/', rm_all=False):
+def remove_tests_wandbdir(directory = get_project_root() + '/models/wandb/', rm_all=False):
     '''Deletes all wandb-folder which failed during training or was a test-run.
     '''
     #*Check each run - if test, delete it.
