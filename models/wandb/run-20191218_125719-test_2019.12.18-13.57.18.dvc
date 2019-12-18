@@ -1,0 +1,7 @@
+md5: b7df53207ce8e0c334073a31619033a4
+outs:
+- md5: b973afdcc8ab27638afb7457b5c547d5.dir
+  path: run-20191218_125719-test_2019.12.18-13.57.18
+  cache: true
+  metric: false
+  persist: false

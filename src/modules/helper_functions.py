@@ -376,14 +376,18 @@ def find_best_model_pars(model_dir):
     return best_pars
 
 def find_files(name, main_dir=None):
-    '''Searches main_dir and its subdirectories for a files or directories with name in it
-
-    Input
-    name: string of file or directory wanted
-
-    Output
-    files_str: list containing strings of paths found.
-    '''
+    """Searches main_dir and its subdirectories for files or directories with name in it
+    
+    Arguments:
+        name {string} -- Name of file or directory wanted
+    
+    Keyword Arguments:
+        main_dir {str} -- The parent directory to scan - defaults to root if None (default: {None})
+    
+    Returns:
+        list -- List of all found paths.
+    """    
+    
     if main_dir == None:
         main_dir = get_project_root()+'/models/'
     name = name.split('/')[-1]
@@ -700,11 +704,15 @@ def inverse_transform_predictions(preds, keys, model_dir):
     return transformed
 
 def load_model_pars(model_dir):
-    '''loads and returns hyper-pars, data-pars, arch-pars and meta-pars from a directory
-
-    Input:
-    model_dir: Path to model directory as a string.
-    '''    
+    """Loads and returns hyperparameters, datapatameters, architectureparameters and metaparameters from a model directory
+    
+    Arguments:
+        model_dir {str} -- Full or relative path to the model directory
+    
+    Returns:
+        dicts -- hyper-, data-, architecture- and meta-parameter dictionaries
+    """    
+     
     model_dir = get_path_from_root(model_dir)
     with open(get_project_root() + model_dir + "/architecture_pars.json", 'r') as f: 
         arch_pars = json.load(f)
