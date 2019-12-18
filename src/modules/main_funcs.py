@@ -368,16 +368,20 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     data_pars_copy = data_pars.copy()
     hyper_pars_copy = hyper_pars.copy()
     data_pars_copy['train_frac'] = data_pars['val_frac']
+    data_pars_copy['n_train_events_wanted'] = data_pars.get('n_val_events_wanted', np.inf)
     hyper_pars_copy['batch_size'] = data_pars['val_batch_size']
     trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train')
     val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val')
 
     n_train = get_set_length(train_set)
     n_val = get_set_length(val_set)
+    
     if log:
         wandb.config.update({'Trainset size': n_train})
         wandb.config.update({'Val. set size': n_val})
     print(strftime("%d/%m %H:%M", localtime()), ': Data loaded!')
+    print('\nTrain set size: %d'%(n_train))
+    print('Val. set size: %d'%(n_val))
     
     #* ======================================================================== #
     #* SETUP TRAINING

@@ -415,13 +415,13 @@ class SeqScalarTargetLoader(data.Dataset):
         self.n_events_total = n_events
     
 class FullBatchLoader(data.Dataset):
-    '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads an entire batch from one file and closes the file again upon every __getitem__. 
+    '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads an entire batch from one file and closes the file again upon every __getitem__. It also has the option to stop preparing more files, when n_events_wanted have been surpassed.
     
-    REMEMBER TO CALL THE make_batches()-METHOD BEFORE EACH NEW EPOCH!
+    # ! REMEMBER TO CALL THE make_batches()-METHOD BEFORE EACH NEW EPOCH!
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and batch_size.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf):
 
         self.directory = get_project_root() + directory
         self.scalar_features = scalar_features
@@ -431,12 +431,12 @@ class FullBatchLoader(data.Dataset):
         self.targets = targets
         self.n_targets = len(targets)
         self.type = set_type
+        self.n_events_wanted = n_events_wanted
         self.train_frac = train_frac
         self.val_frac = val_frac
         self.test_frac = test_frac
         self.batch_size = batch_size
         self.prefix = prefix
-
         self.file_path = {}
         self.file_indices = {}
         self.n_batches = {}
@@ -523,9 +523,15 @@ class FullBatchLoader(data.Dataset):
         '''Extracts filenames, calculates indices induced by train-, val.- and 
         '''
         n_batches = 0
+        n_events = 0
         from_frac, to_frac = self._get_from_to()
         ID = 1
         for file in Path(self.directory).iterdir():
+            
+            # * If enough datapoints have been prepared, stop loading more
+            if n_events > self.n_events_wanted:
+                break
+            
             if file.suffix == '.h5':
                 with h5.File(file, 'r') as f:
 
@@ -538,11 +544,12 @@ class FullBatchLoader(data.Dataset):
                     self.file_indices[file_ID] = indices
                     self.n_batches[file_ID] = int(len(indices)/self.batch_size)
 
+                    n_events += len(indices)
                     n_batches += int(len(indices)/self.batch_size)
                     ID += 1
         
         self.n_batches_total = n_batches
-
+        
     def make_batches(self):
         '''Shuffles the INDICES from each file, the Torch dataloader fetches a batch from. For each file, self.n_batches dictionaries are made as {ID: shuffled_indices_to_load}. They are then extended to a list, which will contain all such dictionaries for all files. The final list is shuffled aswell. 
         '''
@@ -639,12 +646,13 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
         file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
         if keyword == 'train':
             batch_size = hyper_pars['batch_size']
+            n_events_wanted = data_pars.get('n_train_events_wanted', np.inf)
         elif keyword == 'val':
             batch_size = data_pars['val_batch_size']
-
+            n_events_wanted = data_pars.get('n_val_events_wanted', np.inf)
         prefix = 'transform'+str(file_keys['transform'])+'/'
 
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted)
 
     
     elif 'CnnLoader' == data_pars['dataloader']:

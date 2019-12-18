@@ -8,9 +8,9 @@ from time import localtime, strftime
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 
-# ======================================================================== 
-# PERFORMANCE CLASSES
-# ========================================================================
+#* ======================================================================== 
+#* PERFORMANCE CLASSES
+#* ========================================================================
 
 class AziPolarHists:
     '''A class to create azimuthal and polar error plots - one 2D-histogram and two performance plots.

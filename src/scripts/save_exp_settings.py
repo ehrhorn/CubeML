@@ -41,7 +41,7 @@ if __name__ == '__main__':
                 'pretrained_path':      pretrained_path 
                 }
 
-    hyper_pars = {'batch_size':        1,
+    hyper_pars = {'batch_size':        2,
                 'max_epochs':          1,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
@@ -62,8 +62,10 @@ if __name__ == '__main__':
                 'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio'],
                 'target':      ['true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'],
                 # 'target':       ['true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z'],
-                'train_frac':  0.00030,
-                'val_frac':    0.00030,
+                'n_val_events_wanted':   100,
+                'n_train_events_wanted': 100,
+                'train_frac':  0.010,
+                'val_frac':    0.010,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   0},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
