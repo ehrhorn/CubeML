@@ -11,9 +11,9 @@ from math import sqrt
 
 from src.modules.helper_functions import *
 
-# * ======================================================================== 
-# * DATALOADERS
-# * ========================================================================
+#* ======================================================================== 
+#* DATALOADERS
+#* ========================================================================
 
 class LstmLoader(data.Dataset):
     '''A Pytorch dataloader for LSTM-like NN, which takes sequences and scalar variables as input. 
@@ -595,9 +595,9 @@ class CnnCollater:
         out_seq = (sequences.float(), )
         return out_seq, targets.float()
 
-#*======================================================================== 
+#* ======================================================================== 
 #* DATALOADER FUNCTIONS
-#*========================================================================
+#* ========================================================================
 
 def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
 
@@ -871,7 +871,7 @@ class SelfAttention(nn.Module):
         # * Attention -> potential norm and residual connection
         post_attention = self._calc_self_attention(q, k, v, lengths, batch_first=batch_first)
         if self.residual_connection:
-            post_attention = seq+post_attention
+            post_attention = seq + post_attention
         if self.norm:
             post_attention = self.norm(post_attention)
         
@@ -906,9 +906,9 @@ class SelfAttention(nn.Module):
             mask = mask.unsqueeze(1)
         return mask
 
-#*======================================================================== 
+#* ======================================================================== 
 #* MODEL FUNCTIONS
-#*========================================================================
+#* ========================================================================
 
 def add_conv1d(arch_dict, layer_dict):
     n_layers = len(layer_dict['input_sizes']) - 1
