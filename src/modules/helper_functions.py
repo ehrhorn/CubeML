@@ -936,9 +936,27 @@ def remove_tests_modeldir(directory = get_project_root() + '/models/'):
                     if meta_pars['status'] == 'Failed':
                         shutil.rmtree(file)
                         print('Deleted', str(file))
+                        
+                        # * Attempt to remove its .dvc-file aswell
+                        try:
+                            dvc_file = str(file)+'.dvc'
+                            Path(dvc_file).unlink()
+                            print('Deleted', dvc_file)
+                        except FileNotFoundError:
+                            pass
+
                 if name == 'test': 
                     shutil.rmtree(file)
                     print('Deleted', str(file))
+
+                    # * Attempt to remove its .dvc-file aswell
+                    try:
+                        dvc_file = str(file)+'.dvc'
+                        Path(dvc_file).unlink()
+                        print('Deleted', dvc_file)
+                    except FileNotFoundError:
+                        pass
+
                 continue
             except FileNotFoundError:
                 pass
@@ -949,6 +967,15 @@ def remove_tests_modeldir(directory = get_project_root() + '/models/'):
                     print('Deleted', str(file))
                 except FileNotFoundError:
                     pass
+                
+                # * Attempt to remove its .dvc-file aswell
+                try:
+                    dvc_file = str(file)+'.dvc'
+                    Path(dvc_file).unlink()
+                    print('Deleted', dvc_file)
+                except FileNotFoundError:
+                    pass
+                
             else:
                 remove_tests_modeldir(file)
 
@@ -978,6 +1005,14 @@ def remove_tests_wandbdir(directory = get_project_root() + '/models/wandb/', rm_
         if remove:
             shutil.rmtree(run)
             print('Deleted', str(run))
+
+            # * Attempt to remove its .dvc-file aswell
+            try:
+                dvc_file = str(run)+'.dvc'
+                Path(dvc_file).unlink()
+                print('Deleted', dvc_file)
+            except FileNotFoundError:
+                pass
 
 def sort_pairs(l1, l2, reverse=False):
     '''Sorts lists l1 and l2 w.r.t. the l1-values

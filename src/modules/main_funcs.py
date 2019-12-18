@@ -10,6 +10,7 @@ from time import localtime, strftime, time
 import wandb
 import PIL
 import json
+import subprocess
 
 #* Custom classes and functions
 import src.modules.loss_funcs
@@ -632,15 +633,21 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     else:
         print('Logging turned off.')
 
-    train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = scan_lr_before_train, wandb_ID=wandb_ID, log=log)
+    # train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = scan_lr_before_train, wandb_ID=wandb_ID, log=log)
     
-    #* Update the meta_pars-file
+    #* Update the meta_pars-file and add .dvc-files to track the model in the wandb-dir and the models-dir
     if log:
         with open(save_dir+'/meta_pars.json') as json_file:
             meta_pars = json.load(json_file)
         meta_pars['status'] = 'Trained'
         with open(save_dir+'/meta_pars.json', 'w') as fp:
             json.dump(meta_pars, fp)
+
+        model_dir = Path(save_dir).resolve().parent
+        subprocess.run(['dvc', 'add', WANDB_NAME], cwd=model_dir)
+
+        WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
+        subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
     
     return save_dir, wandb_ID
     
