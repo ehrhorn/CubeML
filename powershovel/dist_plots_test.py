@@ -61,6 +61,9 @@ variable = st.sidebar.selectbox(
 hist, edges = h5_file_reader(data_set, group, variable)
 centers = (edges[:-1] + edges[1:]) / 2
 width = edges[1] - edges[0]
+bins = len(edges) - 1
+
+st.write('No. of bins:', bins)
 
 fig = go.Figure(
     data=go.Bar(
