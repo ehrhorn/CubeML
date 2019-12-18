@@ -40,7 +40,6 @@ class LstmLoader(data.Dataset):
                     else: n_data += n_test
 
         # * Initialize dataholders
-        # * print('%s: n_data: %d'%(set_type, n_data))
         self.scalar_features = {key: np.empty(n_data) for key in scalar_features}
         self.seq_features = {key: [[] for i in range(n_data)] for key in seq_features}
         self.targets = {key: np.empty(n_data) for key in targets}
@@ -446,7 +445,6 @@ class FullBatchLoader(data.Dataset):
 
         self._get_meta_information()
         self.make_batches()
-        # * print(self.batches[0])
 
     def __getitem__(self, index):
         # * Find right file and get sorted indices to load
@@ -747,14 +745,13 @@ class MakeModel(nn.Module):
     '''A modular PyTorch model builder
     '''
 
-    def __init__(self, arch_dict, device, batch_first=True):
+    def __init__(self, arch_dict, device):
         super(MakeModel, self).__init__()
         self.mods = make_model_architecture(arch_dict)
         self.layer_names = get_layer_names(arch_dict)
         self.arch_dict = arch_dict
         self.device = device
         self.count = 0
-        self.batch_first = batch_first
 
     # * Input must be a tuple to be unpacked!
     def forward(self, batch):
@@ -774,18 +771,17 @@ class MakeModel(nn.Module):
         
         for layer_name, entry in zip(self.layer_names, self.mods):
             # * Handle different layers in different ways! 
-            
             if layer_name == 'LSTM':
                 # * A padded sequence is expected
                 # * Initialize hidden layer
                 h = self.init_hidden(batch_size, entry, self.device)
 
                 # * Send to LSTM!
-                seq = pack(seq, lengths, batch_first=self.batch_first)
+                seq = pack(seq, lengths, batch_first=True)
                 
                 seq, h = entry(seq, h)
                 x, _ = h
-                seq, lengths = unpack(seq, batch_first=self.batch_first)
+                seq, lengths = unpack(seq, batch_first=True)
                 if entry.bidirectional:
                     # * Add hidden states from forward and backward pass to encode information
                     seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
@@ -809,8 +805,7 @@ class MakeModel(nn.Module):
                 seq = entry(seq)
             
             elif layer_name == 'SelfAttention':
-
-                seq = entry((seq, lengths, self.batch_first))
+                seq = entry(seq, lengths)
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -862,14 +857,14 @@ class SelfAttention(nn.Module):
         if self.layer_dict.get('Residual', False):
             self.residual_connection = True
     
-    def forward(self, args):
-        seq, lengths, batch_first = args
+    def forward(self, seq, lengths):
+        # seq, lengths = args
         q = self.Q(seq)
         k = self.K(seq)
         v = self.V(seq)
         
         # * Attention -> potential norm and residual connection
-        post_attention = self._calc_self_attention(q, k, v, lengths, batch_first=batch_first)
+        post_attention = self._calc_self_attention(q, k, v, lengths, batch_first=True)
         if self.residual_connection:
             post_attention = seq + post_attention
         if self.norm:
@@ -881,7 +876,7 @@ class SelfAttention(nn.Module):
             output = output + post_attention
         if self.norm:
             output = self.norm2(output)
-
+        
         return output
 
     def _calc_self_attention(self, q, k, v, lengths, batch_first=False):
@@ -1087,7 +1082,7 @@ def get_layer_names(arch_dict):
     for layer in arch_dict['layers']:
         for layer_name in layer:
             if layer_name == 'SelfAttention':
-                n_attention_modules = len(layer.get(layer_name))-1
+                n_attention_modules = len(layer['SelfAttention']['input_sizes'])-1
                 for nth_attention_layer in range(n_attention_modules):
                     layer_names.append(layer_name)
             else:

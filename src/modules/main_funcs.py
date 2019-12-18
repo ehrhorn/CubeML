@@ -98,12 +98,22 @@ def evaluate_model(model_dir, wandb_ID = None):
         wandb.log()
         wandb.join()
     
-    #* Update the meta_pars-file
+    # * Update the meta_pars-file
     with open(model_dir+'/meta_pars.json') as json_file:
         meta_pars = json.load(json_file)
     meta_pars['status'] = 'Finished'
     with open(model_dir+'/meta_pars.json', 'w') as fp:
         json.dump(meta_pars, fp)
+    
+    # * Update the .dvc-file
+    path_to_model_dir = Path(model_dir).resolve().parent
+    model_name = model_dir.split('/')[-1]
+    subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
+    
+    # * Update the wandb-.dvc-file aswell if predictions are logged.
+    if wandb_ID is not None:
+        WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
+        subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
 
 def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs = 1, start_lr = 0.000001, end_lr = 0.1, save = True):
     '''Calculates loss as a function of learning rate in a given interval and saves the graph and the dictionaries used to generate the plot.
@@ -630,12 +640,19 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
         meta_pars['status'] = 'Failed'
         with open(save_dir+'/meta_pars.json', 'w') as fp:
             json.dump(meta_pars, fp)
+
+        # * Immediately start dvc-tracking, so we don't accidentally push something to git, when train crashes...
+        model_dir = Path(save_dir).resolve().parent
+        subprocess.run(['dvc', 'add', WANDB_NAME], cwd=model_dir)
+
+        WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
+        subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
     else:
         print('Logging turned off.')
 
-    # train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = scan_lr_before_train, wandb_ID=wandb_ID, log=log)
+    train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = scan_lr_before_train, wandb_ID=wandb_ID, log=log)
     
-    #* Update the meta_pars-file and add .dvc-files to track the model in the wandb-dir and the models-dir
+    # * Update the meta_pars-file and add .dvc-files to track the model in the wandb-dir and the models-dir
     if log:
         with open(save_dir+'/meta_pars.json') as json_file:
             meta_pars = json.load(json_file)
