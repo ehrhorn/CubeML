@@ -16,11 +16,13 @@ from src.modules.reporting import make_plot
 # from src.modules.main_funcs import *
 model_dir = '/home/bjoern/Thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/'
 model_name = 'test_2019.12.12-15.37.24'
+model_name = 'test_2019.12.12-14.39.38'
 # subprocess.run('ls')
 # subprocess.run(['echo',  'hello world from shell'])
 # subprocess.run(['cd', model_dir])
+
 subprocess.run(['dvc', 'add', model_name], cwd=model_dir)
-subprocess.run(['git', 'add', '-f', model_name+'.dvc'], cwd=model_dir)
+# subprocess.run(['git', 'add', '-f', model_name+'.dvc'], cwd=model_dir)
 #* #* print(bootstrap_samples)
 #* #%%
 #* fig = make_plot({'data': [dist_sorted, bootstrap_samples]})
