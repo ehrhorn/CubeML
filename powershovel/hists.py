@@ -5,7 +5,7 @@ from scipy.stats import iqr
 import gc
 
 
-def dict_creator(data_file):
+def dict_creator(data_file, group):
     BANNED_GROUPS = [
         'dom_atwd',
         'dom_fadc',
@@ -15,14 +15,14 @@ def dict_creator(data_file):
     ]
     dictionary = {}
     with File(data_file, 'r') as f:
-        array_iter = f.root.histograms.raw.__iter__()
+        array_iter = f.root.histograms._f_get_child(group).__iter__()
         for array in array_iter:
             if array._v_name not in BANNED_GROUPS:
                 dictionary[array._v_name] = []
     return dictionary
 
 
-def file_reader(data_file):
+def file_reader(data_file, group):
     BANNED_GROUPS = [
         'dom_atwd',
         'dom_fadc',
@@ -32,7 +32,7 @@ def file_reader(data_file):
     ]
     dictionary = {}
     with File(data_file, 'r') as f:
-        array_iter = f.root.histograms.raw.__iter__()
+        array_iter = f.root.histograms._f_get_child(group).__iter__()
         for array in array_iter:
             if array._v_name not in BANNED_GROUPS:
                 dictionary[array._v_name] = array.read()
@@ -66,15 +66,19 @@ def histogram_calculator(dictionary, hist_dict, bins):
     return hist_dict, bin_edges
 
 
-def h5_saver(OUT_FILE, hist_dict, bin_edges):
-    with File(OUT_FILE, mode='w') as f:
+def hist_saver(out_file, hist_dict, bin_edges, transform):
+    if out_file.is_file():
+        mode = 'a'
+    else:
+        mode = 'w'
+    with File(out_file, mode=mode) as f:
         hist_group = f.create_group(
             where='/',
             name='histograms'
         )
         raw_group = f.create_group(
             where=hist_group,
-            name='raw'
+            name=transform
         )
         edges_group = f.create_group(
             where=raw_group,
@@ -96,45 +100,73 @@ def h5_saver(OUT_FILE, hist_dict, bin_edges):
                 obj=hist_dict[key]
             )
 
+PARTICLE_TYPES = ['120000', '140000', '160000']
+DATA_DIR = Path('/groups/hep/ehrhorn/transform_test')
 
-DATA_DIR = Path('/groups/hep/ehrhorn/files/icecube/hdf5_files/oscnext-genie-level5-v01-01-pass2')
-DATA_FILES = [
-    f for f in DATA_DIR.glob('**/*.h5') if f.is_file() and '120000' in f.name
+QUANTILE_KEYS = []
+ROBUST_KEYS = [
+    'dom_n_hit_multiple_doms',
+    'dom_time',
+    'dom_timelength_fwhm',
+    'dom_x',
+    'dom_y',
+    'dom_z',
+    'linefit_point_on_line_x',
+    'linefit_point_on_line_y',
+    'linefit_point_on_line_z',
+    'toi_evalratio',
+    'toi_point_on_line_x',
+    'toi_point_on_line_y',
+    'toi_point_on_line_z',
+    'true_primary_energy',
+    'true_primary_position_x',
+    'true_primary_position_y',
+    'true_primary_position_z'
 ]
-DATA_FILES = sorted(DATA_FILES)[0:10]
-OUT_FILE = Path('/groups/hep/ehrhorn/').joinpath('hists.h5')
 
-iqr_dict = dict_creator(DATA_FILES[0])
-n_dict = dict_creator(DATA_FILES[0])
-min_max_dict = dict_creator(DATA_FILES[0])
-
-for data_file in DATA_FILES:
-    print('Handling file', data_file.name)
-    hist_dict = file_reader(data_file)
-    iqr_dict = iqr_calculator(hist_dict, iqr_dict)
-    n_dict = n_calculator(hist_dict, n_dict)
-    min_max_dict = min_max_calculator(hist_dict, min_max_dict)
-    gc.collect()
-
-iqr_mean = {key: np.mean(iqr_dict[key]) for key in iqr_dict}
-n_sum = {key: np.sum(n_dict[key]) for key in n_dict}
-min_val = {key: np.min(min_max_dict[key]) for key in min_max_dict}
-max_val = {key: np.max(min_max_dict[key]) for key in min_max_dict}
-bins = {}
-hist_dict = {}
-for key in iqr_mean:
-    hist_dict[key] = 0
-
-for key in iqr_dict:
-    h = 2 * iqr_mean[key] / (n_sum[key])**(1 / 3)
-    bins[key] = int(
-        round(
-            (max_val[key] - min_val[key]) / h, 0
-        )
+for particle_type in PARTICLE_TYPES:
+    data_files = [
+        f for f in DATA_DIR.glob('**/*.h5') if f.is_file() and particle_type in f.name
+    ]
+    data_files = sorted(data_files)[0:10]
+    out_file = Path('/groups/hep/ehrhorn/repos/CubeML/powershovel').joinpath(
+        particle_type + '.h5'
     )
 
-for data_file in DATA_FILES:
-    dictionary = file_reader(data_file)
-    hist_dict, bin_edges = histogram_calculator(dictionary, hist_dict, bins)
+    iqr_dict = dict_creator(data_files[0], 'transform0')
+    n_dict = dict_creator(data_files[0])
+    min_max_dict = dict_creator(data_files[0])
 
-h5_saver(OUT_FILE, hist_dict, bin_edges)
+    for data_file in data_files:
+        print('Handling file', data_file.name)
+        hist_dict = file_reader(data_file, 'transform0')
+        iqr_dict = iqr_calculator(hist_dict, iqr_dict)
+        n_dict = n_calculator(hist_dict, n_dict)
+        min_max_dict = min_max_calculator(hist_dict, min_max_dict)
+
+    iqr_mean = {key: np.mean(iqr_dict[key]) for key in iqr_dict}
+    n_sum = {key: np.sum(n_dict[key]) for key in n_dict}
+    min_val = {key: np.min(min_max_dict[key]) for key in min_max_dict}
+    max_val = {key: np.max(min_max_dict[key]) for key in min_max_dict}
+    bins = {}
+    hist_dict = {}
+    for key in iqr_mean:
+        hist_dict[key] = 0
+
+    for key in iqr_dict:
+        h = 2 * iqr_mean[key] / (n_sum[key])**(1 / 3)
+        bins[key] = int(
+            round(
+                (max_val[key] - min_val[key]) / h, 0
+            )
+        )
+        if bins[key] > 2000:
+            bins[key] = 2000
+
+    for data_file in data_files:
+        dictionary = file_reader(data_file, 'transform0')
+        hist_dict, bin_edges = histogram_calculator(dictionary, hist_dict, bins)
+
+    hist_saver(out_file, hist_dict, bin_edges, 'transform0')
+    break
+

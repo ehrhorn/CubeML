@@ -109,8 +109,11 @@ if __name__ == '__main__':
         'retro_crs_prefit_zenith',
         'retro_crs_prefit_time',
         'retro_crs_prefit_energy',
-        'muon_track_length',
-	'no_of_doms'
+        'secondary_track_length'
+    ]
+    mask_names = [
+        'SplitInIcePulses',
+        'SRTInIcePulses'
     ]
 
 
@@ -172,9 +175,9 @@ if __name__ == '__main__':
         )
         true_muon = dataclasses.get_most_energetic_muon(frame['I3MCTree'])
         if true_muon == None:
-            data['muon_track_length'].append(np.nan)
+            data['secondary_track_length'].append(np.nan)
         else:
-            data['muon_track_length'].append(true_muon.length)
+            data['secondary_track_length'].append(true_muon.length)
         # Add the muon energy (defined at the generation cylinder) to the
         # data dicitonary
         data['true_primary_energy'].append(np.log10(true_primary.energy))
@@ -203,61 +206,109 @@ if __name__ == '__main__':
 
         # Get the uncleaned pulses
         # <icecube.dataclasses.I3RecoPulseSeriesMap>
-        # uncleaned_pulses = frame['SplitInIcePulses'].apply(frame)
-        uncleaned_pulses = frame['SRTInIcePulses'].apply(frame)
+        uncleaned_pulses = frame['SplitInIcePulses'].apply(frame)
+        cleaned_pulses = frame['SRTInIcePulses'].apply(frame)
 
         dom_geom = frame['I3Geometry'].omgeo
 
         # Create empty lists for holding the pulse information
-        # TODO Turn into Numpy arrays from the start
-        dom_x_temp = np.empty(0)
-        dom_y_temp = np.empty(0)
-        dom_z_temp = np.empty(0)
-        dom_time_temp = np.empty(0)
-        dom_charge_temp = np.empty(0)
-        dom_lc_temp = np.empty(0)
-        dom_atwd_temp = np.empty(0)
-        dom_fadc_temp = np.empty(0)
-        dom_pulse_width_temp = np.empty(0)
+        temp = np.empty((0, 11))
+        # dom_x_temp = np.empty(0)
+        # dom_y_temp = np.empty(0)
+        # dom_z_temp = np.empty(0)
+        # dom_time_temp = np.empty(0)
+        # dom_charge_temp = np.empty(0)
+        # dom_lc_temp = np.empty(0)
+        # dom_atwd_temp = np.empty(0)
+        # dom_fadc_temp = np.empty(0)
+        # dom_pulse_width_temp = np.empty(0)
 
         # Go through all pulses, get OM key and pair with time and charge info
         for entry in uncleaned_pulses.items():
+            cleaned_time_list = []
             this_om_key = entry[0]
+            if this_om_key in cleaned_pulses.keys():
+                cleaned_temp = cleaned_pulses[this_om_key]
+                for cleaned_entry in cleaned_temp:
+                    cleaned_time_list.append(cleaned_entry.time)
             # This grabs you an object containing the geometry for this
             # particular OM
             this_om_geom = dom_geom[this_om_key]
             # This has x,y,z members
             this_om_position = this_om_geom.position
-            for pulse in entry[1]:
-                dom_x_temp = np.append(dom_x_temp, this_om_position.x)
-                dom_y_temp = np.append(dom_y_temp, this_om_position.y)
-                dom_z_temp = np.append(dom_z_temp, this_om_position.z)
-                dom_time_temp = np.append(dom_time_temp, pulse.time)
-                dom_charge_temp = np.append(dom_charge_temp, pulse.charge)
-                dom_lc_temp = np.append(dom_lc_temp, (pulse.flags & 0x1) >> 0)
-                dom_atwd_temp = np.append(
-                    dom_atwd_temp,
-                    (pulse.flags & 0x2) >> 1
+            for i, pulse in enumerate(entry[1]):
+                if pulse.time in cleaned_time_list:
+                    cleaned_mask = 1
+                else:
+                    cleaned_mask = 0
+                # dom_x_temp = np.append(dom_x_temp, this_om_position.x)
+                # dom_y_temp = np.append(dom_y_temp, this_om_position.y)
+                # dom_z_temp = np.append(dom_z_temp, this_om_position.z)
+                # dom_time_temp = np.append(dom_time_temp, pulse.time)
+                # dom_charge_temp = np.append(dom_charge_temp, pulse.charge)
+                # dom_lc_temp = np.append(dom_lc_temp, (pulse.flags & 0x1) >> 0)
+                # dom_atwd_temp = np.append(
+                #     dom_atwd_temp,
+                #     (pulse.flags & 0x2) >> 1
+                # )
+                # dom_fadc_temp = np.append(
+                #     dom_fadc_temp,
+                #     (pulse.flags & 0x4) >> 2
+                # )
+                # dom_pulse_width_temp = np.append(
+                #     dom_pulse_width_temp,
+                #     pulse.width
+                # )
+                pulses = np.array(
+                    [
+                        this_om_position.x,
+                        this_om_position.y,
+                        this_om_position.z,
+                        pulse.time,
+                        pulse.charge,
+                        (pulse.flags & 0x1) >> 0,
+                        (pulse.flags & 0x2) >> 1,
+                        (pulse.flags & 0x4) >> 2,
+                        pulse.width,
+                        1,
+                        cleaned_mask
+                    ],
+                    ndmin=2
                 )
-                dom_fadc_temp = np.append(
-                    dom_fadc_temp,
-                    (pulse.flags & 0x4) >> 2
-                )
-                dom_pulse_width_temp = np.append(
-                    dom_pulse_width_temp,
-                    pulse.width
+                temp = np.append(
+                    temp,
+                    pulses,
+                    axis=0
                 )
 
         # Add Numpy arrays to data dictionary
-        data['dom_x'].append(dom_x_temp)
-        data['dom_y'].append(dom_y_temp)
-        data['dom_z'].append(dom_z_temp)
-        data['dom_time'].append(dom_time_temp)
-        data['dom_charge'].append(dom_charge_temp)
-        data['dom_lc'].append(dom_lc_temp)
-        data['dom_atwd'].append(dom_atwd_temp)
-        data['dom_fadc'].append(dom_fadc_temp)
-        data['dom_pulse_width'].append(dom_pulse_width_temp)
+        # data['dom_x'].append(dom_x_temp)
+        # data['dom_y'].append(dom_y_temp)
+        # data['dom_z'].append(dom_z_temp)
+        # data['dom_time'].append(dom_time_temp)
+        # data['dom_charge'].append(dom_charge_temp)
+        # data['dom_lc'].append(dom_lc_temp)
+        # data['dom_atwd'].append(dom_atwd_temp)
+        # data['dom_fadc'].append(dom_fadc_temp)
+        # data['dom_pulse_width'].append(dom_pulse_width_temp)
+        temp = temp[temp[:, 3].argsort()]
+        data['dom_x'].append(temp[:, 0])
+        data['dom_y'].append(temp[:, 1])
+        data['dom_z'].append(temp[:, 2])
+        data['dom_time'].append(temp[:, 3])
+        data['dom_charge'].append(temp[:, 4])
+        data['dom_lc'].append(temp[:, 5])
+        data['dom_atwd'].append(temp[:, 6])
+        data['dom_fadc'].append(temp[:, 7])
+        data['dom_pulse_width'].append(temp[:, 8])
+
+        flatten = lambda l: [item for sublist in l for item in sublist]
+        split_indices = np.argwhere(temp[:, 9])
+        split_indices = np.array(flatten(split_indices))
+        srt_indices = np.array(np.argwhere(temp[:, 10]))
+        srt_indices = np.array(flatten(srt_indices))
+        masks['SplitInIcePulses'].append(split_indices)
+        masks['SRTInIcePulses'].append(srt_indices)
 
         # Get the cleaned pulses (if available)
         # <icecube.dataclasses.I3RecoPulseSeriesMap>
@@ -336,8 +387,11 @@ if __name__ == '__main__':
         )
         if out_name.stem not in existing_files:
             data = {}
+            masks = {}
             for name in column_names:
                 data['{0}'.format(name)] = []
+            for name in mask_names:
+                masks['{0}'.format(name)] = []
             # Create the tray
             tray = I3Tray()
 
@@ -384,31 +438,27 @@ if __name__ == '__main__':
             tray.Finish()
 
             with open_file(out_name, mode='w') as f:
-                meta_data = {}
-                meta_data['events'] = len(data['true_primary_energy'])
-                data['no_of_doms'] = [
-                    len(data['dom_x'][i]) for i in range(
-                        len(data['true_primary_energy'])
-                    )
-                ]
                 group = f.create_group(
                     where='/',
                     name='raw',
                 )
-                meta_group = f.create_group(
+                mask_group = f.create_group(
                     where='/',
-                    name='meta'
+                    name='masks'
                 )
                 hist_group = f.create_group(
                     where='/histograms',
                     name='raw',
                     createparents=True
                 )
-                f.create_array(
-                    where=meta_group,
-                    name='events',
-                    obj=meta_data['events']
-                )
+                for mask in masks.keys():
+                    vlarray = f.create_vlarray(
+                        where=mask_group,
+                        name=mask,
+                        atom=IntAtom(shape=())
+                    )
+                    for i in range(len(masks[mask])):
+                        vlarray.append(masks[mask][i])
                 for key in column_names:
                     if type(data[key][0]) == np.ndarray:
                         variable = np.array(data[key])

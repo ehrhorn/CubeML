@@ -10,6 +10,8 @@ dependencies:
   - plotly
   - numpy
   - scipy
+  - scikit-learn
+  - pathlib
   - pip
   - pip:
     - streamlit
