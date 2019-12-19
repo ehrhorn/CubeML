@@ -3,6 +3,9 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import iqr
 import gc
+from datetime import datetime
+import os
+import psutil
 
 
 def dict_creator(data_file, group):
@@ -72,12 +75,13 @@ def hist_saver(out_file, hist_dict, bin_edges, transform):
     else:
         mode = 'w'
     with File(out_file, mode=mode) as f:
-        hist_group = f.create_group(
-            where='/',
-            name='histograms'
-        )
+        if mode == 'w':
+            hist_group = f.create_group(
+                where='/',
+                name='histograms'
+            )
         raw_group = f.create_group(
-            where=hist_group,
+            where='/histograms',
             name=transform
         )
         edges_group = f.create_group(
@@ -100,8 +104,11 @@ def hist_saver(out_file, hist_dict, bin_edges, transform):
                 obj=hist_dict[key]
             )
 
+process = psutil.Process(os.getpid())
+
+TRANSFORMS = ['raw', 'transform0']
 PARTICLE_TYPES = ['120000', '140000', '160000']
-DATA_DIR = Path('/groups/hep/ehrhorn/transform_test')
+DATA_DIR = Path('/groups/hep/ehrhorn/osc_files')
 
 QUANTILE_KEYS = []
 ROBUST_KEYS = [
@@ -124,49 +131,62 @@ ROBUST_KEYS = [
     'true_primary_position_z'
 ]
 
-for particle_type in PARTICLE_TYPES:
-    data_files = [
-        f for f in DATA_DIR.glob('**/*.h5') if f.is_file() and particle_type in f.name
-    ]
-    data_files = sorted(data_files)[0:10]
-    out_file = Path('/groups/hep/ehrhorn/repos/CubeML/powershovel').joinpath(
-        particle_type + '.h5'
-    )
-
-    iqr_dict = dict_creator(data_files[0], 'transform0')
-    n_dict = dict_creator(data_files[0])
-    min_max_dict = dict_creator(data_files[0])
-
-    for data_file in data_files:
-        print('Handling file', data_file.name)
-        hist_dict = file_reader(data_file, 'transform0')
-        iqr_dict = iqr_calculator(hist_dict, iqr_dict)
-        n_dict = n_calculator(hist_dict, n_dict)
-        min_max_dict = min_max_calculator(hist_dict, min_max_dict)
-
-    iqr_mean = {key: np.mean(iqr_dict[key]) for key in iqr_dict}
-    n_sum = {key: np.sum(n_dict[key]) for key in n_dict}
-    min_val = {key: np.min(min_max_dict[key]) for key in min_max_dict}
-    max_val = {key: np.max(min_max_dict[key]) for key in min_max_dict}
-    bins = {}
-    hist_dict = {}
-    for key in iqr_mean:
-        hist_dict[key] = 0
-
-    for key in iqr_dict:
-        h = 2 * iqr_mean[key] / (n_sum[key])**(1 / 3)
-        bins[key] = int(
-            round(
-                (max_val[key] - min_val[key]) / h, 0
-            )
+for transform in TRANSFORMS:
+    for particle_type in PARTICLE_TYPES:
+        data_files = [
+            f for f in DATA_DIR.glob('**/*.h5') if f.is_file() and particle_type in f.name
+        ]
+        data_files = sorted(data_files)
+        out_file = Path('/groups/hep/ehrhorn/repos/CubeML/powershovel').joinpath(
+            particle_type + '.h5'
         )
-        if bins[key] > 2000:
-            bins[key] = 2000
 
-    for data_file in data_files:
-        dictionary = file_reader(data_file, 'transform0')
-        hist_dict, bin_edges = histogram_calculator(dictionary, hist_dict, bins)
+        iqr_dict = dict_creator(data_files[0], transform)
+        n_dict = dict_creator(data_files[0], transform)
+        min_max_dict = dict_creator(data_files[0], transform)
 
-    hist_saver(out_file, hist_dict, bin_edges, 'transform0')
-    break
+        for i, data_file in enumerate(data_files):
+            if i % 20 == 0:
+                print('''\nAt timestamp {} I handled:\n
+    A file of particle type {}, with file name {}, using transform {}.\n
+    I used {} GB memory at the moment.\n
+    This was file number {} out of {} for this particle type.'''
+                    .format(
+                        datetime.now(),
+                        particle_type,
+                        data_file.stem.split('.')[-1],
+                        transform,
+                        round(process.memory_info().rss / 1073741824, 2),
+                        i + 1,
+                        len(data_files)
+                    )
+                )
+            hist_dict = file_reader(data_file, transform)
+            iqr_dict = iqr_calculator(hist_dict, iqr_dict)
+            n_dict = n_calculator(hist_dict, n_dict)
+            min_max_dict = min_max_calculator(hist_dict, min_max_dict)
 
+        iqr_mean = {key: np.mean(iqr_dict[key]) for key in iqr_dict}
+        n_sum = {key: np.sum(n_dict[key]) for key in n_dict}
+        min_val = {key: np.min(min_max_dict[key]) for key in min_max_dict}
+        max_val = {key: np.max(min_max_dict[key]) for key in min_max_dict}
+        bins = {}
+        hist_dict = {}
+        for key in iqr_mean:
+            hist_dict[key] = 0
+
+        for key in iqr_dict:
+            h = 2 * iqr_mean[key] / (n_sum[key])**(1 / 3)
+            bins[key] = int(
+                round(
+                    (max_val[key] - min_val[key]) / h, 0
+                )
+            )
+            if bins[key] > 2000:
+                bins[key] = 2000
+
+        for data_file in data_files:
+            dictionary = file_reader(data_file, transform)
+            hist_dict, bin_edges = histogram_calculator(dictionary, hist_dict, bins)
+
+        hist_saver(out_file, hist_dict, bin_edges, transform)
