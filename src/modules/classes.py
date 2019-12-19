@@ -856,6 +856,10 @@ class SelfAttention(nn.Module):
         self.Q = nn.Linear(in_features=n_in, out_features=n_out)
         self.K = nn.Linear(in_features=n_in, out_features=n_out)
         self.V = nn.Linear(in_features=n_in, out_features=n_out)
+        init_weights(arch_dict, arch_dict['non_lin'], self.Q)
+        init_weights(arch_dict, arch_dict['non_lin'], self.K)
+        init_weights(arch_dict, arch_dict['non_lin'], self.V)
+
         self.softmax = nn.Softmax(dim=-1)
         if self.layer_dict.get('LayerNorm', False):
             self.norm = nn.LayerNorm(n_out)

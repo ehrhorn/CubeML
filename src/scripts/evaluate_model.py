@@ -13,14 +13,14 @@ if __name__ == '__main__':
     if 'model_dir' not in locals():
         raise ValueError('No path supplied!')
     
-    model_dir = hf.find_files(model_dir)
+    #* Locate the model directory
+    paths = hf.find_files(model_dir)
+    for path in paths:
+        if path.split('/')[-1] == model_dir:
+            model = path
+            break
     
-    if len(model_dir ) > 1:
-        for name in model_dir:
-            print(name)
-        raise ValueError('Several models with name %s'%(args.path))
-    else:
-        model_dir = model_dir[0]
-    print(model_dir)
-    wandb_ID = model_dir.split('/')[-1]
-    mf.evaluate_model(model_dir, wandb_ID=wandb_ID)
+    print(model)
+    wandb_ID = model.split('/')[-1]
+    print(wandb_ID)
+    mf.evaluate_model(model, wandb_ID=wandb_ID)
