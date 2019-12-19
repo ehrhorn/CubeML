@@ -106,9 +106,9 @@ def hist_saver(out_file, hist_dict, bin_edges, transform):
 
 process = psutil.Process(os.getpid())
 
-TRANSFORMS = ['raw', 'transform0']
+TRANSFORMS = ['transform0']
 PARTICLE_TYPES = ['120000', '140000', '160000']
-DATA_DIR = Path('/groups/hep/ehrhorn/osc_files')
+DATA_DIR = Path('/groups/hep/ehrhorn/transform_test')
 
 QUANTILE_KEYS = []
 ROBUST_KEYS = [
@@ -190,3 +190,5 @@ for transform in TRANSFORMS:
             hist_dict, bin_edges = histogram_calculator(dictionary, hist_dict, bins)
 
         hist_saver(out_file, hist_dict, bin_edges, transform)
+
+print('Done.')

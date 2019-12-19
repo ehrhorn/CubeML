@@ -42,13 +42,13 @@ def transformer_transform(hist_dict, transformer_dict):
         transformed_dict[key] = transformer_dict
     return transformed_dict
 
-DATA_DIR = Path(
-    '/groups/hep/ehrhorn/files/icecube/hdf5_files/'
-    'oscnext-genie-level5-v01-01-pass2/'
-)
 # DATA_DIR = Path(
-#     '/groups/hep/ehrhorn/transform_test'
+#     '/groups/hep/ehrhorn/files/icecube/hdf5_files/'
+#     'oscnext-genie-level5-v01-01-pass2/'
 # )
+DATA_DIR = Path(
+    '/groups/hep/ehrhorn/transform_test'
+)
 PARTICLE_TYPES = ['120000', '140000', '160000']
 BANNED_GROUPS = [
     'dom_atwd',
@@ -100,10 +100,12 @@ for particle_type in PARTICLE_TYPES:
         if key in ROBUST_KEYS:
             transformer_dict[key] = RobustScaler()
         elif key in QUANTILE_KEYS:
-            transformer_dict[key] = QuantileTransformer()
+            transformer_dict[key] = QuantileTransformer(
+                output_distribution='normal'
+            )
 
     for i, data_file in enumerate(DATA_FILES):
-        if i % 20 == 0:
+        if i % 1 == 0:
             print('Handling particle {}, file {}, RAM used {} GB, {}/{}'.format(
                 particle_type,
                 data_file.stem.split('.')[-1],
