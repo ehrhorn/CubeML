@@ -94,34 +94,28 @@ def clean_lvl_1(events):
 
 
 def transform_lvl_1(events):
-    if 'true_muon_energy' in events:
-        particle_type = 'muon'
-    elif 'true_neutrino_energy' in events:
-        particle_type = 'neutrino'
-    else:
-        raise ValueError('Unknown particle type!')
-    quantile_keys = ['charge']
+    quantile_keys = ['dom_charge']
     robust_keys = [
         'dom_x',
         'dom_y',
         'dom_z',
-        'time',
+        'dom_time',
         'toi_point_on_line_x',
         'toi_point_on_line_y',
         'toi_point_on_line_z',
-        'true_' + particle_type + '_energy',
-        'true_' + particle_type + '_entry_position_x',
-        'true_' + particle_type + '_entry_position_y',
-        'true_' + particle_type + '_entry_position_z'
+        'true_primary_energy',
+        'true_primary_entry_position_x',
+        'true_primary_entry_position_y',
+        'true_primary_entry_position_z'
     ]
     no_transform = [
         'toi_direction_x',
         'toi_direction_y',
         'toi_direction_z',
         'toi_evalratio',
-        'true_' + particle_type + '_direction_x',
-        'true_' + particle_type + '_direction_y',
-        'true_' + particle_type + '_direction_z'
+        'true_primary_direction_x',
+        'true_primary_direction_y',
+        'true_primary_direction_z'
     ]
     do_not_use = [
         'linefit_direction_x',
@@ -129,8 +123,7 @@ def transform_lvl_1(events):
         'linefit_direction_z',
         'linefit_point_on_line_x',
         'linefit_point_on_line_y',
-        'linefit_point_on_line_z',
-        'no_of_doms'
+        'linefit_point_on_line_z'
     ]
     hists = {}
     data = {}
