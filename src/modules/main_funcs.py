@@ -625,6 +625,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     #* Shut down W&B first, if it is already running
     if log:
         WANDB_NAME = save_dir.split('/')[-1]
+        MODEL_NAME = save_dir.split('/')[-1]
         WANDB_DIR = get_project_root()+'/models'
 
         wandb.init(project=meta_pars['project'], name=WANDB_NAME, tags=meta_pars['tags'], id=wandb_ID, reinit=True, dir=WANDB_DIR)
@@ -645,12 +646,20 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
         with open(save_dir+'/meta_pars.json', 'w') as fp:
             json.dump(meta_pars, fp)
 
-        # * Immediately start dvc-tracking, so we don't accidentally push something to git, when train crashes...
-        model_dir = Path(save_dir).resolve().parent
-        subprocess.run(['dvc', 'add', WANDB_NAME], cwd=model_dir)
-
+        # * Add to .gitignore immediately
+        gitignore_model_path = '/'.join(save_dir.split('/')[:-1]) + '/.gitignore'
+        with open(gitignore_model_path,'a') as f:
+            f.write('/%s\n'%(MODEL_NAME))
+        
         WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
-        subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
+        gitignore_wandb_path = WANDB_DIR+'/wandb/.gitignore'
+        with open(gitignore_wandb_path,'a') as f:
+            f.write('/%s\n'%(WANDB_NAME_IN_WANDB_DIR))
+
+        # # * Immediately start dvc-tracking, so we don't accidentally push something to git, when train crashes...
+        # model_dir = Path(save_dir).resolve().parent
+        # subprocess.run(['dvc', 'add', WANDB_NAME], cwd=model_dir)
+        # subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
     else:
         print('Logging turned off.')
 
@@ -664,11 +673,11 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
         with open(save_dir+'/meta_pars.json', 'w') as fp:
             json.dump(meta_pars, fp)
 
-        model_dir = Path(save_dir).resolve().parent
-        subprocess.run(['dvc', 'add', WANDB_NAME], cwd=model_dir)
+        # model_dir = Path(save_dir).resolve().parent
+        # subprocess.run(['dvc', 'add', WANDB_NAME], cwd=model_dir)
 
-        WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
-        subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
+        # WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
+        # subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
     
     return save_dir, wandb_ID
     

@@ -41,7 +41,7 @@ if __name__ == '__main__':
                 'pretrained_path':      pretrained_path 
                 }
 
-    hyper_pars = {'batch_size':        2,
+    hyper_pars = {'batch_size':        10,
                 'max_epochs':          1,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
@@ -70,7 +70,7 @@ if __name__ == '__main__':
                 'file_keys':             {'transform':   0},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      2
+                'val_batch_size':      10
                 }
 
 

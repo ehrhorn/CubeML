@@ -851,6 +851,7 @@ class SelfAttention(nn.Module):
         self.layer_dict = layer_dict
         self.n_in = n_in
         self.n_out = n_out
+        self.device = get_device()
 
         self.Q = nn.Linear(in_features=n_in, out_features=n_out)
         self.K = nn.Linear(in_features=n_in, out_features=n_out)
@@ -905,7 +906,7 @@ class SelfAttention(nn.Module):
         # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
         maxlen = lengths[0]
         if batch_first:
-            mask = torch.arange(maxlen)[None, :] < lengths[:, None]
+            mask = torch.arange(maxlen, device=self.device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(1)
         return mask
 
