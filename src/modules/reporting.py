@@ -4,14 +4,13 @@ import pickle
 import torch
 from matplotlib import pyplot as plt
 from time import localtime, strftime
-from pathlib import Path
 
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 
-# ======================================================================== 
-# PERFORMANCE CLASSES
-# ========================================================================
+#* ======================================================================== 
+#* PERFORMANCE CLASSES
+#* ========================================================================
 
 class AziPolarHists:
     '''A class to create azimuthal and polar error plots - one 2D-histogram and two performance plots.
@@ -263,8 +262,8 @@ class AziPolarPerformance:
             wandb.log({'AziErrorPerformance': wandb.Image(im, caption='AziErrorPerformance')}, commit = False)
         
         #* Save polar next
-        perf_savepath = get_project_root()+self.model_dir+'/data/PolarErrorPerformance.pickle'
-        img_address = get_project_root()+self.model_dir+'/figures/PolarErrorPerformance.png'
+        perf_savepath = get_project_root() + self.model_dir + '/data/PolarErrorPerformance.pickle'
+        img_address = get_project_root() + self.model_dir + '/figures/PolarErrorPerformance.png'
         d = self.get_polar_dict()
         h_fig = make_plot(d)
         
@@ -288,6 +287,7 @@ class AziPolarPerformance:
             im = PIL.Image.open(img_address)
             wandb.log({'PolarErrorPerformance': wandb.Image(im, caption='PolarErrorPerformance')}, commit = False)
 
+        perf_savepath = get_project_root() + self.model_dir + '/data/AziPolarPerformance.pickle'
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
 
@@ -363,6 +363,56 @@ class DirErrorPerformance:
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
 
+def get_performance_plot_dicts(model_dir, plot_dicts):
+    """Loads the performance classes associated with a certain regression and returns their plot dictionaries to plot and compare their performances.
+    
+    Arguments:
+        model_dir {str} -- full or relative path to a model directory
+        plot_dicts {list} -- empty or filled list with a plot dictionary for each performance plot
+    
+    Returns:
+        list -- list with updated plot dictionaries
+    """  
+
+    _, _, _, meta_pars = load_model_pars(model_dir)
+
+    if meta_pars['group'] == 'direction_reg':
+        azipolar_path = get_project_root() + get_path_from_root(model_dir) + '/data/AziPolarPerformance.pickle'
+        azipolar_class = pickle.load( open( azipolar_path, "rb" ) )
+        
+        azi_dict = azipolar_class.get_azi_dict()
+        azi_dict['label'] = [Path(model_dir).stem]
+
+        polar_dict = azipolar_class.get_polar_dict()
+        polar_dict['label'] = [Path(model_dir).stem]
+
+        if len(plot_dicts) == 0:
+            azi_dict['title'] = 'Azimuthal Performance'
+            azi_dict['grid'] = True
+            plot_dicts.append(azi_dict)
+            
+            polar_dict['title'] = 'Polar Performance'
+            polar_dict['grid'] = True
+            plot_dicts.append(polar_dict)
+        
+        else:
+            
+            for key, item in plot_dicts[0].items():
+                # * Only add to the lists - labels remain the same - this is what the try/except catches
+                try:
+                    plot_dicts[0][key].append(azi_dict[key][0])
+                except AttributeError:
+                    pass
+
+            for key, item in plot_dicts[1].items():
+                # * Only add to the lists - labels remain the same - this is what the try/except catches
+                try:
+                    plot_dicts[1][key].append(polar_dict[key][0])
+                except AttributeError:
+                    pass
+
+    return plot_dicts
+        
 def log_operation_plots(model_dir, wandb_ID=None):
     '''Default functionality: Searches in model_dir for pickle-files containing epochs, lr, val. error and training error and saves plots to wandb and locally.
     '''
@@ -406,14 +456,14 @@ def log_performance_plots(model_dir, wandb_ID=None):
     print(strftime("%d/%m %H:%M", localtime()), ': Logging plots...')
     if meta_pars['group'] == 'direction_reg':
 
-        # Plot and save azi- and polarplots
+        #* Plot and save azi- and polarplots
         azi_polar = AziPolarHists(model_dir, wandb_ID=wandb_ID)
         azi_polar.save()
 
         azi_polar_perf = AziPolarPerformance(model_dir, wandb_ID=wandb_ID)
         azi_polar_perf.save()
 
-        # Plot and save directional error performance
+        #* Plot and save directional error performance
         perf = DirErrorPerformance(model_dir, wandb_ID=wandb_ID)
         perf.save()
 
@@ -621,10 +671,14 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
     if 'text' in plot_dict:
         plt.text(*plot_dict['text'], transform=h_axis.transAxes)
     
+    if 'title' in plot_dict:
+        plt.title(plot_dict['title'])
+
     if 'savefig' in plot_dict: 
             h_figure.savefig(plot_dict['savefig'])
             print('\nFigure saved at:')
             print(plot_dict['savefig'])
+    
 
     return h_figure
 

@@ -11,9 +11,9 @@ from math import sqrt
 
 from src.modules.helper_functions import *
 
-# * ======================================================================== 
-# * DATALOADERS
-# * ========================================================================
+#* ======================================================================== 
+#* DATALOADERS
+#* ========================================================================
 
 class LstmLoader(data.Dataset):
     '''A Pytorch dataloader for LSTM-like NN, which takes sequences and scalar variables as input. 
@@ -40,7 +40,6 @@ class LstmLoader(data.Dataset):
                     else: n_data += n_test
 
         # * Initialize dataholders
-        # * print('%s: n_data: %d'%(set_type, n_data))
         self.scalar_features = {key: np.empty(n_data) for key in scalar_features}
         self.seq_features = {key: [[] for i in range(n_data)] for key in seq_features}
         self.targets = {key: np.empty(n_data) for key in targets}
@@ -416,13 +415,13 @@ class SeqScalarTargetLoader(data.Dataset):
         self.n_events_total = n_events
     
 class FullBatchLoader(data.Dataset):
-    '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads an entire batch from one file and closes the file again upon every __getitem__. 
+    '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads an entire batch from one file and closes the file again upon every __getitem__. It also has the option to stop preparing more files, when n_events_wanted have been surpassed.
     
-    REMEMBER TO CALL THE make_batches()-METHOD BEFORE EACH NEW EPOCH!
+    # ! REMEMBER TO CALL THE make_batches()-METHOD BEFORE EACH NEW EPOCH!
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and batch_size.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf):
 
         self.directory = get_project_root() + directory
         self.scalar_features = scalar_features
@@ -432,12 +431,12 @@ class FullBatchLoader(data.Dataset):
         self.targets = targets
         self.n_targets = len(targets)
         self.type = set_type
+        self.n_events_wanted = n_events_wanted
         self.train_frac = train_frac
         self.val_frac = val_frac
         self.test_frac = test_frac
         self.batch_size = batch_size
         self.prefix = prefix
-
         self.file_path = {}
         self.file_indices = {}
         self.n_batches = {}
@@ -446,7 +445,6 @@ class FullBatchLoader(data.Dataset):
 
         self._get_meta_information()
         self.make_batches()
-        # * print(self.batches[0])
 
     def __getitem__(self, index):
         # * Find right file and get sorted indices to load
@@ -525,9 +523,15 @@ class FullBatchLoader(data.Dataset):
         '''Extracts filenames, calculates indices induced by train-, val.- and 
         '''
         n_batches = 0
+        n_events = 0
         from_frac, to_frac = self._get_from_to()
         ID = 1
         for file in Path(self.directory).iterdir():
+            
+            # * If enough datapoints have been prepared, stop loading more
+            if n_events > self.n_events_wanted:
+                break
+            
             if file.suffix == '.h5':
                 with h5.File(file, 'r') as f:
 
@@ -540,11 +544,12 @@ class FullBatchLoader(data.Dataset):
                     self.file_indices[file_ID] = indices
                     self.n_batches[file_ID] = int(len(indices)/self.batch_size)
 
+                    n_events += len(indices)
                     n_batches += int(len(indices)/self.batch_size)
                     ID += 1
         
         self.n_batches_total = n_batches
-
+        
     def make_batches(self):
         '''Shuffles the INDICES from each file, the Torch dataloader fetches a batch from. For each file, self.n_batches dictionaries are made as {ID: shuffled_indices_to_load}. They are then extended to a list, which will contain all such dictionaries for all files. The final list is shuffled aswell. 
         '''
@@ -595,9 +600,9 @@ class CnnCollater:
         out_seq = (sequences.float(), )
         return out_seq, targets.float()
 
-#*======================================================================== 
+#* ======================================================================== 
 #* DATALOADER FUNCTIONS
-#*========================================================================
+#* ========================================================================
 
 def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
 
@@ -641,12 +646,13 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
         file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
         if keyword == 'train':
             batch_size = hyper_pars['batch_size']
+            n_events_wanted = data_pars.get('n_train_events_wanted', np.inf)
         elif keyword == 'val':
             batch_size = data_pars['val_batch_size']
-
+            n_events_wanted = data_pars.get('n_val_events_wanted', np.inf)
         prefix = 'transform'+str(file_keys['transform'])+'/'
 
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted)
 
     
     elif 'CnnLoader' == data_pars['dataloader']:
@@ -747,14 +753,13 @@ class MakeModel(nn.Module):
     '''A modular PyTorch model builder
     '''
 
-    def __init__(self, arch_dict, device, batch_first=True):
+    def __init__(self, arch_dict, device):
         super(MakeModel, self).__init__()
         self.mods = make_model_architecture(arch_dict)
         self.layer_names = get_layer_names(arch_dict)
         self.arch_dict = arch_dict
         self.device = device
         self.count = 0
-        self.batch_first = batch_first
 
     # * Input must be a tuple to be unpacked!
     def forward(self, batch):
@@ -774,18 +779,17 @@ class MakeModel(nn.Module):
         
         for layer_name, entry in zip(self.layer_names, self.mods):
             # * Handle different layers in different ways! 
-            
             if layer_name == 'LSTM':
                 # * A padded sequence is expected
                 # * Initialize hidden layer
                 h = self.init_hidden(batch_size, entry, self.device)
 
                 # * Send to LSTM!
-                seq = pack(seq, lengths, batch_first=self.batch_first)
+                seq = pack(seq, lengths, batch_first=True)
                 
                 seq, h = entry(seq, h)
                 x, _ = h
-                seq, lengths = unpack(seq, batch_first=self.batch_first)
+                seq, lengths = unpack(seq, batch_first=True)
                 if entry.bidirectional:
                     # * Add hidden states from forward and backward pass to encode information
                     seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
@@ -809,8 +813,7 @@ class MakeModel(nn.Module):
                 seq = entry(seq)
             
             elif layer_name == 'SelfAttention':
-
-                seq = entry((seq, lengths, self.batch_first))
+                seq = entry(seq, lengths)
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -862,16 +865,16 @@ class SelfAttention(nn.Module):
         if self.layer_dict.get('Residual', False):
             self.residual_connection = True
     
-    def forward(self, args):
-        seq, lengths, batch_first = args
+    def forward(self, seq, lengths):
+        # seq, lengths = args
         q = self.Q(seq)
         k = self.K(seq)
         v = self.V(seq)
         
         # * Attention -> potential norm and residual connection
-        post_attention = self._calc_self_attention(q, k, v, lengths, batch_first=batch_first)
+        post_attention = self._calc_self_attention(q, k, v, lengths, batch_first=True)
         if self.residual_connection:
-            post_attention = seq+post_attention
+            post_attention = seq + post_attention
         if self.norm:
             post_attention = self.norm(post_attention)
         
@@ -881,7 +884,7 @@ class SelfAttention(nn.Module):
             output = output + post_attention
         if self.norm:
             output = self.norm2(output)
-
+        
         return output
 
     def _calc_self_attention(self, q, k, v, lengths, batch_first=False):
@@ -906,9 +909,9 @@ class SelfAttention(nn.Module):
             mask = mask.unsqueeze(1)
         return mask
 
-#*======================================================================== 
+#* ======================================================================== 
 #* MODEL FUNCTIONS
-#*========================================================================
+#* ========================================================================
 
 def add_conv1d(arch_dict, layer_dict):
     n_layers = len(layer_dict['input_sizes']) - 1
@@ -1087,7 +1090,7 @@ def get_layer_names(arch_dict):
     for layer in arch_dict['layers']:
         for layer_name in layer:
             if layer_name == 'SelfAttention':
-                n_attention_modules = len(layer.get(layer_name))-1
+                n_attention_modules = len(layer['SelfAttention']['input_sizes'])-1
                 for nth_attention_layer in range(n_attention_modules):
                     layer_names.append(layer_name)
             else:

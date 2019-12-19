@@ -95,7 +95,4 @@ target/
 temp/
 
 *.h5
-/models
-/src/scripts/wandb
 nohup.out
-/wandb

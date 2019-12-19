@@ -6,6 +6,7 @@ from ignite.engine import Events, create_supervised_trainer, create_supervised_e
 import h5py as h5
 from time import time
 from scipy.stats import norm
+import subprocess
 
 # from src.modules.classes import *
 import src.modules.loss_funcs as lf
@@ -13,14 +14,15 @@ from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 from src.modules.reporting import make_plot
 # from src.modules.main_funcs import *
+model_dir = '/home/bjoern/Thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/'
+model_name = 'test_2019.12.12-15.37.24'
+model_name = 'test_2019.12.12-14.39.38'
+# subprocess.run('ls')
+# subprocess.run(['echo',  'hello world from shell'])
+# subprocess.run(['cd', model_dir])
 
-a = torch.tensor([[0.0, 1.0, 2.0], [10.5, 11.0, 11.5]])
-print(a)
-b = torch.nn.Softmax(dim=1)
-
-print(b(a))
-if a[0]<a[2]:
-        print(a[0],'is less than',a[2])
+subprocess.run(['dvc', 'add', model_name], cwd=model_dir)
+# subprocess.run(['git', 'add', '-f', model_name+'.dvc'], cwd=model_dir)
 #* #* print(bootstrap_samples)
 #* #%%
 #* fig = make_plot({'data': [dist_sorted, bootstrap_samples]})
