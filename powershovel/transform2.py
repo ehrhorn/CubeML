@@ -85,7 +85,7 @@ def scaled_data_saver(file, data, transform_level):
 
 PARTICLE_TYPES = ['120000', '140000', '160000']
 DATA_DIR = Path(
-    '/groups/hep/ehrhorn/osc_files'
+    '/groups/hep/ehrhorn/transform_test'
 )
 BANNED_GROUPS = [
     'dom_atwd',
@@ -95,6 +95,8 @@ BANNED_GROUPS = [
     'secondary_track_length'
 ]
 SCALER_DIR = Path('/groups/hep/ehrhorn')
+
+TRANSFORM = 'transform0'
 
 process = psutil.Process(os.getpid())
 
@@ -114,6 +116,6 @@ for particle_type in PARTICLE_TYPES:
         ))
         dictionary = file_reader(data_file, 'raw', BANNED_GROUPS)
         final_dict = transformer_transform(dictionary, scalers)
-        scaled_data_saver(data_file, final_dict, 'transform0')
+        scaled_data_saver(data_file, final_dict, TRANSFORM)
 
 print('Done')
