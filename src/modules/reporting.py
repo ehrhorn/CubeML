@@ -675,9 +675,9 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         plt.title(plot_dict['title'])
 
     if 'savefig' in plot_dict: 
-            h_figure.savefig(plot_dict['savefig'])
-            print('\nFigure saved at:')
-            print(plot_dict['savefig'])
+        h_figure.savefig(plot_dict['savefig'])
+        print('\nFigure saved at:')
+        print(plot_dict['savefig'])
     
 
     return h_figure
