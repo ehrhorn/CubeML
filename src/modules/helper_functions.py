@@ -426,7 +426,7 @@ def get_dataset_name(file_path):
     if from_root_splitted[1] == 'data' or from_root_splitted[1] == 'models':
         name = from_root_splitted[2]
     else:
-        'Unknown format given!'
+        raise ValueError('Unknown format (%s) given!'%(file_path))
     
     return name
 

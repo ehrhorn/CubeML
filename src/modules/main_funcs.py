@@ -67,18 +67,30 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, batch_size, n_train
     return lr, loss_vals
 
 def evaluate_model(model_dir, wandb_ID = None):
-    '''Evaluates a model contained in save_dir
-
-    Input
-    save_dir: Full path to model directory to be evaluated
-    '''
+    """Predicts on the dataset and makes performance plots induced by the model_dir. If wanted, the results are logged to W&B.
+    
+    Arguments:
+        model_dir {str} -- Full or partial path to a trained model
+    
+    Keyword Arguments:
+        wandb_ID {str} -- The unique W&B-ID of the experiment. If None, no logging is performed. (default: {None})
+    """
     
     #* ======================================================================== #
     #* SAVE OPERATION PLOTS
     #* ======================================================================== #
+
     if wandb_ID is not None:
+        
         WANDB_DIR = get_project_root()+'/models'
         wandb.init(resume=True, id=wandb_ID, dir=WANDB_DIR)
+
+        # * Add to .gitignore - every time an evaluation is initiated, wandb creates a new directory.
+        WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
+        gitignore_wandb_path = WANDB_DIR+'/wandb/.gitignore'
+        with open(gitignore_wandb_path,'a') as f:
+            f.write('/%s\n'%(WANDB_NAME_IN_WANDB_DIR))
+    
     log_operation_plots(model_dir, wandb_ID=wandb_ID)
 
     #* ======================================================================== #

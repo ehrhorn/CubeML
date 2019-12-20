@@ -292,6 +292,26 @@ class AziPolarPerformance:
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
 
+class IceCubePerformance:
+
+    def __init__(self, dataset_name, n_bins=15):
+        self.dataset_name = '/data/'+dataset_name
+
+        self._calculate_histograms()
+    
+    def _calculate_histograms(self):
+        
+        if self.dataset_name == '/data/oscnext-genie-level5-v01-01-pass2':
+            vertex_reg_keys = get_target_keys({'data_dir': self.dataset_name}, {'group': 'vertex_reg'})
+            dir_reg_keys = get_target_keys({'data_dir': self.dataset_name}, {'group': 'direction_reg'})
+            self.save_vertex_histograms(vertex_reg_keys)
+            
+        else:
+            raise ValueError('Unknown dataset (%s) given!'%(self.dataset_name))
+    
+    def save_vertex_histograms(self, keys):
+        pass
+    
 class DirErrorPerformance:
     '''A class to calculate and save performance wrt directional error
 
@@ -365,7 +385,7 @@ class DirErrorPerformance:
             pickle.dump(self, f)
 
 class VertexPerformance:
-    """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median MAE.     
+    """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
     
     Raises:
         KeyError: If an unknown dataset is encountered.
@@ -384,15 +404,17 @@ class VertexPerformance:
         self.data_pars = data_pars
         self.meta_pars = meta_pars
         self.prefix = prefix
-        self._get_energy_key()
-        self._get_reco_keys()
+        self.energy_key = self._get_energy_key()
+        self._reco_keys = self._get_reco_keys()
+        self._true_xyz_keys = self._get_true_xyz_keys()
 
         self.from_frac = from_frac
         self.to_frac = to_frac
         self.wandb_ID = wandb_ID
 
-        self.data_dict = self._get_data_dict()
-        self.calculate()
+        data_dict = self._get_data_dict()
+        self._create_performance_plots(data_dict)
+        self._calculate_onenum_performance(data_dict)
 
     def _get_data_dict(self):
         full_pred_address = self._get_pred_path()
@@ -405,13 +427,14 @@ class VertexPerformance:
         dataset_name = get_dataset_name(self.data_pars['data_dir'])
 
         if dataset_name == 'MuonGun_Level2_139008':
-            self.energy_key = ['true_muon_energy']
+            energy_key = ['true_muon_energy']
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            self.energy_key = ['true_primary_energy']
+            energy_key = ['true_primary_energy']
         else:
             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
         
-
+        return energy_key
+    
     def _get_pred_path(self):
         path_to_data = get_project_root() + self.model_dir + '/data'
         for file in Path(path_to_data).iterdir():
@@ -431,15 +454,28 @@ class VertexPerformance:
         dataset_name = get_dataset_name(self.data_pars['data_dir'])
 
         if dataset_name == 'MuonGun_Level2_139008':
-            self._reco_keys = None
+            reco_keys = None
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            self._reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
+            reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
             self._true_xyz = ['true_primary_position_x', 'true_primary_position_y',  'true_primary_position_z']
         else:
             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
+        
+        return reco_keys
 
+    def _get_true_xyz_keys(self):
+        dataset_name = get_dataset_name(self.data_pars['data_dir'])
 
-    def calculate(self):
+        if dataset_name == 'MuonGun_Level2_139008':
+            true_xyz = None
+        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
+            true_xyz = ['true_primary_position_x', 'true_primary_position_y',  'true_primary_position_z']
+        else:
+            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
+        
+        return true_xyz
+    
+    def _create_performance_plots(self, data_dict):
         energy = read_h5_directory(self.data_pars['data_dir'], self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
 
         #* Transform back and extract values into list
@@ -447,17 +483,17 @@ class VertexPerformance:
         energy = [y for _, y in energy.items()][0]
         self.counts, self.bin_edges = np.histogram(energy, bins=12)
         
-        x_error = self.data_dict['vertex_x_error']
+        x_error = data_dict['vertex_x_error']
         print('\nCalculating x performance...')
         self.x_sigmas, self.x_errors = calc_perf2_as_fn_of_energy(energy, x_error, self.bin_edges)
         print('Calculation finished!')
 
-        y_error = self.data_dict['vertex_y_error']
+        y_error = data_dict['vertex_y_error']
         print('\nCalculating y performance...')
         self.y_sigmas, self.y_errors = calc_perf2_as_fn_of_energy(energy, y_error, self.bin_edges)
         print('Calculation finished!')
 
-        z_error = self.data_dict['vertex_z_error']
+        z_error = data_dict['vertex_z_error']
         print('\nCalculating z performance...')
         self.z_sigmas, self.z_errors = calc_perf2_as_fn_of_energy(energy, z_error, self.bin_edges)
         print('Calculation finished!')
@@ -501,6 +537,7 @@ class VertexPerformance:
 
             a, b = calc_relative_error(self.z_crs_sigmas, self.z_sigmas, self.z_crs_errors, self.z_errors)
             self.z_relative_improvements, self.z_sigma_improvements = -a, b
+        
         else:
             self.x_relative_improvements = None
             self.x_sigma_improvements = None
@@ -509,6 +546,15 @@ class VertexPerformance:
             self.z_relative_improvements = None
             self.z_sigma_improvements = None
     
+    def _calculate_onenum_performance(self, data_dict):
+
+        x_error = data_dict['vertex_x_error']
+        y_error = data_dict['vertex_y_error']
+        z_error = data_dict['vertex_z_error']
+
+        len_error = np.sqrt(x_error**2 + y_error**2 + z_error**2)
+        self.median_len_error = np.nanpercentile(len_error, 50)
+
     def get_energy_dict(self):
         return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
 
@@ -667,8 +713,14 @@ def get_performance_plot_dicts(model_dir, plot_dicts):
     return plot_dicts
         
 def log_operation_plots(model_dir, wandb_ID=None):
-    '''Default functionality: Searches in model_dir for pickle-files containing epochs, lr, val. error and training error and saves plots to wandb and locally.
-    '''
+    """Searches in the model_dir for pickle-files containing epochs, lr, validation- and training error and saves plots the aforementioned quantities as a function of epoch to W&B (if a unique ID is supplied) and locally.
+    
+    Arguments:
+        model_dir {str} -- Absolute or relative path to the model directory.
+    
+    Keyword Arguments:
+        wandb_ID {str} -- If wanted, the unique wandb-ID can be supplied to log to W&B (default: {None})
+    """    
     
     epochs = model_dir+'/data/epochs.pickle'
     with open(epochs, 'rb') as f:
@@ -701,8 +753,15 @@ def log_operation_plots(model_dir, wandb_ID=None):
         wandb.log({'Learning rate vs epoch': wandb.Image(im, caption='Learning rate vs epoch')}, commit = False)
 
 def log_performance_plots(model_dir, wandb_ID=None):
-    '''Creates and logs performance plots relevant to the regression model
-    '''
+    """Creates and logs performance plots relevant to the regression model by calling special classes
+    
+    Arguments:
+        model_dir {str} -- Absolute or relative path to the model directory.
+    
+    Keyword Arguments:
+        wandb_ID {str} -- If wanted, the unique wandb-ID can be supplied to log to W&B (default: {None})
+    """    
+    
     _, _, _, meta_pars = load_model_pars(model_dir)
     
 
@@ -956,12 +1015,18 @@ def summarize_model_performance(model_dir, wandb_ID=None):
 
         onenum_performance = direrrperf_class.median
     
+    elif meta_pars['group'] == 'vertex_reg':
+        vertex_err_path = model_dir + '/data/VertexPerformance.pickle'
+        vertex_err_perf_class = pickle.load( open( vertex_err_path, "rb" ) )
+
+        onenum_performance = vertex_err_perf_class.median_len_error
+        
     else:
-        print('\nERROR: No one-number performance measure defined. Returning -1\n')
+        print('\nNO ONE-NUMBER PERFORMANCE MEASURE DEFINED. RETURNING -1\n')
         onenum_performance = -1
     
     if wandb_ID is not None:
-        wandb.config.update({'Performance': onenum_performance})
+        wandb.config.update({'Performance': onenum_performance}, allow_val_change=True)
 
     meta_pars['performance'] = onenum_performance
     with open(model_dir+'/meta_pars.json', 'w') as fp:
