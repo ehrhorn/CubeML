@@ -114,7 +114,7 @@ def get_eval_functions(meta_pars):
     Returns:
         list -- A list with the relevant functions.
     """    
-    
+
     regression_type = meta_pars['group']
 
     if regression_type == 'direction_reg':
@@ -122,7 +122,7 @@ def get_eval_functions(meta_pars):
     elif regression_type == 'full_reg':
         eval_funcs = [relative_logE_error]
     elif regression_type == 'vertex_reg':
-        eval_funcs = []
+        eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error]
     else:
         raise ValueError('Unknown regression type (%s) encountered!'%(regression_type))
 
@@ -211,3 +211,50 @@ def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
         diff = (180/pi)*(polar_preds-polar_truth)
     
     return diff
+
+def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
+    """Calculates the difference in polar angle between retro_crs_prefit and true values.
+    
+    Arguments:
+        retro_dict {dictionary} -- predictions from retro_crs_prefit with keys as in h5-files. Expects key 'zen'
+        true_dict {dictionary} -- true values as unit vectors with keys 'x', 'y', 'z'
+    
+    Keyword Arguments:
+        units {str} -- 'degrees' or 'radians' (default: {'degrees'})
+    
+    Returns:
+        torch.tensor -- difference in polar angle between retro and truth
+    """     
+    
+    pi = 3.14159265359
+
+    x_pred, y_pred, z_pred = retro_dict['x'], retro_dict['y'], retro_dict['z']
+    x_true, y_true, z_true = true_dict['x'], true_dict['y'], true_dict['z']
+    dir_truth = torch.tensor([x_true, y_true, z_true])
+    length_truth = torch.sum(dir_truth*dir_truth, dim=0)**0.5
+    polar_truth = torch.acos(dir_truth[2, :]/length_truth)
+
+    #? retro_crs seems to predit the direction the neutrino came from and not the neutrinos direction - therefore do a parity.
+    polar_preds = pi-torch.tensor(retro_dict['zen'], dtype=polar_truth.dtype)
+    if units == 'radians':
+        diff = polar_preds-polar_truth
+    elif units == 'degrees':
+        diff = (180/pi)*(polar_preds-polar_truth)
+    
+    return diff
+
+def vertex_x_error(pred, truth):
+
+    # * Ensure we are dealing with the right data
+    if 'true_primary_direction_x' in pred:
+        x_key = 'true_primary_entry_position_x'
+    
+    x_pred = pred[x_key]
+    x_true = truth[x_key]
+
+    dir_pred = torch.tensor(x_pred)
+    dir_truth = torch.tensor(x_true], dtype=dir_pred.dtype)
+
+    diff = x_pred - x_truth
+    print(pred)
+    print('OMEGALUL in vertex_x_error')

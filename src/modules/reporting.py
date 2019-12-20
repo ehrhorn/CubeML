@@ -170,6 +170,7 @@ class AziPolarPerformance:
         energy = read_h5_directory(self.data_dir, self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
 
         #* Transform back and extract values into list
+        # * Our predictions have already been converted in predict()
         energy = inverse_transform(energy, get_project_root() + self.model_dir)
         energy = [y for _, y in energy.items()]
         energy = [x[0] for x in energy[0]]
@@ -190,7 +191,8 @@ class AziPolarPerformance:
             azi_crs = read_h5_directory(self.data_dir, self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
             true = read_h5_directory(self.data_dir, self._true_xyz, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
 
-            #* Ensure keys are proper so the angle calculations work
+            # * Ensure keys are proper so the angle calculations work
+            # * Our predictions have already been converted in predict()
             true = inverse_transform(true, get_project_root() + model_dir)
             azi_crs = convert_keys(azi_crs, [key for key in azi_crs], ['azi', 'zen'])
             true = convert_keys(true, [key for key in true], ['x', 'y', 'z'])
@@ -463,13 +465,16 @@ class VertexPerformance:
 
         #* If an I3-reconstruction exists, get it
         if self._reco_keys:
-            azi_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+            pred_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
             true = read_h5_directory(self.data_pars['data_dir'], self._true_xyz, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
 
             #* Ensure keys are proper so the angle calculations work
-            true = inverse_transform(true, get_project_root() + model_dir)
-            azi_crs = convert_keys(azi_crs, [key for key in azi_crs], ['azi', 'zen'])
+            pred_crs = inverse_transform(pred_crs, get_project_root() + self.model_dir)
+            true = inverse_transform(true, get_project_root() + self.model_dir)
+
+            pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['x', 'y', 'z'])
             true = convert_keys(true, [key for key in true], ['x', 'y', 'z'])
+
 
             azi_crs_error = get_retro_crs_prefit_azi_error(azi_crs, true)
             polar_crs_error = get_retro_crs_prefit_polar_error(azi_crs, true)
