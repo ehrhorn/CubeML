@@ -4,11 +4,16 @@ import numpy as np
 from scipy.stats import iqr
 from sklearn.preprocessing import QuantileTransformer
 from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import FunctionTransformer
 import os
 import psutil
 import joblib
 import os
 import psutil
+
+
+def bjoern_transform(x):
+    return (x - 150) / 150
 
 
 def file_reader(file, group, BANNED_GROUPS):
@@ -96,15 +101,15 @@ BANNED_GROUPS = [
 ]
 SCALER_DIR = Path('/groups/hep/ehrhorn')
 
-TRANSFORM = 'transform0'
+TRANSFORM = 'powertransform'
 
 process = psutil.Process(os.getpid())
 
 for particle_type in PARTICLE_TYPES:
-    data_files = [
+    data_files = sorted([
         f for f in DATA_DIR.glob('**/*.h5') if f.is_file()
             and particle_type in f.name
-    ]
+    ])
     scalers = joblib.load(SCALER_DIR.joinpath(particle_type + '.pkl'))
     for i, data_file in enumerate(data_files):
         print('Handling particle {}, file {}, RAM used {} GB, {}/{}'.format(
