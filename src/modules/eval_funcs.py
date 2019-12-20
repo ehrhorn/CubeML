@@ -103,12 +103,28 @@ def directional_error(pred, truth, units = 'degrees'):
     return angles
 
 def get_eval_functions(meta_pars):
+    """Retrieves the relevant evaluation functions for the specific regression type
+    
+    Arguments:
+        meta_pars {dict} -- A dictionary containing the meta-keywords for an experiment
+    
+    Raises:
+        ValueError: If an unknown regression type is encountered
+    
+    Returns:
+        list -- A list with the relevant functions.
+    """    
+    
     regression_type = meta_pars['group']
 
     if regression_type == 'direction_reg':
         eval_funcs = [directional_error, azi_error, polar_error]
-    if regression_type == 'full_reg':
+    elif regression_type == 'full_reg':
         eval_funcs = [relative_logE_error]
+    elif regression_type == 'vertex_reg':
+        eval_funcs = []
+    else:
+        raise ValueError('Unknown regression type (%s) encountered!'%(regression_type))
 
     return eval_funcs
 

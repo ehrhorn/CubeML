@@ -606,29 +606,20 @@ class CnnCollater:
 
 def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
 
-    if 'LstmLoader' == data_pars['dataloader']:
+    data_dir = data_pars['data_dir'] # * WHere to load data from
+    seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
+    scalar_features = data_pars['scalar_feat'] # * feature names
+    targets = get_target_keys(data_pars, meta_pars) # * target names
+    train_frac = data_pars['train_frac'] # * how much data should be trained on?
+    val_frac = data_pars['val_frac'] # * how much data should be used for validation?
+    test_frac = data_pars['test_frac'] # * how much data should be used for training
+    file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
 
-        data_dir = data_pars['data_dir'] # * WHere to load data from
-        seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
-        scalar_features = data_pars['scalar_feat'] # * feature names
-        targets = data_pars['target'] # * target names
-        train_frac = data_pars['train_frac'] # * how much data should be trained on?
-        val_frac = data_pars['val_frac'] # * how much data should be used for validation?
-        test_frac = data_pars['test_frac'] # * how much data should be used for training
-        file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
+    if 'LstmLoader' == data_pars['dataloader']:
 
         dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
     
     elif 'SeqScalarTargetLoader' == data_pars['dataloader']:
-
-        data_dir = data_pars['data_dir'] # * WHere to load data from
-        seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
-        scalar_features = data_pars['scalar_feat'] # * feature names
-        targets = data_pars['target'] # * target names
-        train_frac = data_pars['train_frac'] # * how much data should be trained on?
-        val_frac = data_pars['val_frac'] # * how much data should be used for validation?
-        test_frac = data_pars['test_frac'] # * how much data should be used for training
-        file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
 
         prefix = 'transform'+str(file_keys['transform'])+'/'
 
@@ -636,14 +627,6 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
     
     elif 'FullBatchLoader' == data_pars['dataloader']:
 
-        data_dir = data_pars['data_dir'] # * WHere to load data from
-        seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
-        scalar_features = data_pars['scalar_feat'] # * feature names
-        targets = data_pars['target'] # * target names
-        train_frac = data_pars['train_frac'] # * how much data should be trained on?
-        val_frac = data_pars['val_frac'] # * how much data should be used for validation?
-        test_frac = data_pars['test_frac'] # * how much data should be used for training
-        file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
         if keyword == 'train':
             batch_size = hyper_pars['batch_size']
             n_events_wanted = data_pars.get('n_train_events_wanted', np.inf)

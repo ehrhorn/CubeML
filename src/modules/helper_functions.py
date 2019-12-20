@@ -410,8 +410,15 @@ def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=N
     return dataloader_params
 
 def get_dataset_name(file_path):
-    '''Given a path to a file, the dataset name is extracted
-    '''
+    """Retrieves the dataset name from an absolute or relative path to the dataset
+    
+    Arguments:
+        file_path {str} -- Absolute or relative path to dataset folder
+    
+    Returns:
+        str -- Dataset name
+    """    
+    
     from_root = get_path_from_root(file_path)
     from_root_splitted = from_root.split('/')
     
@@ -625,6 +632,42 @@ def get_project_root():
     while current_dir_splitted[i] != 'CubeML':
         i += 1
     return '/'.join(current_dir_splitted[:i+1]) 
+
+def get_target_keys(data_pars, meta_pars):
+    """Given a dataset and a regression type, the desired target keys are returned.
+    
+    Arguments:
+        data_pars {dict} -- a dictionary containing relevant data parameters
+        meta_pars {dict} -- a dictionary with meta-information of the experiment
+    
+    Raises:
+        ValueError: If unknown dataset encountered
+        ValueError: If unknown regression type wanted
+    
+    Returns:
+        list -- List with target variable keys
+    """ 
+       
+    dataset_name = get_dataset_name(data_pars['data_dir'])
+    
+    if dataset_name == 'oscnext-genie-level5-v01-01-pass2':
+        if meta_pars['group'] == 'direction_reg':
+            target_keys = ['true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z']
+        elif meta_pars['group'] == 'vertex_reg':
+            target_keys = ['true_neutrino_entry_position_x', 'true_neutrino_entry_position_y', 'true_neutrino_entry_position_z']
+        else:
+            raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
+    
+    elif dataset_name == 'MuonGun_Level2_139008':
+        if meta_pars['group'] == 'direction_reg':
+            target_keys = ['true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z']
+        else:
+            raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
+
+    else:
+        raise ValueError('Unknown dataset (%s) encountered!'%(dataset_name))
+    
+    return target_keys
 
 def get_train_val_test_indices(n_data, train_frac, val_frac, test_frac, shuffle = True):
     '''Split a dataset into a test-sample with test_frac*n_data datapoints, a training-sample with (1-test_frac)*train_frac*n_data datapoints and a validation set with (1-test_frac)*(1-train_frac)*n_data datapoints.
