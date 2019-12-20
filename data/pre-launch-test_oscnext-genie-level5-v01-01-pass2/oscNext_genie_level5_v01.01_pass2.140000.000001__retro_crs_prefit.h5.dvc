@@ -1,0 +1,7 @@
+md5: e9d57aa9dfe4ef15a401cfb6a97a734b
+outs:
+- md5: 5f33cf64da9c71ee0ded1f4b7596dfa4
+  path: oscNext_genie_level5_v01.01_pass2.140000.000001__retro_crs_prefit.h5
+  cache: true
+  metric: false
+  persist: false
