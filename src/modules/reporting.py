@@ -380,7 +380,7 @@ class VertexPerformance:
         to_frac = data_pars['train_frac'] + data_pars['val_frac']
 
         self.model_dir = get_path_from_root(model_dir)
-        self.data_dir = data_pars['data_dir']
+        self.data_pars = data_pars
         self.meta_pars = meta_pars
         self.prefix = prefix
         self._get_energy_key()
@@ -395,12 +395,12 @@ class VertexPerformance:
 
     def _get_data_dict(self):
         full_pred_address = self._get_pred_path()
-        keys = self._get_keys()
+        keys = get_target_keys(self.data_pars, self.meta_pars)
         data_dict = read_predicted_h5_data(full_pred_address, keys)
         return data_dict
 
     def _get_energy_key(self):
-        dataset_name = get_dataset_name(self.data_dir)
+        dataset_name = get_dataset_name(self.data_pars['data_dir'])
 
         if dataset_name == 'MuonGun_Level2_139008':
             self.energy_key = ['true_muon_energy']
@@ -438,7 +438,7 @@ class VertexPerformance:
 
 
     def calculate(self):
-        energy = read_h5_directory(self.data_dir, self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+        energy = read_h5_directory(self.data_pars['data_dir'], self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
 
         #* Transform back and extract values into list
         energy = inverse_transform(energy, get_project_root() + self.model_dir)
@@ -446,20 +446,25 @@ class VertexPerformance:
         energy = [x[0] for x in energy[0]]
         self.counts, self.bin_edges = np.histogram(energy, bins=12)
         
-        polar_error = self.data_dict['polar_error']
-        print('\nCalculating polar performance...')
-        self.polar_sigmas, self.polar_errors = calc_perf2_as_fn_of_energy(energy, polar_error, self.bin_edges)
+        x_error = self.data_dict['true_primary_entry_position_x']
+        print('\nCalculating x performance...')
+        self.x_sigmas, self.x_errors = calc_perf2_as_fn_of_energy(energy, x_error, self.bin_edges)
         print('Calculation finished!')
 
-        azi_error = self.data_dict['azi_error']
-        print('\nCalculating azimuthal performance...')
-        self.azi_sigmas, self.azi_errors = calc_perf2_as_fn_of_energy(energy, azi_error, self.bin_edges)
+        y_error = self.data_dict['true_primary_entry_position_y']
+        print('\nCalculating y performance...')
+        self.y_sigmas, self.y_errors = calc_perf2_as_fn_of_energy(energy, y_error, self.bin_edges)
+        print('Calculation finished!')
+
+        z_error = self.data_dict['true_primary_entry_position_z']
+        print('\nCalculating x performance...')
+        self.z_sigmas, self.z_errors = calc_perf2_as_fn_of_energy(energy, z_error, self.bin_edges)
         print('Calculation finished!')
 
         #* If an I3-reconstruction exists, get it
         if self._reco_keys:
-            azi_crs = read_h5_directory(self.data_dir, self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
-            true = read_h5_directory(self.data_dir, self._true_xyz, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+            azi_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+            true = read_h5_directory(self.data_pars['data_dir'], self._true_xyz, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
 
             #* Ensure keys are proper so the angle calculations work
             true = inverse_transform(true, get_project_root() + model_dir)

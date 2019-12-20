@@ -647,14 +647,14 @@ def get_target_keys(data_pars, meta_pars):
     Returns:
         list -- List with target variable keys
     """ 
-       
+
     dataset_name = get_dataset_name(data_pars['data_dir'])
     
     if dataset_name == 'oscnext-genie-level5-v01-01-pass2':
         if meta_pars['group'] == 'direction_reg':
-            target_keys = ['true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z']
+            target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
         elif meta_pars['group'] == 'vertex_reg':
-            target_keys = ['true_neutrino_entry_position_x', 'true_neutrino_entry_position_y', 'true_neutrino_entry_position_z']
+            target_keys = ['true_primary_entry_position_x', 'true_primary_entry_position_y', 'true_primary_entry_position_z']
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
     
