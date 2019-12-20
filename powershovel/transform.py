@@ -4,9 +4,16 @@ import numpy as np
 from scipy.stats import iqr
 from sklearn.preprocessing import QuantileTransformer
 from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import FunctionTransformer
+from sklearn.preprocessing import PowerTransformer
 import os
 import psutil
 import joblib
+
+
+def bjoern_transform(x):
+    return (x - 150) / 150
+
 
 def histogram_reader(file, dictionary, group, BANNED_GROUPS):
     with File(file, 'r') as f:
@@ -30,17 +37,26 @@ def groups_reader(file, group, BANNED_GROUPS):
     return group_list
 
 
-def transformer_fit(hist_dict, transformer_dict):
+def transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS):
+    transformer_dict = {}
+    for key in group_list:
+        if key in ROBUST_KEYS:
+            transformer_dict[key] = RobustScaler()
+        elif key in QUANTILE_KEYS:
+            samples = hist_dict[key].reshape(-1, 1).shape[0]
+            # transformer_dict[key] = QuantileTransformer(
+            #     n_quantiles=samples,
+            #     output_distribution='normal',
+            #     subsample=samples
+            # )
+            transformer_dict[key] = PowerTransformer(
+                method='box-cox'
+            )
     for key in transformer_dict:
+        print('Key: {}, samples: {}'.format(key, hist_dict[key].reshape(-1, 1).shape))
         transformer_dict[key].fit(hist_dict[key].reshape(-1, 1))
     return transformer_dict
 
-
-def transformer_transform(hist_dict, transformer_dict):
-    transformed_dict = {}
-    for key in transformer_dict:
-        transformed_dict[key] = transformer_dict
-    return transformed_dict
 
 # DATA_DIR = Path(
 #     '/groups/hep/ehrhorn/files/icecube/hdf5_files/'
@@ -79,10 +95,11 @@ ROBUST_KEYS = [
 ]
 
 process = psutil.Process(os.getpid())
-OUT_DIR = Path('/groups/hep/ehrhorn')
+OUT_DIR = Path('/groups/hep/ehrhorn/')
+TRANSFORM = 'powertransform'
 
 for particle_type in PARTICLE_TYPES:
-    out_file = OUT_DIR.joinpath(particle_type + '.pkl')
+    out_file = OUT_DIR.joinpath(particle_type + '_' + TRANSFORM + '.pkl')
     if out_file.is_file():
         continue
     DATA_FILES = [
@@ -95,17 +112,12 @@ for particle_type in PARTICLE_TYPES:
 
     hist_dict = {key: np.empty(0) for key in group_list}
 
-    transformer_dict = {}
-    for key in group_list:
-        if key in ROBUST_KEYS:
-            transformer_dict[key] = RobustScaler()
-        elif key in QUANTILE_KEYS:
-            transformer_dict[key] = QuantileTransformer(
-                output_distribution='normal'
-            )
+            # transformer_dict[key] = FunctionTransformer(
+            #     func=bjoern_transform
+            # )
 
     for i, data_file in enumerate(DATA_FILES):
-        if i % 1 == 0:
+        if i % 20 == 0:
             print('Handling particle {}, file {}, RAM used {} GB, {}/{}'.format(
                 particle_type,
                 data_file.stem.split('.')[-1],
@@ -120,7 +132,10 @@ for particle_type in PARTICLE_TYPES:
             BANNED_GROUPS
         )
     print('Fitting particle {}'.format(particle_type))
-    transformer_dict = transformer_fit(hist_dict, transformer_dict)
+    transformer_dict = transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS)
     joblib.dump(transformer_dict, out_file)
 
+# print('n_quantiles_:', transformer_dict['dom_charge'].n_quantiles_)
+# print('quantiles_:', transformer_dict['dom_charge'].quantiles_)
+# print('references_:', transformer_dict['dom_charge'].references_)
 print('Done')

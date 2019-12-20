@@ -12,6 +12,7 @@ dependencies:
   - scipy
   - scikit-learn
   - pathlib
+  - dvc[azure]
   - pip
   - pip:
     - streamlit
