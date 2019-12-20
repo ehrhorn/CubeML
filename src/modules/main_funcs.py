@@ -263,7 +263,7 @@ def predict(save_dir, wandb_ID = None):
                 i_str = str(i_file) if i_file > 9 else '0'+str(i_file)
                 print('%s/%d: Predicting on %s'%(i_str, N_FILES, get_path_from_root(str(file))))
                 #* Extract validation data
-                val_set = load_predictions(data_pars, 'val', file)
+                val_set = load_predictions(data_pars, meta_pars, 'val', file)
                 predictions = {key: [] for key in val_set.targets}
                 truths = {key: [] for key in val_set.targets}
 

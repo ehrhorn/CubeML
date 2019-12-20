@@ -1,0 +1,142 @@
+wandb_version: 1
+
+Avg. Events/second (eval.):
+  desc: null
+  value: 1188.7782422414716
+Avg. Events/second (train):
+  desc: null
+  value: 1423.942185754637
+Max memory allocated [MiB]:
+  desc: null
+  value: 104.74072265625
+Model parameters:
+  desc: null
+  value: 216472
+Performance:
+  desc: null
+  value: -1
+Trainset size:
+  desc: null
+  value: 2688
+Val. set size:
+  desc: null
+  value: 672
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.8.15
+    framework: torch
+    is_jupyter_run: false
+    python_version: 3.7.5
+batch_size:
+  desc: null
+  value: 32
+collate_fn:
+  desc: null
+  value: PadSequence
+data_dir:
+  desc: null
+  value: /data/oscnext-genie-level5-v01-01-pass2
+dataloader:
+  desc: null
+  value: FullBatchLoader
+early_stop_patience:
+  desc: null
+  value: 20
+file_keys:
+  desc: null
+  value:
+    transform: -1
+layers:
+  desc: null
+  value:
+  - Linear_embedder:
+      LayerNorm: true
+      input_sizes:
+      - 5
+      - 64
+  - SelfAttention:
+      LayerNorm: true
+      Residual: true
+      input_sizes:
+      - 64
+      - 64
+  - LSTM:
+      bidirectional: true
+      dropout: 0.5
+      input_sizes:
+      - 64
+      - 128
+  - Linear:
+      input_sizes:
+      - 135
+      - 3
+      norm_before_nonlin: true
+loss_func:
+  desc: null
+  value: torch.nn.L1Loss
+lr_schedule:
+  desc: null
+  value:
+    cooldown: 5
+    factor: 0.1
+    lr_scheduler: ReduceLROnPlateau
+    min_lr: 1.0e-06
+    patience: 2
+max_epochs:
+  desc: null
+  value: 1
+n_train_events_wanted:
+  desc: null
+  value: 100
+n_val_events_wanted:
+  desc: null
+  value: 100
+non_lin:
+  desc: null
+  value:
+    func: LeakyReLU
+norm:
+  desc: null
+  value:
+    momentum: 0.9
+    norm: null
+optimizer:
+  desc: null
+  value:
+    betas:
+    - 0.9
+    - 0.998
+    eps: 1.0e-09
+    lr: 0.001
+    optimizer: Adam
+scalar_feat:
+  desc: null
+  value:
+  - toi_point_on_line_x
+  - toi_point_on_line_y
+  - toi_point_on_line_z
+  - toi_direction_x
+  - toi_direction_y
+  - toi_direction_z
+  - toi_evalratio
+seq_feat:
+  desc: null
+  value:
+  - dom_charge
+  - dom_x
+  - dom_y
+  - dom_z
+  - dom_time
+test_frac:
+  desc: null
+  value: 0
+train_frac:
+  desc: null
+  value: 0.8
+val_batch_size:
+  desc: null
+  value: 32
+val_frac:
+  desc: null
+  value: 0.2

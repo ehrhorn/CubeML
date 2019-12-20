@@ -58,15 +58,14 @@ if __name__ == '__main__':
 
 
     data_pars = {'data_dir':     data_dir,
-                'seq_feat':    ['charge', 'dom_x', 'dom_y', 'dom_z', 'time'], 
+                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio'],
-                'target':       ['true_neutrino_entry_position_x', 'true_neutrino_entry_position_y', 'true_neutrino_entry_position_z'],
                 'n_val_events_wanted':   100,# np.inf,
                 'n_train_events_wanted': 100,# np.inf,
                 'train_frac':  0.80,
                 'val_frac':    0.20,
                 'test_frac':   0.0,
-                'file_keys':             {'transform':   0},
+                'file_keys':             {'transform':   -1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
                 'val_batch_size':      32
@@ -75,7 +74,7 @@ if __name__ == '__main__':
 
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
-    n_target = len(data_pars['target'])
+    n_target = len(get_target_keys(data_pars, meta_pars))
 
     arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
 

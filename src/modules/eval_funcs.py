@@ -252,9 +252,103 @@ def vertex_x_error(pred, truth):
     x_pred = pred[x_key]
     x_true = truth[x_key]
 
-    dir_pred = torch.tensor(x_pred)
-    dir_truth = torch.tensor(x_true], dtype=dir_pred.dtype)
+    x_pred = torch.tensor(x_pred)
+    x_truth = torch.tensor(x_true, dtype=dir_pred.dtype)
 
     diff = x_pred - x_truth
     print(pred)
     print('OMEGALUL in vertex_x_error')
+    return diff
+
+def vertex_x_error(pred, truth):
+    """Calculates the error on the x-coordinate prediction of the neutrino interaction vertex.
+    
+    Arguments:
+        pred {dict} -- dictionary containing the key 'true_primary_position_x' or 'x' and the predictions.
+        truth {dict} -- dictionary containing the true values and the key 'true_primary_position_x'.   
+    
+    Raises:
+        KeyError: If wrong dictionary given
+    
+    Returns:
+        [torch.tensor] -- Signed error on prediction.
+    """    
+
+    # * Ensure we are dealing with the right data
+    if 'true_primary_position_x' in pred:
+        x_key = 'true_primary_position_x'
+    elif 'x' in pred:
+        x_key = 'x'
+    else:
+        raise KeyError('Wrong dictionary given to vertex_x_error!')
+    
+    x_pred = pred[x_key]
+    x_true = truth[x_key]
+
+    x_pred = torch.tensor(x_pred)
+    x_truth = torch.tensor(x_true, dtype=x_pred.dtype)
+
+    diff = x_pred - x_truth
+    return diff
+
+def vertex_y_error(pred, truth):
+    """Calculates the error on the y-coordinate prediction of the neutrino interaction vertex.
+    
+    Arguments:
+        pred {dict} -- dictionary containing the key 'true_primary_position_y' or 'y and the predictions.
+        truth {dict} -- dictionary containing the true values and the key 'true_primary_position_y'.   
+    
+    Raises:
+        KeyError: If wrong dictionary given
+    
+    Returns:
+        [torch.tensor] -- Signed error on prediction.
+    """    
+
+    # * Ensure we are dealing with the right data
+    if 'true_primary_position_y' in pred:
+        y_key = 'true_primary_position_y'
+    elif 'y' in pred:
+        y_key = 'y'
+    else:
+        raise KeyError('Wrong dictionary given to vertex_y_error!')
+    
+    y_pred = pred[y_key]
+    y_true = truth[y_key]
+
+    y_pred = torch.tensor(y_pred)
+    y_truth = torch.tensor(y_true, dtype=y_pred.dtype)
+
+    diff = y_pred - y_truth
+    return diff
+
+def vertex_z_error(pred, truth):
+    """Calculates the error on the z-coordinate prediction of the neutrino interaction vertex.
+    
+    Arguments:
+        pred {dict} -- dictionary containing the key 'true_primary_position_z' and the predictions.
+        truth {dict} -- dictionary containing the true values and the key 'true_primary_position_z'.   
+    
+    Raises:
+        KeyError: If wrong dictionary given
+    
+    Returns:
+        [torch.tensor] -- Signed error on prediction.
+    """    
+
+    # * Ensure we are dealing with the right data
+    if 'true_primary_position_z' in pred:
+        z_key = 'true_primary_position_z'
+    elif 'z' in pred:
+        z_key = 'z'
+    else:
+        raise KeyError('Wrong dictionary given to vertex_z_error!')
+    
+    z_pred = pred[z_key]
+    z_true = truth[z_key]
+
+    z_pred = torch.tensor(z_pred)
+    z_truth = torch.tensor(z_true, dtype=z_pred.dtype)
+
+    diff = z_pred - z_truth
+    return diff

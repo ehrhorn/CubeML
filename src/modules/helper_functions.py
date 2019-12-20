@@ -654,7 +654,7 @@ def get_target_keys(data_pars, meta_pars):
         if meta_pars['group'] == 'direction_reg':
             target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
         elif meta_pars['group'] == 'vertex_reg':
-            target_keys = ['true_primary_entry_position_x', 'true_primary_entry_position_y', 'true_primary_entry_position_z']
+            target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z']
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
     
