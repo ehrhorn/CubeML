@@ -38,10 +38,11 @@ if __name__ == '__main__':
                 'group':                regression_type,
                 'project':             'cubeml_test',
                 'objective':            objective,
-                'pretrained_path':      pretrained_path 
+                'pretrained_path':      pretrained_path,
+                'log_every':            10 
                 }
 
-    hyper_pars = {'batch_size':        32,
+    hyper_pars = {'batch_size':        2,
                 'max_epochs':          1,
                 'early_stop_patience': 20,
                 'optimizer':           {'optimizer':      'Adam',
@@ -62,6 +63,7 @@ if __name__ == '__main__':
                 'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio'],
                 'n_val_events_wanted':   100,# np.inf,
                 'n_train_events_wanted': 100,# np.inf,
+                'n_predictions_wanted': 100,
                 'train_frac':  0.80,
                 'val_frac':    0.20,
                 'test_frac':   0.0,

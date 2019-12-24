@@ -21,7 +21,7 @@ from src.modules.eval_funcs import *
 from src.modules.reporting import *
 
 
-def calc_lr_vs_loss(model, optimizer, loss, train_generator, batch_size, n_train, n_epochs = 1, start_lr = 0.000001, end_lr = 0.1):
+def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=1, start_lr=0.000001, end_lr=0.1):
     '''Performs a scan over a learning rate-interval of interest with an exponentially increasing learning rate.
 
     Input: 
@@ -29,8 +29,8 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, batch_size, n_train
     optimizer - nn.optim class 
     loss - custom loss class 
     train_generator - a dataloader, torch.utils.data.dataloader instance.
-    batch_size - batch size, int
-    n_train - number of training samples, int 
+    BATCH_SIZE - batch size, int
+    N_TRAIN - number of training samples, int 
 
     Output:
     lr - list of learning rates
@@ -42,7 +42,7 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, batch_size, n_train
     #* ========================================================================    
 
     #* Use a linearly or exponentially increasing LR throughout number of epochs
-    n_steps = n_train*n_epochs/batch_size
+    n_steps = N_TRAIN*n_epochs/BATCH_SIZE
     gamma = (end_lr/start_lr)**(1.0/n_steps) #* exponentially increasing lr
     
     lambda1 = lambda step: gamma**step
@@ -66,7 +66,7 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, batch_size, n_train
 
     return lr, loss_vals
 
-def evaluate_model(model_dir, wandb_ID = None):
+def evaluate_model(model_dir, wandb_ID=None):
     """Predicts on the dataset and makes performance plots induced by the model_dir. If wanted, the results are logged to W&B.
     
     Arguments:
@@ -127,7 +127,7 @@ def evaluate_model(model_dir, wandb_ID = None):
         WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
         subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
 
-def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs = 1, start_lr = 0.000001, end_lr = 0.1, save = True):
+def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs=1, start_lr=0.000001, end_lr=0.1, save=True):
     '''Calculates loss as a function of learning rate in a given interval and saves the graph and the dictionaries used to generate the plot.
     Used to choose lr-schedule.
     '''
@@ -137,7 +137,7 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs = 1
     #* ======================================================================== 
     print(strftime("%d/%m %H:%M", localtime()), ': Learning rate finder initiated...')
 
-    batch_size = hyper_pars['batch_size']
+    BATCH_SIZE = hyper_pars['batch_size']
 
     #* Use GPU if avaiable
     device = get_device()
@@ -149,7 +149,7 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs = 1
     
     print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
     train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train')
-    n_train = get_set_length(train_set)
+    N_TRAIN = get_set_length(train_set)
     print(strftime("%d/%m %H:%M", localtime()), ': Data loaded!')
 
     #* ======================================================================== 
@@ -157,7 +157,7 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs = 1
     #* ========================================================================    
     
     #* num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
-    dataloader_params_train = get_dataloader_params(batch_size, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
+    dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
 
     #* Setup generators
     if 'collate_fn' in data_pars:
@@ -180,13 +180,13 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs = 1
     #* Try to find a custom loss - if not, try torch's library
     loss = get_loss_func(architecture_pars['loss_func'])
 
-    lr, loss_vals = calc_lr_vs_loss(model, optimizer, loss, train_generator, batch_size, n_train, n_epochs= n_epochs, start_lr = start_lr, end_lr = end_lr)
+    lr, loss_vals = calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs= n_epochs, start_lr = start_lr, end_lr = end_lr)
     
     #* ======================================================================== 
     #* SAVE RELEVANT THINGS
     #* ========================================================================
     
-    lr_dir = make_lr_dir(data_dir, meta_pars['project'], batch_size)
+    lr_dir = make_lr_dir(data_dir, meta_pars['project'], BATCH_SIZE)
     _ = make_plot({'x': [lr], 'y': [loss_vals], 'xscale': 'log', 'savefig': lr_dir+'/lr_vs_loss.png', 'xlabel': 'Learning Rate', 'ylabel': 'Loss'})
     pickle.dump(lr, open(lr_dir+'/lr.pickle', 'wb'))
     pickle.dump(loss_vals, open(lr_dir+'/loss_vals.pickle', 'wb'))
@@ -244,7 +244,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
 
     return model, optimizer, device
 
-def predict(save_dir, wandb_ID = None):
+def predict(save_dir, wandb_ID=None):
     '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
     '''
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
@@ -259,45 +259,52 @@ def predict(save_dir, wandb_ID = None):
     model = model.to(device)
     model = model.float()
 
-    #* Loop over files
+    # * Loop over files
     print('\n', strftime("%d/%m %H:%M", localtime()), ': Prediction begun.')
     pred_filename = str(best_pars).split('.pth')[0].split('/')[-1]
     pred_full_address = save_dir+'/data/predict'+pred_filename+'.h5'
-    data_dir = data_pars['data_dir'] #* Where to load data from
+    data_dir = data_pars['data_dir'] # * Where to load data from
     N_FILES = len(list(Path(get_project_root()+data_dir).glob('*.h5')))
     i_file = 0
+    n_predicted = 0
+    n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
 
     with h5.File(pred_full_address, 'w') as f:
         
         for file in Path(get_project_root()+data_dir).iterdir():
             if file.suffix == '.h5':
+
+                # * Do not predict more than wanted - takes up space aswell...
+                if n_predicted >= n_predictions_wanted:
+                    break
+
                 i_file += 1
                 i_str = str(i_file) if i_file > 9 else '0'+str(i_file)
                 print('%s/%d: Predicting on %s'%(i_str, N_FILES, get_path_from_root(str(file))))
-                #* Extract validation data
+                # * Extract validation data
                 val_set = load_predictions(data_pars, meta_pars, 'val', file)
                 predictions = {key: [] for key in val_set.targets}
                 truths = {key: [] for key in val_set.targets}
 
                 error_from_preds = {}
 
-                #* Predict 
+                # * Predict 
                 if 'val_batch_size' in data_pars:
-                    val_batch_size = data_pars['val_batch_size']
+                    VAL_BATCH_SIZE = data_pars['val_batch_size']
                 else:
-                    val_batch_size = 256
-                dataloader_params = {'batch_size': val_batch_size, 'shuffle': False, 'num_workers': 8}
+                    VAL_BATCH_SIZE = 256
+                dataloader_params = {'batch_size': VAL_BATCH_SIZE, 'shuffle': False, 'num_workers': 8}
 
-                #* Setup generators
+                # * Setup generators
                 collate_fn = get_collate_fn(data_pars)
                 indices = sort_indices(val_set, data_pars, dataloader_params=dataloader_params)
                 val_generator = data.DataLoader(val_set, **dataloader_params, collate_fn=collate_fn)
 
-                #* Use IGNITE to predict
+                # * Use IGNITE to predict
                 def log_prediction(engine):
                     pred, truth = engine.state.output[0], engine.state.output[1]
                     
-                    #* give list of functions to calculate
+                    # * give list of functions to calculate
                     for i_batch in range(pred.shape[0]):
                         for i_key, key in enumerate(predictions):
                             predictions[key].append(pred[i_batch, i_key])
@@ -307,17 +314,17 @@ def predict(save_dir, wandb_ID = None):
                 evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
                 evaluator_val.run(val_generator)
 
-                #* Sort w.r.t. index before saving
+                # * Sort w.r.t. index before saving
                 for key, values in predictions.items():
                     _, sorted_vals = sort_pairs(indices, values)
                     predictions[key] = sorted_vals
-                #* Sort w.r.t. index before saving
+                # * Sort w.r.t. index before saving
                 for key, values in truths.items():
                     _, sorted_vals = sort_pairs(indices, values)
                     truths[key] = sorted_vals
                 indices = sorted(indices)
 
-                #* Run predictions through desired functions - transform back to 'true' values, if transformed
+                # * Run predictions through desired functions - transform back to 'true' values, if transformed
                 predictions_transformed = inverse_transform_predictions(predictions, predictions.keys(), save_dir)
                 truths_transformed = inverse_transform_predictions(truths, truths.keys(), save_dir)
 
@@ -325,7 +332,7 @@ def predict(save_dir, wandb_ID = None):
                 for func in eval_functions:
                     error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
 
-                #* Save predictions
+                # * Save predictions
                 name = str(file).split('.')[-2].split('/')[-1]
                 grp = f.create_group(name)
                 grp.create_dataset('index', data=np.array(indices))
@@ -334,6 +341,8 @@ def predict(save_dir, wandb_ID = None):
                     grp.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
                 for key, pred in error_from_preds.items():
                     grp.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
+                
+                n_predicted += len(val_set)
                 
         print(strftime("%d/%m %H:%M", localtime()), ': Predictions finished!')
     
@@ -364,19 +373,20 @@ def run_experiments(log=True):
             if log:
                 evaluate_model(model_dir, wandb_ID=wandb_ID)
 
-def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlystopping = True, scan_lr_before_train = False, wandb_ID=None, log=True):
+def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True):
     
     if 'val_batch_size' not in data_pars:
         data_pars['val_batch_size'] = 256
-    batch_size = hyper_pars['batch_size']
-    val_batch_size = data_pars['val_batch_size']
-    max_epochs = hyper_pars['max_epochs']
-    early_stop_patience = hyper_pars['early_stop_patience']
+    BATCH_SIZE = hyper_pars['batch_size']
+    VAL_BATCH_SIZE = data_pars['val_batch_size']
+    MAX_EPOCHS = hyper_pars['max_epochs']
+    EARLY_STOP_PATIENCE = hyper_pars['early_stop_patience']
+    LOG_EVERY = meta_pars.get('log_every', 200000)
 
     print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
     train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train')
     
-    #* Only calculate train error on a fraction of the training data - a fraction equal to val. frac.
+    # * Only calculate train error on a fraction of the training data - a fraction equal to val. frac.
     data_pars_copy = data_pars.copy()
     hyper_pars_copy = hyper_pars.copy()
     data_pars_copy['train_frac'] = data_pars['val_frac']
@@ -385,24 +395,24 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train')
     val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val')
 
-    n_train = get_set_length(train_set)
-    n_val = get_set_length(val_set)
+    N_TRAIN = get_set_length(train_set)
+    N_VAL = get_set_length(val_set)
     
     if log:
-        wandb.config.update({'Trainset size': n_train})
-        wandb.config.update({'Val. set size': n_val})
+        wandb.config.update({'Trainset size': N_TRAIN})
+        wandb.config.update({'Val. set size': N_VAL})
     print(strftime("%d/%m %H:%M", localtime()), ': Data loaded!')
-    print('\nTrain set size: %d'%(n_train))
-    print('Val. set size: %d'%(n_val))
+    print('\nTrain set size: %d'%(N_TRAIN))
+    print('Val. set size: %d'%(N_VAL))
     
     #* ======================================================================== #
     #* SETUP TRAINING
     #* ======================================================================== #
 
     #* num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
-    dataloader_params_train = get_dataloader_params(batch_size, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
-    dataloader_params_eval = get_dataloader_params(val_batch_size, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
-    dataloader_params_trainerr = get_dataloader_params(val_batch_size, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
+    dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
+    dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
+    dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
 
 
     #* Initialize model and log it - use GPU if available
@@ -414,7 +424,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
         wandb.config.update({'Model parameters': get_n_parameters(model)})
 
     #* Get type of scheduler, since different schedulers need different kinds of updating
-    lr_scheduler = get_lr_scheduler(hyper_pars['lr_schedule'], optimizer, batch_size, n_train)
+    lr_scheduler = get_lr_scheduler(hyper_pars['lr_schedule'], optimizer, BATCH_SIZE, N_TRAIN)
     type_lr_scheduler = type(lr_scheduler)
     loss = get_loss_func(architecture_pars['loss_func'])
 
@@ -429,9 +439,9 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     evaluator_val = create_supervised_evaluator(model, metrics={'custom_loss': Loss(loss)}, device=device)
     evaluator_train = create_supervised_evaluator(model, metrics={'custom_loss': Loss(loss)}, device=device)
 
-    #* ======================================================================== #
+    #* ========================================================================
     #* SETUP SAVING OF IMPROVED MODELS
-    #* ======================================================================== #* 
+    #* ========================================================================  
     
     def custom_score_function(engine):
         loss = engine.state.metrics['custom_loss']
@@ -452,7 +462,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     #* patience = how long to wait before stopping according to score_func, trainer = which engine to stop.
     if earlystopping:
         print('Early stopping activated!')
-        early_stop_handler = EarlyStopping(patience=early_stop_patience,
+        early_stop_handler = EarlyStopping(patience=EARLY_STOP_PATIENCE,
                                         score_function=custom_score_function, 
                                         trainer=trainer)
         evaluator_val.add_event_handler(Events.EPOCH_COMPLETED, early_stop_handler)
@@ -471,7 +481,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
         lr_model = lr_model.to(device)
 
         pretrain_optimizer = get_optimizer(lr_model.parameters(), pretrain_hyper_pars)
-        pretrain_lr, pretrain_losses = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, batch_size, n_train, start_lr=pretrain_hyper_pars['lr'])
+        pretrain_lr, pretrain_losses = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, start_lr=pretrain_hyper_pars['lr'])
 
         vlines = []
         if 'base_lr' in hyper_pars['lr_schedule']:
@@ -491,21 +501,21 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     #* SETUP LOGGING
     #* ======================================================================== #*   
     
-    #* If continuing training, get how many epochs completed
+    # * If continuing training, get how many epochs completed
     if 'epochs_completed' in hyper_pars:
         epochs_completed = hyper_pars['epochs_completed']
     else:
         epochs_completed = 0
 
-    #* Print log
+    # * Print log
     def print_log(engine, set_name, metric_name):
         print("Epoch: {}/{} - {} {}: {:.2e}"
-            .format(trainer.state.epoch + epochs_completed, max_epochs + epochs_completed, set_name, metric_name, engine.state.metrics[metric_name]))
+            .format(trainer.state.epoch + epochs_completed, MAX_EPOCHS + epochs_completed, set_name, metric_name, engine.state.metrics[metric_name]))
 
     evaluator_train.add_event_handler(Events.COMPLETED, print_log, "train", 'custom_loss')
     evaluator_val.add_event_handler(Events.COMPLETED, print_log, "validation", 'custom_loss')
 
-    #* Log locally and to W&B
+    # * Log locally and to W&B
     if log:
         def log_metric(engine, set_name, metric_name, list_address):
             append_list_and_save(list_address, engine.state.metrics[metric_name])
@@ -524,56 +534,56 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
         evaluator_train.add_event_handler(Events.COMPLETED, log_lr, 'Graphs/learning rate', optimizer, save_dir+'/data/lr.pickle')
         evaluator_val.add_event_handler(Events.COMPLETED, log_epoch, save_dir+'/data/epochs.pickle')
 
-    #* Time training and evaluation
+    # * Time training and evaluation
     time_trainer = Timer(average=True)
-    time_trainer.attach(trainer, resume=Events.EPOCH_STARTED, pause=Events.EPOCH_COMPLETED, step=Events.EPOCH_COMPLETED)
+    time_trainer.attach(trainer, resume=Events.ITERATION_STARTED, pause=Events.ITERATION_COMPLETED, step=Events.ITERATION_COMPLETED)
 
     time_evaluator = Timer(average=True)
-    time_evaluator.attach(evaluator_val, resume=Events.EPOCH_STARTED, pause=Events.EPOCH_COMPLETED, step=Events.EPOCH_COMPLETED)
+    time_evaluator.attach(evaluator_val, resume=Events.ITERATION_STARTED, pause=Events.ITERATION_COMPLETED, step=Events.ITERATION_COMPLETED)
 
-    #* Call evaluator after each epoch
+    # * Call evaluator after each iteration - only evaluate after each LOG_EVERY events
     def evaluate(trainer):
-        print('\nEpoch completed',strftime("%d/%m %H:%M", localtime()))
+        if trainer.state.iteration%(int(LOG_EVERY/BATCH_SIZE)) == 0:
+            print('\nEvent %d completed'%(trainer.state.iteration*BATCH_SIZE),strftime("%d/%m %H:%M", localtime()))
 
-        #! FullBatchLoader has to be treated in a special way! See the class, it has to be shuffled every epoch
-        if data_pars['dataloader'] == 'FullBatchLoader':
-            train_set.make_batches()
+            # * Log weights, biases and gradients in histograms.
+            if log:
+                i_layer = 1
+                step = trainer.state.epoch + epochs_completed
+                for entry in model.mods: 
+                    if type(entry) == nn.modules.container.Sequential:
+                        for seq_entry in entry:
+                            i_layer = log_weights_and_grads(i_layer, seq_entry, step)
+                            
+                            i_layer = log_weights_and_grads(i_layer, entry, step)
+            
+            # * Run evaluation on train- and validation-sets
+            evaluator_train.run(trainerr_generator)
+            evaluator_val.run(val_generator)
+            
+            # * Log maximum memory allocated and speed.
+            if log:
+                wandb.config.update({'Avg. Events/second (train)': BATCH_SIZE/time_trainer.value()}, allow_val_change=True)
+                wandb.config.update({'Avg. Events/second (eval.)': VAL_BATCH_SIZE/time_evaluator.value()}, allow_val_change=True)
+                if torch.cuda.is_available():
+                    max_memory_allocated = torch.cuda.max_memory_allocated(device=device)/(1024*1024)
+                    wandb.config.update({'Max memory allocated [MiB]': max_memory_allocated}, allow_val_change=True)
 
-        #* Log weights, biases and gradients in histograms.
-        if log:
-            i_layer = 1
-            step = trainer.state.epoch + epochs_completed
-            for entry in model.mods: 
-                if type(entry) == nn.modules.container.Sequential:
-                    for seq_entry in entry:
-                        i_layer = log_weights_and_grads(i_layer, seq_entry, step)
-                        
-                        i_layer = log_weights_and_grads(i_layer, entry, step)
-        
-        #* Run evaluation on train- and validation-sets
-        evaluator_train.run(trainerr_generator)
-        evaluator_val.run(val_generator)
-        
-        #* Log maximum memory allocated and speed.
-        if log:
-            wandb.config.update({'Avg. Events/second (train)': n_train/time_trainer.value()}, allow_val_change=True)
-            wandb.config.update({'Avg. Events/second (eval.)': n_val/time_evaluator.value()}, allow_val_change=True)
-            if torch.cuda.is_available():
-                max_memory_allocated = torch.cuda.max_memory_allocated(device=device)/(1024*1024)
-                wandb.config.update({'Max memory allocated [MiB]': max_memory_allocated}, allow_val_change=True)
+                # * Save a backup after each epoch incase something crashes...
+                backup = {'epochs_completed': trainer.state.epoch + epochs_completed,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict()
+                        }
+                torch.save(backup, save_dir + '/backup.pth')
 
-    def save_backup(trainer):   
-        '''Save a backup after each epoch in case something crashes...
-        '''
-        backup = {'epochs_completed': trainer.state.epoch + epochs_completed,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict()
-                    }
-        torch.save(backup, save_dir + '/backup.pth')
+    trainer.add_event_handler(Events.ITERATION_COMPLETED, evaluate)
     
-    trainer.add_event_handler(Events.EPOCH_COMPLETED, evaluate)
-    if log:
-        trainer.add_event_handler(Events.EPOCH_COMPLETED, save_backup)
+    # ! FullBatchLoader has to be treated in a special way! See the class, it has to be shuffled every epoch
+    if data_pars['dataloader'] == 'FullBatchLoader':
+        def shuffle_batches(engine):
+            train_set.make_batches()
+            print('Shuffled it!')
+        trainer.add_event_handler(Events.EPOCH_COMPLETED, shuffle_batches)
 
     #* ======================================================================== #
     #* SETUP LEARNING RATE SCHEDULER
@@ -606,7 +616,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     #* ======================================================================== # 
            
     print('Training begun')
-    trainer.run(train_generator, max_epochs=max_epochs)
+    trainer.run(train_generator, max_epochs=MAX_EPOCHS)
     print('\nTraining finished!')
 
 def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = False, log=True):
@@ -615,10 +625,10 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     #* SETUP AND LOAD DATA
     #* ======================================================================== 
 
-    #* The script expects a H5-file with a structure as shown at https://github.com/ehrhorn/CubeML
-    data_dir = data_pars['data_dir'] #* WHere to load data from
-    file_keys = data_pars['file_keys'] #* which cleaning lvl and transform should be applied?
-    group = meta_pars['group'] #* under which dir to save?
+    # * The script expects a H5-file with a structure as shown at https://github.com/ehrhorn/CubeML
+    data_dir = data_pars['data_dir'] # * WHere to load data from
+    file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
+    group = meta_pars['group'] # * under which dir to save?
     project = meta_pars['project']
 
     if log:
@@ -629,12 +639,12 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
         save_dir = None
         wandb_ID = None
 
-    #* If training is on a pretrained model, copy and update data- and hyperpars with potential new things
+    # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
     if meta_pars['objective'] == 'continue_training':
         hyper_pars, data_pars, architecture_pars = update_model_pars(hyper_pars, data_pars, meta_pars)
     
-    #* Save model parameters on W&B AND LOCALLY!
-    #* Shut down W&B first, if it is already running
+    # * Save model parameters on W&B AND LOCALLY!
+    # * Shut down W&B first, if it is already running
     if log:
         WANDB_NAME = save_dir.split('/')[-1]
         MODEL_NAME = save_dir.split('/')[-1]

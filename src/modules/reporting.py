@@ -294,24 +294,70 @@ class AziPolarPerformance:
 
 class IceCubePerformance:
 
-    def __init__(self, dataset_name, n_bins=15):
+    def __init__(self, dataset_name, n_data=50000):
         self.dataset_name = '/data/'+dataset_name
-
+        self.n_data = n_data
         self._calculate_histograms()
+
     
     def _calculate_histograms(self):
         
         if self.dataset_name == '/data/oscnext-genie-level5-v01-01-pass2':
             vertex_reg_keys = get_target_keys({'data_dir': self.dataset_name}, {'group': 'vertex_reg'})
             dir_reg_keys = get_target_keys({'data_dir': self.dataset_name}, {'group': 'direction_reg'})
-            self.save_vertex_histograms(vertex_reg_keys)
+            i3_reco = get_retro_crs_prefit_vertex_keys()
+            self._save_vertex_histograms(vertex_reg_keys, i3_reco)
             
         else:
             raise ValueError('Unknown dataset (%s) given!'%(self.dataset_name))
     
-    def save_vertex_histograms(self, keys):
-        pass
+    def _save_vertex_histograms(self, keys, i3_reco_keys):
+        path_to_data = get_project_root() + self.dataset_name
+        n_events = 0
+        true = {key: np.array([]) for key in keys}
+        pred = {key: np.array([]) for key in i3_reco_keys}
+
+        # * Read the data
+        while n_events < self.n_data:
+            for file in Path(path_to_data).iterdir():
+                if file.suffix == '.h5':
+                    
+                    for key in keys:
+                        true[key] = np.append(true[key], read_h5_dataset(str(file), key))
+                    for key in i3_reco_keys:
+                        pred[key] = np.append(pred[key], read_h5_dataset(str(file), key))
+
+                    n_events = pred[key].shape[0]
+
+            # * Exit when all files read
+            break
+        
+        # * Calculate error
+        errors = {'x_error': np.array([]), 'y_error': np.array([]), 'z_error': np.array([]), }
+        for true_key, pred_key, error_key in zip(true, pred, errors):
+            errors[error_key] = pred[pred_key]-true[true_key]
+        
+        # * Bin and save
+        self.x_count, self.x_edges = np.histogram(errors['x_error'], bins='fd')
+        self.y_count, self.y_edges = np.histogram(errors['y_error'], bins='fd')
+        self.z_count, self.z_edges = np.histogram(errors['z_error'], bins='fd')
     
+    def get_x_dict(self):
+        d = {'data': [self.x_edges[:-1]], 'bins': [self.x_edges], 'weights': [self.x_count]}
+        return d
+    
+    def get_y_dict(self):
+        d = {'data': [self.y_edges[:-1]], 'bins': [self.y_edges], 'weights': [self.y_count]}
+        return d
+    
+    def get_z_dict(self):
+        d = {'data': [self.z_edges[:-1]], 'bins': [self.z_edges], 'weights': [self.z_count]}
+        return d
+    
+    def save(self):
+        print('NOT MADE YET')
+        pass
+
 class DirErrorPerformance:
     '''A class to calculate and save performance wrt directional error
 
@@ -656,7 +702,6 @@ class VertexPerformance:
         perf_savepath = get_project_root() + self.model_dir + '/data/VertexPerformance.pickle'
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
-
 
 #* ======================================================================== 
 #* PERFORMANCE FUNCTIONS

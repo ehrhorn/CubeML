@@ -1,9 +1,9 @@
 import torch
 from src.modules.helper_functions import *
 
-# ======================================================================== 
-# EVALUATION FUNCTIONS
-# ======================================================================== 
+#*======================================================================== 
+#* EVALUATION FUNCTIONS
+#*======================================================================== 
 
 def relative_logE_error(pred, truth):
 
@@ -241,23 +241,6 @@ def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
     elif units == 'degrees':
         diff = (180/pi)*(polar_preds-polar_truth)
     
-    return diff
-
-def vertex_x_error(pred, truth):
-
-    # * Ensure we are dealing with the right data
-    if 'true_primary_direction_x' in pred:
-        x_key = 'true_primary_entry_position_x'
-    
-    x_pred = pred[x_key]
-    x_true = truth[x_key]
-
-    x_pred = torch.tensor(x_pred)
-    x_truth = torch.tensor(x_true, dtype=dir_pred.dtype)
-
-    diff = x_pred - x_truth
-    print(pred)
-    print('OMEGALUL in vertex_x_error')
     return diff
 
 def vertex_x_error(pred, truth):
