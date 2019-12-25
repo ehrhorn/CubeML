@@ -14,7 +14,8 @@ def dict_creator(data_file, group):
         'dom_fadc',
         'dom_lc',
         'dom_pulse_width',
-        'secondary_track_length'
+        'secondary_track_length',
+        'true_primary_speed'
     ]
     dictionary = {}
     with File(data_file, 'r') as f:
@@ -31,7 +32,8 @@ def file_reader(data_file, group):
         'dom_fadc',
         'dom_lc',
         'dom_pulse_width',
-        'secondary_track_length'
+        'secondary_track_length',
+        'true_primary_speed'
     ]
     dictionary = {}
     with File(data_file, 'r') as f:
@@ -106,30 +108,15 @@ def hist_saver(out_file, hist_dict, bin_edges, transform):
 
 process = psutil.Process(os.getpid())
 
-TRANSFORMS = ['powertransform']
+TRANSFORMS = ['raw']
 PARTICLE_TYPES = ['120000', '140000', '160000']
-DATA_DIR = Path('/groups/hep/ehrhorn/transform_test')
 
-QUANTILE_KEYS = []
-ROBUST_KEYS = [
-    'dom_n_hit_multiple_doms',
-    'dom_time',
-    'dom_timelength_fwhm',
-    'dom_x',
-    'dom_y',
-    'dom_z',
-    'linefit_point_on_line_x',
-    'linefit_point_on_line_y',
-    'linefit_point_on_line_z',
-    'toi_evalratio',
-    'toi_point_on_line_x',
-    'toi_point_on_line_y',
-    'toi_point_on_line_z',
-    'true_primary_energy',
-    'true_primary_position_x',
-    'true_primary_position_y',
-    'true_primary_position_z'
-]
+DATA_DIR = Path(
+    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2'
+)
+# DATA_DIR = Path(
+#     '/groups/hep/ehrhorn/transform_test'
+# )
 
 for transform in TRANSFORMS:
     for particle_type in PARTICLE_TYPES:
