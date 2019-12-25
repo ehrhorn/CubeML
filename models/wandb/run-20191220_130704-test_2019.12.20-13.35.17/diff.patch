@@ -1,0 +1,340 @@
+diff --git a/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/.gitignore b/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/.gitignore
+index e381200..de64cbc 100644
+--- a/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/.gitignore
++++ b/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/.gitignore
+@@ -1,2 +1,8 @@
+ /test_2019.12.20-11.04.22
+ /test_2019.12.20-12.42.39
++/test_2019.12.20-13.18.30
++/test_2019.12.20-13.21.16
++/test_2019.12.20-13.21.36
++/test_2019.12.20-13.32.06
++/test_2019.12.20-13.33.44
++/test_2019.12.20-13.35.17
+diff --git a/models/wandb/.gitignore b/models/wandb/.gitignore
+index 9c85567..065802e 100644
+--- a/models/wandb/.gitignore
++++ b/models/wandb/.gitignore
+@@ -11,3 +11,10 @@
+ /run-20191219_153838-test_2019.12.19-16.37.47
+ /run-20191220_100422-test_2019.12.20-11.04.22
+ /run-20191220_114239-test_2019.12.20-12.42.39
++/run-20191220_121830-test_2019.12.20-13.18.30
++/run-20191220_122116-test_2019.12.20-13.21.16
++/run-20191220_122136-test_2019.12.20-13.21.36
++/run-20191220_123206-test_2019.12.20-13.32.06
++/run-20191220_123344-test_2019.12.20-13.33.44
++/run-20191220_123517-test_2019.12.20-13.35.17
++/run-20191220_124343-test_2019.12.20-13.35.17
+diff --git a/src/modules/classes.py b/src/modules/classes.py
+index 5414023..3c012f3 100644
+--- a/src/modules/classes.py
++++ b/src/modules/classes.py
+@@ -264,23 +264,22 @@ class LstmPredictLoader(data.Dataset):
+             self.seq_features = {}
+             self.targets = {} 
+ 
++            # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+             for key in scalar_features:          
+                 try:
+                     self.scalar_features[key] = f[data_address+key][indices]
+-                
+-                # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+                 except KeyError:
+                     self.scalar_features[key] = f['raw/'+key][indices]
+ 
+             for key in seq_features:
+-                self.seq_features[key] = f[data_address+key][indices]
+-            
+-            for key in targets:
++                try:
++                    self.seq_features[key] = f[data_address+key][indices]
++                except KeyError:
++                    self.seq_features[key] = f['raw/'+key][indices]
+ 
++            for key in targets:
+                 try:
+                     self.targets[key] = f[data_address+key][indices]
+-                
+-                # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
+                 except KeyError:
+                     self.targets[key] = f['raw/'+key][indices]
+ 
+@@ -634,6 +633,8 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
+             batch_size = data_pars['val_batch_size']
+             n_events_wanted = data_pars.get('n_val_events_wanted', np.inf)
+         prefix = 'transform'+str(file_keys['transform'])+'/'
++        if file_keys['transform'] == -1:
++            prefix = 'raw/'
+ 
+         dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted)
+ 
+@@ -647,7 +648,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
+     
+     return dataloader
+     
+-def load_predictions(data_pars, keyword, file):
++def load_predictions(data_pars, meta_pars, keyword, file):
+ 
+     cond1 = 'LstmLoader' == data_pars['dataloader']
+     cond2 = 'SeqScalarTargetLoader' == data_pars['dataloader']
+@@ -656,7 +657,7 @@ def load_predictions(data_pars, keyword, file):
+         
+         seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
+         scalar_features = data_pars['scalar_feat'] # * feature names
+-        targets = data_pars['target'] # * target names
++        targets = get_target_keys(data_pars, meta_pars) # * target names
+         train_frac = data_pars['train_frac'] # * how much data should be trained on?
+         val_frac = data_pars['val_frac'] # * how much data should be used for validation?
+         test_frac = data_pars['test_frac'] # * how much data should be used for training
+diff --git a/src/modules/eval_funcs.py b/src/modules/eval_funcs.py
+index 889b3cd..e175d8e 100644
+--- a/src/modules/eval_funcs.py
++++ b/src/modules/eval_funcs.py
+@@ -252,9 +252,95 @@ def vertex_x_error(pred, truth):
+     x_pred = pred[x_key]
+     x_true = truth[x_key]
+ 
+-    dir_pred = torch.tensor(x_pred)
+-    dir_truth = torch.tensor(x_true], dtype=dir_pred.dtype)
++    x_pred = torch.tensor(x_pred)
++    x_truth = torch.tensor(x_true, dtype=dir_pred.dtype)
+ 
+     diff = x_pred - x_truth
+     print(pred)
+-    print('OMEGALUL in vertex_x_error')
+\ No newline at end of file
++    print('OMEGALUL in vertex_x_error')
++    return diff
++
++def vertex_x_error(pred, truth):
++    """Calculates the error on the x-coordinate prediction of the neutrino interaction vertex.
++    
++    Arguments:
++        pred {dict} -- dictionary containing the key 'true_primary_position_x' or 'x' and the predictions.
++        truth {dict} -- dictionary containing the true values and the key 'true_primary_position_x'.   
++    
++    Raises:
++        KeyError: If wrong dictionary given
++    
++    Returns:
++        [torch.tensor] -- Signed error on prediction.
++    """    
++
++    # * Ensure we are dealing with the right data
++    if 'true_primary_position_x' in pred:
++        x_key = 'true_primary_position_x'
++    elif 'x' in pred:
++        x_key = 'x'
++    else:
++        raise KeyError('Wrong dictionary given to vertex_x_error!')
++    
++    x_pred = pred[x_key]
++    x_true = truth[x_key]
++
++    x_pred = torch.tensor(x_pred)
++    x_truth = torch.tensor(x_true, dtype=x_pred.dtype)
++
++    diff = x_pred - x_truth
++    return diff
++
++def vertex_y_error(pred, truth):
++    """Calculates the error on the y-coordinate prediction of the neutrino interaction vertex.
++    
++    Arguments:
++        pred {dict} -- dictionary containing the key 'true_primary_position_y' and the predictions.
++        truth {dict} -- dictionary containing the true values and the key 'true_primary_position_y'.   
++    
++    Raises:
++        KeyError: If wrong dictionary given
++    
++    Returns:
++        [torch.tensor] -- Signed error on prediction.
++    """    
++
++    # * Ensure we are dealing with the right data
++    if 'true_primary_position_y' in pred:
++        y_key = 'true_primary_position_y'
++    
++    y_pred = pred[y_key]
++    y_true = truth[y_key]
++
++    y_pred = torch.tensor(y_pred)
++    y_truth = torch.tensor(y_true, dtype=y_pred.dtype)
++
++    diff = y_pred - y_truth
++    return diff
++
++def vertex_z_error(pred, truth):
++    """Calculates the error on the z-coordinate prediction of the neutrino interaction vertex.
++    
++    Arguments:
++        pred {dict} -- dictionary containing the key 'true_primary_position_z' and the predictions.
++        truth {dict} -- dictionary containing the true values and the key 'true_primary_position_z'.   
++    
++    Raises:
++        KeyError: If wrong dictionary given
++    
++    Returns:
++        [torch.tensor] -- Signed error on prediction.
++    """    
++
++    # * Ensure we are dealing with the right data
++    if 'true_primary_position_z' in pred:
++        z_key = 'true_primary_position_z'
++    
++    z_pred = pred[z_key]
++    z_true = truth[z_key]
++
++    z_pred = torch.tensor(z_pred)
++    z_truth = torch.tensor(z_true, dtype=z_pred.dtype)
++
++    diff = z_pred - z_truth
++    return diff
+\ No newline at end of file
+diff --git a/src/modules/helper_functions.py b/src/modules/helper_functions.py
+index f1d2878..e1c9bf1 100644
+--- a/src/modules/helper_functions.py
++++ b/src/modules/helper_functions.py
+@@ -654,7 +654,7 @@ def get_target_keys(data_pars, meta_pars):
+         if meta_pars['group'] == 'direction_reg':
+             target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
+         elif meta_pars['group'] == 'vertex_reg':
+-            target_keys = ['true_primary_entry_position_x', 'true_primary_entry_position_y', 'true_primary_entry_position_z']
++            target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z']
+         else:
+             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
+     
+diff --git a/src/modules/main_funcs.py b/src/modules/main_funcs.py
+index a97f884..132cd97 100644
+--- a/src/modules/main_funcs.py
++++ b/src/modules/main_funcs.py
+@@ -263,7 +263,7 @@ def predict(save_dir, wandb_ID = None):
+                 i_str = str(i_file) if i_file > 9 else '0'+str(i_file)
+                 print('%s/%d: Predicting on %s'%(i_str, N_FILES, get_path_from_root(str(file))))
+                 #* Extract validation data
+-                val_set = load_predictions(data_pars, 'val', file)
++                val_set = load_predictions(data_pars, meta_pars, 'val', file)
+                 predictions = {key: [] for key in val_set.targets}
+                 truths = {key: [] for key in val_set.targets}
+ 
+diff --git a/src/modules/reporting.py b/src/modules/reporting.py
+index 3d8f425..c8ebcc1 100644
+--- a/src/modules/reporting.py
++++ b/src/modules/reporting.py
+@@ -186,7 +186,7 @@ class AziPolarPerformance:
+         self.azi_sigmas, self.azi_errors = calc_perf2_as_fn_of_energy(energy, azi_error, self.bin_edges)
+         print('Calculation finished!')
+ 
+-        #* If an I3-reconstruction exists, get it
++        # * If an I3-reconstruction exists, get it
+         if self._reco_keys:
+             azi_crs = read_h5_directory(self.data_dir, self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+             true = read_h5_directory(self.data_dir, self._true_xyz, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+@@ -428,13 +428,13 @@ class VertexPerformance:
+         return keys
+ 
+     def _get_reco_keys(self):
+-        dataset_name = get_dataset_name(self.data_dir)
++        dataset_name = get_dataset_name(self.data_pars['data_dir'])
+ 
+         if dataset_name == 'MuonGun_Level2_139008':
+             self._reco_keys = None
+         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
+             self._reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
+-            self._true_xyz = ['true_primary_entry_position_x', 'true_primary_entry_position_y',  'true_primary_entry_position_z']
++            self._true_xyz = ['true_primary_position_x', 'true_primary_position_y',  'true_primary_position_z']
+         else:
+             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
+ 
+@@ -445,39 +445,41 @@ class VertexPerformance:
+         #* Transform back and extract values into list
+         energy = inverse_transform(energy, get_project_root() + self.model_dir)
+         energy = [y for _, y in energy.items()]
++        print(energy)
++
+         energy = [x[0] for x in energy[0]]
+         self.counts, self.bin_edges = np.histogram(energy, bins=12)
+         
+-        x_error = self.data_dict['true_primary_entry_position_x']
++        x_error = self.data_dict['true_primary_position_x']
+         print('\nCalculating x performance...')
+         self.x_sigmas, self.x_errors = calc_perf2_as_fn_of_energy(energy, x_error, self.bin_edges)
+         print('Calculation finished!')
+ 
+-        y_error = self.data_dict['true_primary_entry_position_y']
++        y_error = self.data_dict['true_primary_position_y']
+         print('\nCalculating y performance...')
+         self.y_sigmas, self.y_errors = calc_perf2_as_fn_of_energy(energy, y_error, self.bin_edges)
+         print('Calculation finished!')
+ 
+-        z_error = self.data_dict['true_primary_entry_position_z']
++        z_error = self.data_dict['true_primary_position_z']
+         print('\nCalculating x performance...')
+         self.z_sigmas, self.z_errors = calc_perf2_as_fn_of_energy(energy, z_error, self.bin_edges)
+         print('Calculation finished!')
+ 
+-        #* If an I3-reconstruction exists, get it
++        # * If an I3-reconstruction exists, get it
+         if self._reco_keys:
+             pred_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+             true = read_h5_directory(self.data_pars['data_dir'], self._true_xyz, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac)
+ 
+-            #* Ensure keys are proper so the angle calculations work
++            # * Ensure keys are proper so the angle calculations work
+             pred_crs = inverse_transform(pred_crs, get_project_root() + self.model_dir)
+             true = inverse_transform(true, get_project_root() + self.model_dir)
+ 
+             pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['x', 'y', 'z'])
+             true = convert_keys(true, [key for key in true], ['x', 'y', 'z'])
+ 
+-
+-            azi_crs_error = get_retro_crs_prefit_azi_error(azi_crs, true)
+-            polar_crs_error = get_retro_crs_prefit_polar_error(azi_crs, true)
++            x_crs_error = vertex_x_error(pred_crs, true)
++            y_crs_error = vertex_y_error(pred_crs, true)
++            z_crs_error = vertex_z_error(pred_crs, true)
+ 
+             print('\nCalculating crs polar performance...')
+             self.polar_crs_sigmas, self.polar_crs_errors = calc_perf2_as_fn_of_energy(energy, polar_crs_error, self.bin_edges)
+@@ -682,7 +684,8 @@ def log_performance_plots(model_dir, wandb_ID=None):
+         perf.save()
+ 
+     elif meta_pars['group'] == 'vertex_reg':
+-        print('lol')
++        vertex_perf = VertexPerformance(model_dir, wandb_ID=wandb_ID)
++        vertex_perf.save()
+     else:
+         print('Unknown regression type - no plots have been produced.')
+     print(strftime("%d/%m %H:%M", localtime()), ': Logging finished!')
+diff --git a/src/scripts/save_exp_settings.py b/src/scripts/save_exp_settings.py
+index 93cc14b..ddc7913 100644
+--- a/src/scripts/save_exp_settings.py
++++ b/src/scripts/save_exp_settings.py
+@@ -58,15 +58,14 @@ if __name__ == '__main__':
+ 
+ 
+     data_pars = {'data_dir':     data_dir,
+-                'seq_feat':    ['charge', 'dom_x', 'dom_y', 'dom_z', 'time'], 
++                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
+                 'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio'],
+-                'target':       ['true_neutrino_entry_position_x', 'true_neutrino_entry_position_y', 'true_neutrino_entry_position_z'],
+                 'n_val_events_wanted':   100,# np.inf,
+                 'n_train_events_wanted': 100,# np.inf,
+                 'train_frac':  0.80,
+                 'val_frac':    0.20,
+                 'test_frac':   0.0,
+-                'file_keys':             {'transform':   0},
++                'file_keys':             {'transform':   -1},
+                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
+                 'collate_fn': 'PadSequence',
+                 'val_batch_size':      32
+@@ -75,7 +74,7 @@ if __name__ == '__main__':
+ 
+     n_seq_feat = len(data_pars['seq_feat'])
+     n_scalar_feat = len(data_pars['scalar_feat'])
+-    n_target = len(data_pars['target'])
++    n_target = len(get_target_keys(data_pars, meta_pars))
+ 
+     arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
+ 

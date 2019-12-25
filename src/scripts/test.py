@@ -12,56 +12,12 @@ import subprocess
 import src.modules.loss_funcs as lf
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
-from src.modules.reporting import make_plot
+import src.modules.reporting as rpt
 # from src.modules.main_funcs import *
 
-class angle_loss(torch.nn.Module):
-    '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds 1e-8 to denominator to avoid division with zero.
-    '''
-    def __init__(self):
-        super(angle_loss,self).__init__()
-        
-    def forward(self, x, y):
-        dot_prods = torch.sum(x*y, dim=1)
-        len_x = torch.sqrt(torch.sum(x*x, dim=1))
-        len_y = torch.sqrt(torch.sum(y*y, dim=1))
-        err = dot_prods/(len_x*len_y + 1e-6)
-        err = torch.acos(err)
-        err = torch.mean(err)
-        return err
-
-loss = angle_loss()
-y = torch.tensor([1.0, 0.0, 0.0], requires_grad = True)
-x_init = torch.tensor([0.00000001, 0.00000001, 0.0], requires_grad = True)
-x_init.register_hook(print)
-len_x_init = torch.sqrt(torch.sum(x_init*x_init)+1e-12)
-x = 0.0+x_init/len_x_init
-# x.register_hook(lambda grad: torch.tensor([0.0, 0.0, 0.0]) if grad[0] != grad[0] else grad)
-x.register_hook(print)
-# x = torch.tensor([-0.0000001, 0.000, 0.0], requires_grad = True)
-
-# * Use clamp? Using clamp(-1.0 + eps, 1.0 - eps)
-# * If length is 0, add random numbers? 
-# * is setting gradient to 0 same as ignoring the bad input?
-dot_prods = torch.sum(x*y)
-len_x = torch.sqrt(torch.sum(x*x))
-len_y = torch.sqrt(torch.sum(y*y))
-
-err1 = dot_prods/(len_x*len_y)
-print('err1: %.2e'%(err1))
-err1.register_hook(lambda grad: torch.tensor(0.0) if grad == torch.tensor(-np.inf) else grad)
-err1.register_hook(print)
-
-err2 = torch.acos(err1)
-err2.register_hook(print)
-
-err3 = torch.mean(err2)
-err3.register_hook(print)
-
-err3.backward()
-print(0.1**10)
-# print(x.grad, x_init.grad)
-# subprocess.run(['git', 'add', '-f', model_name+'.dvc'], cwd=model_dir)
+a = IceCubePerformance('oscnext-genie-level5-v01-01-pass2')
+d = a.get_z_dict()
+_ = rpt.make_plot(d)
 #* #* print(bootstrap_samples)
 #* #%%
 #* fig = make_plot({'data': [dist_sorted, bootstrap_samples]})

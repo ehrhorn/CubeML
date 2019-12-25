@@ -56,8 +56,7 @@ elif i3_type == 'oscnext-genie-level5-v01-01-pass2':
         '/groups/icecube/stuttard/data/oscNext/pass2/genie/level5_v01.01/'
     )
     save_dir = Path(
-        '/groups/hep/ehrhorn/files/icecube/hdf5_files/'
-        'oscnext-genie-level5-v01-01-pass2'
+        '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2'
     )
     gcd_file = Path(
         '/groups/hep/ehrhorn/files/icecube/i3_files/Jason/'
@@ -88,6 +87,8 @@ if __name__ == '__main__':
         'true_primary_position_x',
         'true_primary_position_y',
         'true_primary_position_z',
+        'true_primary_speed',
+        'true_primary_time',
         'true_primary_energy',
         'linefit_direction_x',
         'linefit_direction_y',
@@ -189,6 +190,9 @@ if __name__ == '__main__':
         data['true_primary_direction_x'].append(true_primary_direction.x)
         data['true_primary_direction_y'].append(true_primary_direction.y)
         data['true_primary_direction_z'].append(true_primary_direction.z)
+
+        data['true_primary_time'].append(true_primary.time)
+        data['true_primary_speed'].append(true_primary.speed)
 
         # Point on the generation cylinder at which the muon is produced
         # <icecube.dataclasses.I3Particle>
@@ -438,6 +442,17 @@ if __name__ == '__main__':
             tray.Finish()
 
             with open_file(out_name, mode='w') as f:
+                meta_data = {}
+                meta_data['events'] = len(data['true_primary_energy'])
+                meta_group = f.create_group(
+                    where='/',
+                    name='meta'
+                )
+                f.create_array(
+                    where=meta_group,
+                    name='events',
+                    obj=meta_data['events']
+                )
                 group = f.create_group(
                     where='/',
                     name='raw',
@@ -485,3 +500,5 @@ if __name__ == '__main__':
                             name=key,
                             obj=data[key]
                         )
+
+print('Done.')

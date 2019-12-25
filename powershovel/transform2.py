@@ -89,9 +89,21 @@ def scaled_data_saver(file, data, transform_level):
 
 
 PARTICLE_TYPES = ['120000', '140000', '160000']
+
 DATA_DIR = Path(
-    '/datadrive/home/mads/osc_test'
+    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2'
 )
+# DATA_DIR = Path(
+#     '/groups/hep/ehrhorn/transform_test'
+# )
+SCALER_DIR = Path(
+    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
+    'transformers'
+)
+# SCALER_DIR = Path(
+#     '/groups/hep/ehrhorn'
+# )
+
 BANNED_GROUPS = [
     'dom_atwd',
     'dom_fadc',
@@ -99,9 +111,8 @@ BANNED_GROUPS = [
     'dom_pulse_width',
     'secondary_track_length'
 ]
-SCALER_DIR = Path('/datadrive/home/mads/')
 
-TRANSFORM = 'quant_1e3'
+TRANSFORM = 'transform0'
 
 process = psutil.Process(os.getpid())
 
@@ -112,9 +123,9 @@ for particle_type in PARTICLE_TYPES:
     ])
     scalers = joblib.load(
         SCALER_DIR.joinpath(
-            particle_type + '_' + TRANSFORM + '.pkl'
+            particle_type + '_' + TRANSFORM + '.pickle'
+            )
         )
-    )
     for i, data_file in enumerate(data_files):
         print('Handling particle {}, file {}, RAM used {} GB, {}/{}'.format(
             particle_type,
