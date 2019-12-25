@@ -2,8 +2,8 @@ import streamlit as st
 from tables import *
 from pathlib import Path
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-plt.rcParams["figure.figsize"] = (10, 12)
+#import matplotlib.pyplot as plt
+#plt.rcParams["figure.figsize"] = (10, 12)
 
 
 def h5_file_reader(data_set, group, variable):

@@ -90,7 +90,7 @@ def scaled_data_saver(file, data, transform_level):
 
 PARTICLE_TYPES = ['120000', '140000', '160000']
 DATA_DIR = Path(
-    '/groups/hep/ehrhorn/transform_test'
+    '/datadrive/home/mads/osc_test'
 )
 BANNED_GROUPS = [
     'dom_atwd',
@@ -99,9 +99,9 @@ BANNED_GROUPS = [
     'dom_pulse_width',
     'secondary_track_length'
 ]
-SCALER_DIR = Path('/groups/hep/ehrhorn')
+SCALER_DIR = Path('/datadrive/home/mads/')
 
-TRANSFORM = 'powertransform'
+TRANSFORM = 'quant_1e3'
 
 process = psutil.Process(os.getpid())
 
@@ -110,7 +110,11 @@ for particle_type in PARTICLE_TYPES:
         f for f in DATA_DIR.glob('**/*.h5') if f.is_file()
             and particle_type in f.name
     ])
-    scalers = joblib.load(SCALER_DIR.joinpath(particle_type + '.pkl'))
+    scalers = joblib.load(
+        SCALER_DIR.joinpath(
+            particle_type + '_' + TRANSFORM + '.pkl'
+        )
+    )
     for i, data_file in enumerate(data_files):
         print('Handling particle {}, file {}, RAM used {} GB, {}/{}'.format(
             particle_type,

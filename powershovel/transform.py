@@ -44,14 +44,14 @@ def transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS):
             transformer_dict[key] = RobustScaler()
         elif key in QUANTILE_KEYS:
             samples = hist_dict[key].reshape(-1, 1).shape[0]
-            # transformer_dict[key] = QuantileTransformer(
-            #     n_quantiles=samples,
-            #     output_distribution='normal',
-            #     subsample=samples
-            # )
-            transformer_dict[key] = PowerTransformer(
-                method='box-cox'
+            transformer_dict[key] = QuantileTransformer(
+                n_quantiles=1000,
+                output_distribution='normal',
+                subsample=1000
             )
+            # transformer_dict[key] = PowerTransformer(
+            #     method='box-cox'
+            # )
     for key in transformer_dict:
         print('Key: {}, samples: {}'.format(key, hist_dict[key].reshape(-1, 1).shape))
         transformer_dict[key].fit(hist_dict[key].reshape(-1, 1))
@@ -63,7 +63,7 @@ def transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS):
 #     'oscnext-genie-level5-v01-01-pass2/'
 # )
 DATA_DIR = Path(
-    '/groups/hep/ehrhorn/transform_test'
+    '/datadrive/home/mads/osc_test'
 )
 PARTICLE_TYPES = ['120000', '140000', '160000']
 BANNED_GROUPS = [
@@ -95,8 +95,8 @@ ROBUST_KEYS = [
 ]
 
 process = psutil.Process(os.getpid())
-OUT_DIR = Path('/groups/hep/ehrhorn/')
-TRANSFORM = 'powertransform'
+OUT_DIR = Path('/datadrive/home/mads/')
+TRANSFORM = 'quant_1e3'
 
 for particle_type in PARTICLE_TYPES:
     out_file = OUT_DIR.joinpath(particle_type + '_' + TRANSFORM + '.pkl')
