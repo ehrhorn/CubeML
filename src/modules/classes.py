@@ -264,23 +264,22 @@ class LstmPredictLoader(data.Dataset):
             self.seq_features = {}
             self.targets = {} 
 
+            # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
             for key in scalar_features:          
                 try:
                     self.scalar_features[key] = f[data_address+key][indices]
-                
-                # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
                 except KeyError:
                     self.scalar_features[key] = f['raw/'+key][indices]
 
             for key in seq_features:
-                self.seq_features[key] = f[data_address+key][indices]
-            
-            for key in targets:
+                try:
+                    self.seq_features[key] = f[data_address+key][indices]
+                except KeyError:
+                    self.seq_features[key] = f['raw/'+key][indices]
 
+            for key in targets:
                 try:
                     self.targets[key] = f[data_address+key][indices]
-                
-                # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
                 except KeyError:
                     self.targets[key] = f['raw/'+key][indices]
 
@@ -634,6 +633,8 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
             batch_size = data_pars['val_batch_size']
             n_events_wanted = data_pars.get('n_val_events_wanted', np.inf)
         prefix = 'transform'+str(file_keys['transform'])+'/'
+        if file_keys['transform'] == -1:
+            prefix = 'raw/'
 
         dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted)
 
@@ -647,7 +648,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
     
     return dataloader
     
-def load_predictions(data_pars, keyword, file):
+def load_predictions(data_pars, meta_pars, keyword, file):
 
     cond1 = 'LstmLoader' == data_pars['dataloader']
     cond2 = 'SeqScalarTargetLoader' == data_pars['dataloader']
@@ -656,7 +657,7 @@ def load_predictions(data_pars, keyword, file):
         
         seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
         scalar_features = data_pars['scalar_feat'] # * feature names
-        targets = data_pars['target'] # * target names
+        targets = get_target_keys(data_pars, meta_pars) # * target names
         train_frac = data_pars['train_frac'] # * how much data should be trained on?
         val_frac = data_pars['val_frac'] # * how much data should be used for validation?
         test_frac = data_pars['test_frac'] # * how much data should be used for training

@@ -93,7 +93,7 @@ def calc_histogram(sorted_data, n_bins=10, mode='equal_amount'):
     '''
 
     if mode == 'equal_amount':
-        #*put equal amount in each bin
+        # * put equal amount in each bin
         edges = [sorted_data[0]]
         entries = []
         
@@ -142,7 +142,7 @@ def calc_MAEs(sorted_data, entries, error_measure='median'):
     '''
     from_to = np.append(0, np.cumsum(entries))
 
-    #*calculate MAE
+    # * calculate MAE
     maes = []
     for lower, upper in zip(from_to[:-1], from_to[1:]):
         
@@ -193,11 +193,11 @@ def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
         e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
         e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
 
-        #*Assume errors are symmetric - which they look to be (quick inspection)
-        #*Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
+        # * Assume errors are symmetric - which they look to be (quick inspection)
+        # * Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
         sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
         
-        #*Ignore nans - it is due to too little statistics in a bin
+        # * Ignore nans - it is due to too little statistics in a bin
         if e_sigma != e_sigma:
             sigma = np.nan
             
@@ -316,11 +316,20 @@ def convert_keys(d, old_keys, new_keys):
     return d
 
 def estimate_percentile(data, percentiles, n_bootstraps=1000):
-    '''Uses bootstrapping and order statistics to estimate a percentile and its error.
-
-    A confidence interval of +-1 sigma is created for each percentile 
-    '''
-    #*Convert to np-array and sort (if it hasnt been already)
+    """Estimation of percentile of a dataset using bootstrapping and order statistics (see https://en.wikipedia.org/wiki/Order_statistic). A confidence interval of +-1 sigma is created for each percentile
+    
+    Arguments:
+        data {array-like} -- Data in which to find percentiles.
+        percentiles {list} -- list of wanted percentiles (between 0 and 1)
+    
+    Keyword Arguments:
+        n_bootstraps {int} -- Number of bootstrap experiments to run (default: {1000})
+    
+    Returns:
+        lists -- means, -sigma and +sigma, lists of same lengths as percentiles
+    """    
+     
+    # * Convert to np-array and sort (if it hasnt been already)
     data = np.array(data)
     n = data.shape[0]
     data.sort()
@@ -330,7 +339,7 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
 
 
     for percentile in percentiles:
-        #*THe order statistic is binomially distributed - we approximate it with a gaussian. 
+        # * THe order statistic is binomially distributed - we approximate it with a gaussian. 
         sigma = np.sqrt(percentile*n*(1-percentile))
         mean = n*percentile
         i_means.append(int(mean))
@@ -338,12 +347,12 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
         i_minussigmas.append(int(mean-sigma))
     
     
-    #*bootstrap
+    # * bootstrap
     bootstrap_indices = np.random.choice(np.arange(0, n), size=(n, n_bootstraps))
     bootstrap_indices.sort(axis=0)
     bootstrap_samples = data[bootstrap_indices]
 
-    #*An IndexError is due to too few events in a bin. Set these to NaN, we don't care about bins with very little data, so dont log the error.
+    # * An IndexError is due to too few events in a bin. Set these to NaN, we don't care about bins with very little data, so dont log the error.
     for i in range(len(i_means)):
         
         try:    
@@ -401,6 +410,19 @@ def find_files(name, main_dir=None):
     return files_str
 
 def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=None):
+    """A helper function for initializing of dataloader - the different dataloaders require different settings
+    
+    Arguments:
+        batch_size {int} -- Desired batch size
+    
+    Keyword Arguments:
+        num_workers {int} -- number of subprocesses to call torch.Dataloader with (default: {8})
+        shuffle {bool} -- Whether batching should be shuffled or not (default: {False})
+        dataloader {str} -- Name of wanted dataloader (default: {None})
+    
+    Returns:
+        dict -- Dictionary with desired items.
+    """    
 
     if dataloader == 'FullBatchLoader':
         dataloader_params = {'batch_size': None, 'shuffle': False, 'num_workers': num_workers}
@@ -422,11 +444,11 @@ def get_dataset_name(file_path):
     from_root = get_path_from_root(file_path)
     from_root_splitted = from_root.split('/')
     
-    #*Expects the format chosen for the framework
+    # * Expects the format chosen for the framework
     if from_root_splitted[1] == 'data' or from_root_splitted[1] == 'models':
         name = from_root_splitted[2]
     else:
-        'Unknown format given!'
+        raise ValueError('Unknown format (%s) given!'%(file_path))
     
     return name
 
@@ -480,38 +502,38 @@ def get_lr(optimizer):
 
 def get_lr_scheduler(lr_dict, optimizer, batch_size, n_train):
 
-    #*Simply multiplies lr by 1 on every iteration - equal to no lr-schedule
+    # * Simply multiplies lr by 1 on every iteration - equal to no lr-schedule
     if lr_dict['lr_scheduler'] == None:
         lambda1 = lambda step: 1.0
         
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
     
     elif lr_dict['lr_scheduler'] == 'CyclicLR':
-        #*Some default values
-        #*{'lr_scheduler':   'CyclicLR',
-        #*'base_lr':        0.00001,
-        #*'max_lr':         0.001,
-        #*'period':         12, #*in epochs
-        #*'cycle_momentum': False}
+        # * Some default values
+        # * {'lr_scheduler':   'CyclicLR',
+        # * 'base_lr':        0.00001,
+        # * 'max_lr':         0.001,
+        # * 'period':         12, # * in epochs
+        # * 'cycle_momentum': False}
 
         if 'cycle_momentum' in lr_dict: 
             cycle_momentum = lr_dict['cycle_momentum']
         else: 
-            cycle_momentum = True #*default value from Torch
+            cycle_momentum = True # * default value from Torch
         
         if 'period' in lr_dict: 
             n_steps = 0.5*n_train*lr_dict['period']/batch_size
             step_size_up = int(n_steps)
-        else: step_size_up = 2000 #*default value from Torch
+        else: step_size_up = 2000 # * default value from Torch
 
         scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=lr_dict['base_lr'], max_lr = lr_dict['max_lr'], step_size_up=step_size_up, cycle_momentum=cycle_momentum)
     
     elif lr_dict['lr_scheduler'] == 'ReduceLROnPlateau':
-        #*Some default values
-        #*{'lr_scheduler':   'ReduceLROnPlateau',
-        #*'factor':         0.1,
-        #*'patience':       2,
-        #*}
+        # * Some default values
+        # * {'lr_scheduler':   'ReduceLROnPlateau',
+        # * 'factor':         0.1,
+        # * 'patience':       2,
+        # * }
 
         pars = {}
         if 'factor' in lr_dict:
@@ -570,16 +592,16 @@ def get_optimizer(model_pars, d_opt):
     '''
     if d_opt['optimizer'] == 'Adam':
         if 'lr' in d_opt: lr = d_opt['lr']
-        else: lr = 0.001 #*standard Adam lr
+        else: lr = 0.001 # * standard Adam lr
 
         if 'betas' in d_opt: betas = d_opt['betas']
-        else: betas = (0.9, 0.999) #*standard Adam par
+        else: betas = (0.9, 0.999) # * standard Adam par
 
         if 'eps' in d_opt: eps = d_opt['eps']
-        else: eps = 1e-08 #*default Adam par
+        else: eps = 1e-08 # * default Adam par
 
         if 'weight_decay' in d_opt: weight_decay = d_opt['eps']
-        else: weight_decay = 0 #*default Adam par
+        else: weight_decay = 0 # * default Adam par
         
         return optim.Adam(model_pars, lr = lr, betas = betas, eps = eps, weight_decay = weight_decay)
     
@@ -618,20 +640,27 @@ def get_path_from_root(path):
     return path_from_root
 
 def get_project_root():
-    '''Finds project root - useful for running code on different machines.
+    """Finds absolute path to project root - useful for running code on different machines.
     
-    Inputs
-    None
-
-    Output
-    path as a string to project root.
-    '''
-    #*Find project root
+    Returns:
+        str -- path to project root
+    """    
+    
+    # * Find project root
     current_dir_splitted = str(Path.cwd()).split('/')
     i = 0
     while current_dir_splitted[i] != 'CubeML':
         i += 1
     return '/'.join(current_dir_splitted[:i+1]) 
+
+def get_retro_crs_prefit_vertex_keys():
+    """Simple function to retrieve Icecubes vertex reconstruction keys for vertex_reg
+    
+    Returns:
+        list -- keys of Icecubes reconstruction
+    """    
+    reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
+    return reco_keys
 
 def get_target_keys(data_pars, meta_pars):
     """Given a dataset and a regression type, the desired target keys are returned.
@@ -654,7 +683,7 @@ def get_target_keys(data_pars, meta_pars):
         if meta_pars['group'] == 'direction_reg':
             target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
         elif meta_pars['group'] == 'vertex_reg':
-            target_keys = ['true_primary_entry_position_x', 'true_primary_entry_position_y', 'true_primary_entry_position_z']
+            target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z']
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
     
@@ -707,9 +736,9 @@ def inverse_transform(data, model_dir):
             if transformers[key] == None: 
                 transformed[key] = data[key]
 
-            #*The reshape is required for scikit to function...
+            # * The reshape is required for scikit to function...
             else: 
-                #*Input might be given as a dictionary of lists
+                # * Input might be given as a dictionary of lists
                 try: 
                     transformed[key] = transformers[key].inverse_transform(data[key].reshape(-1, 1))
                 except AttributeError: 
@@ -717,7 +746,7 @@ def inverse_transform(data, model_dir):
 
     return transformed
 
-#*TODO: delete inverse_transform_predictions and only use inverse_transform, predict() needs adjusting
+# TODO: delete inverse_transform_predictions and only use inverse_transform, predict() needs adjusting
 def inverse_transform_predictions(preds, keys, model_dir):
 
     try:
@@ -736,9 +765,9 @@ def inverse_transform_predictions(preds, keys, model_dir):
             if transformers[key] == None: 
                 transformed[key] = preds[key]
 
-            #*The reshape is required for scikit to function...
+            # * The reshape is required for scikit to function...
             else: 
-                #*Input might be given as a dictionary of lists
+                # * Input might be given as a dictionary of lists
                 try: 
                     transformed[key] = transformers[key].inverse_transform(preds[key].reshape(-1, 1))
                 except AttributeError: 
@@ -819,10 +848,10 @@ def make_lr_dir(data_folder_address, project, batch_size):
     '''Makes a lr-finder folder at CubeML/models/<DATA_TRAINED_ON>/lr_finders/BS#_<WHEN_CREATED>.
     '''
 
-    #*Get CubeML/models/ directory
+    # * Get CubeML/models/ directory
     models_dir = get_project_root()+'/models/'
 
-    #*See if model/dataset exists - if not, make it
+    # * See if model/dataset exists - if not, make it
     data_name = data_folder_address.split('/')
     if data_name[-1] == '': 
         data_name = data_name[-2]
@@ -833,12 +862,12 @@ def make_lr_dir(data_folder_address, project, batch_size):
         Path(models_dir+data_name).mkdir()
     data_dir = models_dir+data_name+'/'
 
-    #*Make lr-finder directory if it doesnt exist
+    # * Make lr-finder directory if it doesnt exist
     if not Path(data_dir+'lr_finders').is_dir(): 
         Path(data_dir+'lr_finders').mkdir()
     lr_finders_dir = data_dir+'lr_finders/'
 
-    #*Finally! lr-finder dir
+    # * Finally! lr-finder dir
     if project.split('_')[-1] == 'test':
         base_name = 'test_BS'+str(batch_size)+'_'+strftime("%Y-%m-%d-%H.%M.%S", localtime())
     else:
@@ -853,10 +882,10 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project):
     '''Makes a model folder at CubeML/models/<DATA_TRAINED_ON>/regression/<REGRESSION_TYPE>/<WHEN_TRAINED>/ with subdirectories figures and data.
     '''
 
-    #*Get CubeML/models/ directory
+    # * Get CubeML/models/ directory
     models_dir = get_project_root()+'/models/'
 
-    #*See if model/dataset exists - if not, make it
+    # * See if model/dataset exists - if not, make it
     data_name = data_folder_address.split('/')
     if data_name[-1] == '': data_name = data_name[-2]
     else: data_name = data_name[-1]
@@ -864,15 +893,15 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project):
     if not Path(models_dir+data_name).is_dir(): Path(models_dir+data_name).mkdir()
     data_dir = models_dir+data_name+'/'
 
-    #*Make regression directory if it doesnt exist
+    # * Make regression directory if it doesnt exist
     if not Path(data_dir+'regression').is_dir(): Path(data_dir+'regression').mkdir()
     regression_dir = data_dir+'regression/'
 
-    #*Make regression type directory if it doesnt exist
+    # * Make regression type directory if it doesnt exist
     if not Path(regression_dir+reg_type).is_dir(): Path(regression_dir+reg_type).mkdir()
     reg_type_dir = regression_dir+reg_type
     
-    #*Finally! Make model directory
+    # * Finally! Make model directory
     if project.split('_')[-1] == 'test':
         base_name = 'test_'+strftime("%Y.%m.%d-%H.%M.%S", localtime())
     else:
@@ -881,11 +910,11 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project):
     Path(reg_type_dir+'/'+base_name).mkdir()
     model_dir = reg_type_dir+'/'+base_name
     
-    #*Add subdirectories
+    # * Add subdirectories
     Path(model_dir+'/figures').mkdir()
     Path(model_dir+'/data').mkdir()
 
-    #*Copy transform dicts
+    # * Copy transform dicts
     transformer_address = get_project_root()+'/data/'+data_name+'/transformers/'+'transform'+str(clean_keys['transform'])+'.pickle'
     try:
         data_dir = shutil.copy(transformer_address, model_dir+'/transformers.pickle')
@@ -894,25 +923,29 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project):
 
     return model_dir
 
-def read_h5_dataset(file_address, key, prefix=None, from_frac=0, to_frac=1, indices=None):
-    '''Reads a dataset from a h5-file induced by keys and prefix.
-
-    Inputs
-    file_address: full address as string to h5-file
-    key: Key/name of variable to read.
-    prefix: If required, a string to ensure correct path in file (path is prefix+/+key)
-    from_frac: Used to calculate the index to read from; index = int( N_data_in_file*from_frac+0.5)
-    to_frac: The index to read to. Calculated as from_frac.
-
-    output: Array with desired dataset.
-    '''
+def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indices=None):
+    """Reads a dataset from a h5-file induced by key and prefix.
+    
+    Arguments:
+        file_address {str} -- Full address to h5-file
+        key {str} -- key/name of variable to read
+    
+    Keyword Arguments:
+        prefix {str} -- a string to ensure correct path in file (path is prefix+'/'+key) (default: {''})
+        from_frac {int} -- Used to calculate the index to read from. Index = int( n_data_in_file*from_frac+0.5 ) (default: {0})
+        to_frac {int} -- Index to read to. Calculated as from_frac (default: {1})
+        indices {list} -- Optional list of indices to read (overwrites from_frac, to_frac) (default: {None})
+    
+    Returns:
+        array-like -- Array of desired dataset.
+    """    
 
     with h5.File(file_address, 'r') as f:
         n_events = f['meta/events'][()]
         if indices == None:
             indices = get_indices_from_fraction(n_events, from_frac, to_frac)
         
-        #*If not transformed, it is found under raw/
+        # * If not transformed, it is found under raw/
         try:
             path = prefix+'/'+key
             data = f[path][indices]
@@ -945,7 +978,7 @@ def read_h5_directory(data_dir, keys, prefix=None, from_frac = 0, to_frac = 1):
             for key in keys:
                 values[key][file.stem] = read_h5_dataset(file, key, prefix, from_frac=from_frac, to_frac=to_frac)
     
-    #*Sort wrt file index
+    # * Sort wrt file index
     values_sorted = sort_wrt_file_id(str(file), values)
 
     return values_sorted
@@ -968,7 +1001,7 @@ def read_predicted_h5_data(file_address, keys):
             for key in keys:
                 preds[key][str(dfile)] = f[dfile+'/'+key][:]
 
-    #*Sort wrt file index
+    # * Sort wrt file index
     values_sorted = sort_wrt_file_id(file_address, preds) 
 
     return values_sorted
@@ -1033,7 +1066,7 @@ def remove_tests_modeldir(directory = get_project_root() + '/models/'):
 def remove_tests_wandbdir(directory = get_project_root() + '/models/wandb/', rm_all=False):
     '''Deletes all wandb-folder which failed during training or was a test-run.
     '''
-    #*Check each run - if test, delete it.
+    # * Check each run - if test, delete it.
     for run in Path(directory).iterdir():
         
         remove = False
@@ -1092,7 +1125,7 @@ def sort_wrt_file_id(file_path, values):
 
 def show_train_val_error(x_address, train_address, val_address, save_address=None):
     
-    #*Load pickle-files
+    # * Load pickle-files
     x = pickle.load( open( x_address, "rb" ) )
     train = pickle.load( open( train_address, "rb" ) )
     val = pickle.load( open( val_address, "rb" ) )
@@ -1128,7 +1161,7 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
     Output:
     Updated hyperparameter-, dataparameter and metaparameter-dictionaries.
     '''
-    #*Load hyperparameters of experiment - metapars has to be path from project root
+    # * Load hyperparameters of experiment - metapars has to be path from project root
     model_dir = get_project_root() + meta_pars['pretrained_path']    
     hyper_pars, data_pars, arch_pars, _ = load_model_pars(model_dir)
     
@@ -1137,22 +1170,22 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
 
     checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
 
-    #*Get last epoch number
+    # * Get last epoch number
     hyper_pars['epochs_completed'] = checkpoint['epochs_completed']
 
-    #*Update the old pars - do not update arch-pars: 
+    # * Update the old pars - do not update arch-pars: 
     for key, item in new_hyper_pars.items():
         
-        #*Let optimizer be fixed
+        # * Let optimizer be fixed
         if key == 'optimizer':
             continue
 
         hyper_pars[key] = item
 
-    #*LR should be updated though
+    # * LR should be updated though
     hyper_pars['optimizer']['lr'] = new_hyper_pars['optimizer']['lr']    
 
-    #*Update the old pars
+    # * Update the old pars
     for key, item in new_data_pars.items():
         data_pars[key] = item
 
