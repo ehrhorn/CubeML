@@ -124,7 +124,7 @@ for transform in TRANSFORMS:
             f for f in DATA_DIR.glob('**/*.h5') if f.is_file() and particle_type in f.name
         ]
         data_files = sorted(data_files)
-        out_file = Path('/groups/hep/ehrhorn/repos/CubeML/powershovel').joinpath(
+        out_file = Path('/datadrive/home/mads/repos/CubeML/powershovel').joinpath(
             particle_type + '.h5'
         )
 

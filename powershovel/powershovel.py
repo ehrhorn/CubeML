@@ -747,7 +747,7 @@ elif show_dists == 'Distributions':
             hist_maker(events_file, group, hist_key))
     hists = np.array(hists)
     hists = np.concatenate(hists).ravel()
-    freqs, bins = np.histogram(hists, bins=30)
+    freqs, bins = np.histogram(hists, bins=300)
     width = 1 * (bins[1] - bins[0])
     centers = (bins[:-1] + bins[1:]) / 2
     fig = go.Figure(
