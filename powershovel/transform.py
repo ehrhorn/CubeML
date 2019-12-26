@@ -56,7 +56,6 @@ def transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS, GEOMETRY_KEYS):
         elif key in GEOMETRY_KEYS:
             transformer_dict[key] = RobustScaler()
             geometry_array = np.append(geometry_array, hist_dict[key].reshape(-1, 1))
-            print(geometry_array.shape)
         else:
             continue
         transformer_dict[key].fit(hist_dict[key].reshape(-1, 1))
@@ -120,11 +119,10 @@ for particle_type in PARTICLE_TYPES:
     out_file = OUT_DIR.joinpath(particle_type + '_' + TRANSFORM + '.pickle')
     if out_file.is_file():
         continue
-    DATA_FILES = [
+    DATA_FILES = sorted([
         f for f in DATA_DIR.glob('**/*.h5') if f.is_file()
             and particle_type in f.name
-    ]
-    # DATA_FILES = sorted(DATA_FILES)[0:1]
+    ])
 
     group_list = groups_reader(DATA_FILES[0], 'raw', BANNED_GROUPS)
 

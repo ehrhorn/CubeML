@@ -109,7 +109,8 @@ BANNED_GROUPS = [
     'dom_fadc',
     'dom_lc',
     'dom_pulse_width',
-    'secondary_track_length'
+    'secondary_track_length',
+    'true_primary_speed'
 ]
 
 

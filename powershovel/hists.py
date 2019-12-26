@@ -108,7 +108,7 @@ def hist_saver(out_file, hist_dict, bin_edges, transform):
 
 process = psutil.Process(os.getpid())
 
-TRANSFORMS = ['raw']
+TRANSFORMS = ['transform0']
 PARTICLE_TYPES = ['120000', '140000', '160000']
 
 DATA_DIR = Path(
