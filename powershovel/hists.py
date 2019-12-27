@@ -108,7 +108,7 @@ def hist_saver(out_file, hist_dict, bin_edges, transform):
 
 process = psutil.Process(os.getpid())
 
-TRANSFORMS = ['transform0']
+TRANSFORMS = ['transform1']
 PARTICLE_TYPES = ['120000', '140000', '160000']
 
 DATA_DIR = Path(
@@ -124,7 +124,7 @@ for transform in TRANSFORMS:
             f for f in DATA_DIR.glob('**/*.h5') if f.is_file() and particle_type in f.name
         ]
         data_files = sorted(data_files)
-        out_file = Path('/datadrive/home/mads/repos/CubeML/powershovel').joinpath(
+        out_file = Path('/groups/hep/ehrhorn/repos/CubeML/powershovel').joinpath(
             particle_type + '.h5'
         )
 

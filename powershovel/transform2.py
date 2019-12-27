@@ -113,7 +113,7 @@ BANNED_GROUPS = [
     'true_primary_speed'
 ]
 
-TRANSFORM = 'transform0'
+TRANSFORM = 'transform1'
 
 process = psutil.Process(os.getpid())
 

@@ -87,7 +87,10 @@ BANNED_GROUPS = [
     'secondary_track_length',
     'true_primary_speed'
 ]
-QUANTILE_KEYS = ['dom_charge']
+QUANTILE_KEYS = [
+    'dom_charge',
+    'true_primary_time'
+]
 ROBUST_KEYS = [
     'dom_n_hit_multiple_doms',
     'dom_time',
@@ -102,8 +105,7 @@ ROBUST_KEYS = [
     'true_primary_energy',
     'true_primary_position_x',
     'true_primary_position_y',
-    'true_primary_position_z',
-    'true_primary_time'
+    'true_primary_position_z'
 ]
 GEOMETRY_KEYS = [
     'dom_x',
@@ -113,7 +115,7 @@ GEOMETRY_KEYS = [
 
 process = psutil.Process(os.getpid())
 
-TRANSFORM = 'transform0'
+TRANSFORM = 'transform1'
 
 for particle_type in PARTICLE_TYPES:
     out_file = OUT_DIR.joinpath(particle_type + '_' + TRANSFORM + '.pickle')
