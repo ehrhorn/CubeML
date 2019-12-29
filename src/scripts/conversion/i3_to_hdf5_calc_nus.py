@@ -87,6 +87,8 @@ if __name__ == '__main__':
         'true_primary_position_x',
         'true_primary_position_y',
         'true_primary_position_z',
+        'true_primary_speed',
+        'true_primary_time',
         'true_primary_energy',
         'linefit_direction_x',
         'linefit_direction_y',
@@ -188,6 +190,9 @@ if __name__ == '__main__':
         data['true_primary_direction_x'].append(true_primary_direction.x)
         data['true_primary_direction_y'].append(true_primary_direction.y)
         data['true_primary_direction_z'].append(true_primary_direction.z)
+
+        data['true_primary_time'].append(true_primary.time)
+        data['true_primary_speed'].append(true_primary.speed)
 
         # Point on the generation cylinder at which the muon is produced
         # <icecube.dataclasses.I3Particle>
@@ -495,3 +500,5 @@ if __name__ == '__main__':
                             name=key,
                             obj=data[key]
                         )
+
+print('Done.')

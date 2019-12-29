@@ -37,50 +37,64 @@ def groups_reader(file, group, BANNED_GROUPS):
     return group_list
 
 
-def transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS):
+def transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS, GEOMETRY_KEYS):
     transformer_dict = {}
-    for key in group_list:
+    geometry_array = np.empty(1)
+    for key in hist_dict:
         if key in ROBUST_KEYS:
             transformer_dict[key] = RobustScaler()
         elif key in QUANTILE_KEYS:
             samples = hist_dict[key].reshape(-1, 1).shape[0]
-            # transformer_dict[key] = QuantileTransformer(
-            #     n_quantiles=samples,
-            #     output_distribution='normal',
-            #     subsample=samples
-            # )
-            transformer_dict[key] = PowerTransformer(
-                method='box-cox'
+            transformer_dict[key] = QuantileTransformer(
+                n_quantiles=100000,
+                output_distribution='normal',
+                subsample=100000
             )
-    for key in transformer_dict:
-        print('Key: {}, samples: {}'.format(key, hist_dict[key].reshape(-1, 1).shape))
+            # transformer_dict[key] = PowerTransformer(
+            #     method='box-cox'
+            # )
+        elif key in GEOMETRY_KEYS:
+            transformer_dict[key] = RobustScaler()
+            geometry_array = np.append(geometry_array, hist_dict[key].reshape(-1, 1))
+        else:
+            continue
         transformer_dict[key].fit(hist_dict[key].reshape(-1, 1))
+    for key in GEOMETRY_KEYS:
+        transformer_dict[key].fit(geometry_array.reshape(-1, 1))
     return transformer_dict
 
 
-# DATA_DIR = Path(
-#     '/groups/hep/ehrhorn/files/icecube/hdf5_files/'
-#     'oscnext-genie-level5-v01-01-pass2/'
-# )
 DATA_DIR = Path(
-    '/groups/hep/ehrhorn/transform_test'
+    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
 )
+# DATA_DIR = Path(
+#     '/groups/hep/ehrhorn/transform_test'
+# )
+OUT_DIR = Path(
+    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
+    'transformers'
+)
+# OUT_DIR = Path(
+#     '/groups/hep/ehrhorn/'
+# )
+
 PARTICLE_TYPES = ['120000', '140000', '160000']
 BANNED_GROUPS = [
     'dom_atwd',
     'dom_fadc',
     'dom_lc',
     'dom_pulse_width',
-    'secondary_track_length'
+    'secondary_track_length',
+    'true_primary_speed'
 ]
-QUANTILE_KEYS = ['dom_charge']
+QUANTILE_KEYS = [
+    'dom_charge',
+    'true_primary_time'
+]
 ROBUST_KEYS = [
     'dom_n_hit_multiple_doms',
     'dom_time',
     'dom_timelength_fwhm',
-    'dom_x',
-    'dom_y',
-    'dom_z',
     'linefit_point_on_line_x',
     'linefit_point_on_line_y',
     'linefit_point_on_line_z',
@@ -93,28 +107,28 @@ ROBUST_KEYS = [
     'true_primary_position_y',
     'true_primary_position_z'
 ]
+GEOMETRY_KEYS = [
+    'dom_x',
+    'dom_y',
+    'dom_z'
+]
 
 process = psutil.Process(os.getpid())
-OUT_DIR = Path('/groups/hep/ehrhorn/')
-TRANSFORM = 'powertransform'
+
+TRANSFORM = 'transform1'
 
 for particle_type in PARTICLE_TYPES:
-    out_file = OUT_DIR.joinpath(particle_type + '_' + TRANSFORM + '.pkl')
+    out_file = OUT_DIR.joinpath(particle_type + '_' + TRANSFORM + '.pickle')
     if out_file.is_file():
         continue
-    DATA_FILES = [
+    DATA_FILES = sorted([
         f for f in DATA_DIR.glob('**/*.h5') if f.is_file()
             and particle_type in f.name
-    ]
-    DATA_FILES = sorted(DATA_FILES)
+    ])
 
     group_list = groups_reader(DATA_FILES[0], 'raw', BANNED_GROUPS)
 
     hist_dict = {key: np.empty(0) for key in group_list}
-
-            # transformer_dict[key] = FunctionTransformer(
-            #     func=bjoern_transform
-            # )
 
     for i, data_file in enumerate(DATA_FILES):
         if i % 20 == 0:
@@ -132,10 +146,12 @@ for particle_type in PARTICLE_TYPES:
             BANNED_GROUPS
         )
     print('Fitting particle {}'.format(particle_type))
-    transformer_dict = transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS)
+    transformer_dict = transformer_fit(
+        hist_dict,
+        ROBUST_KEYS,
+        QUANTILE_KEYS,
+        GEOMETRY_KEYS
+    )
     joblib.dump(transformer_dict, out_file)
 
-# print('n_quantiles_:', transformer_dict['dom_charge'].n_quantiles_)
-# print('quantiles_:', transformer_dict['dom_charge'].quantiles_)
-# print('references_:', transformer_dict['dom_charge'].references_)
 print('Done')

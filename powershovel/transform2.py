@@ -89,19 +89,31 @@ def scaled_data_saver(file, data, transform_level):
 
 
 PARTICLE_TYPES = ['120000', '140000', '160000']
+
 DATA_DIR = Path(
-    '/groups/hep/ehrhorn/transform_test'
+    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2'
 )
+# DATA_DIR = Path(
+#     '/groups/hep/ehrhorn/transform_test'
+# )
+SCALER_DIR = Path(
+    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
+    'transformers'
+)
+# SCALER_DIR = Path(
+#     '/groups/hep/ehrhorn'
+# )
+
 BANNED_GROUPS = [
     'dom_atwd',
     'dom_fadc',
     'dom_lc',
     'dom_pulse_width',
-    'secondary_track_length'
+    'secondary_track_length',
+    'true_primary_speed'
 ]
-SCALER_DIR = Path('/groups/hep/ehrhorn')
 
-TRANSFORM = 'powertransform'
+TRANSFORM = 'transform1'
 
 process = psutil.Process(os.getpid())
 
@@ -110,7 +122,11 @@ for particle_type in PARTICLE_TYPES:
         f for f in DATA_DIR.glob('**/*.h5') if f.is_file()
             and particle_type in f.name
     ])
-    scalers = joblib.load(SCALER_DIR.joinpath(particle_type + '.pkl'))
+    scalers = joblib.load(
+        SCALER_DIR.joinpath(
+            particle_type + '_' + TRANSFORM + '.pickle'
+            )
+        )
     for i, data_file in enumerate(data_files):
         print('Handling particle {}, file {}, RAM used {} GB, {}/{}'.format(
             particle_type,

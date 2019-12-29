@@ -2,8 +2,8 @@ import streamlit as st
 from tables import *
 from pathlib import Path
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-plt.rcParams["figure.figsize"] = (10, 12)
+#import matplotlib.pyplot as plt
+#plt.rcParams["figure.figsize"] = (10, 12)
 
 
 def h5_file_reader(data_set, group, variable):
@@ -72,10 +72,57 @@ fig = go.Figure(
         width=width
     )
 )
-if variable == 'dom_charge' or variable == 'dom_n_hit_multiple_doms' or variable == 'retro_crs_prefit_energy':
-    fig.update_layout(yaxis_type='log')
+
+fig.update_layout(
+    updatemenus=[
+        go.layout.Updatemenu(
+            buttons=list(
+                [
+                    dict(
+                        label="Linear",
+                        method="update",
+                        args=[
+                            {
+                                'visible': [
+                                    True,
+                                    False
+                                ]
+                            },
+                            {
+                                'yaxis': {
+                                    'type': 'linear'
+                                }
+                            }
+                        ]
+                    ),
+                    dict(
+                        label="Log",
+                        method="update",
+                        args=[
+                            {
+                                'visible': [
+                                    True,
+                                    True
+                                ]
+                            },
+                            {
+                                'yaxis': {
+                                    'type': 'log'
+                                }
+                            }
+                        ]
+                    )
+                ]
+            ),
+            pad={"r": 10, "t": 10},
+            showactive=True,
+        )
+    ]
+)
+
 fig.update_traces(
     marker_color='black',
     marker_line_color='black',
 )
+
 st.plotly_chart(fig)
