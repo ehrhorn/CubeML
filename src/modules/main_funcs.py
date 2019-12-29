@@ -340,36 +340,74 @@ def predict(save_dir, wandb_ID=None):
                 n_predicted += len(val_set)
                 
         print(strftime("%d/%m %H:%M", localtime()), ': Predictions finished!')
+
+def run_experiment(file, log=True):
+    """Runs the experiment defined by file and deletes file.
     
+    Arguments:
+        file {str} -- Absolute path to experiment-file (a JSON-file).
+    
+    Keyword Arguments:
+        log {bool} -- Whether or not to log plots, performance etc. locally and to W&B (default: {True})
+    """
+
+    with open(file) as json_file:
+        dicts = json.load(json_file)
+        hyper_pars = dicts['hyper_pars']
+        data_pars = dicts['data_pars']
+        arch_pars = dicts['arch_pars']
+        meta_pars = dicts['meta_pars']
+
+    # * Delete file
+    Path(file).unlink()
+
+    # * Only scan new experiments
+    if meta_pars['objective'] == 'continue_training':
+        scan = False
+    else:
+        scan= True
+
+    model_dir, wandb_ID = train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=scan, log=log)
+    if log:
+        evaluate_model(model_dir, wandb_ID=wandb_ID)
+
 def run_experiments(log=True):
+    """Loops over the experiment-defining files in ~/CubeML/experiments/ and runs each one of them using run_experiment
+    
+    Keyword Arguments:
+        log {bool} -- Whether to log plots, performance etc. locally and to W&B (default: {True})
+    """
+
     exp_dir = get_project_root() + '/experiments/'
 
-    #* Loop over experiments and delete exp_file if successfully run 
+    # * Loop over experiments and delete exp_file if successfully run 
     for file in Path(exp_dir).iterdir():
         if str(file).split('.')[-1] == 'json':
-            
-            with open(file) as json_file:
-                dicts = json.load(json_file)
-                hyper_pars = dicts['hyper_pars']
-                data_pars = dicts['data_pars']
-                arch_pars = dicts['arch_pars']
-                meta_pars = dicts['meta_pars']
-
-            #* Delete file
-            Path(file).unlink()
-
-            #* Only scan new experiments
-            if meta_pars['objective'] == 'continue_training':
-                scan = False
-            else:
-                scan= True
-
-            model_dir, wandb_ID = train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=scan, log=log)
-            if log:
-                evaluate_model(model_dir, wandb_ID=wandb_ID)
+            run_experiment(file, log=log)
 
 def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True):
+    """Main training script. Takes experiment-defining dictionaries as input and trains the model induced by them.
     
+    Arguments:
+        save_dir {str} -- Absolute path to the model's diretory
+        hyper_pars {dict} -- Dictionary containing hyperparameters for the model.
+        data_pars {dict} -- Dictionary containing datapath and relevant data parameters.
+        architecture_pars {dict} -- Dictionary containing the keywords required to build the model architecture
+        meta_pars {dict} -- Dictionary containing metaparameters for the model such as regression-tag.
+    
+    Keyword Arguments:
+        earlystopping {bool} -- Whether or not to use early stopping (default: {True})
+        scan_lr_before_train {bool} -- Whether or not to perform a learning rate scan before training. (default: {False})
+        wandb_ID {str} -- If supplied along with log=True, the training is logged to W&B (default: {None})
+        log {bool} -- Whether or not to log locally and to W&B (default: {True})
+    
+    Raises:
+        ValueError: If unknown parameters are given in the model-defining dictionaries (or if required keywords are missing!)
+    
+    Returns:
+        None
+    """  
+      
     data_pars['val_batch_size'] = data_pars.get('val_batch_size', 256) # ! 256 chosen as a default parameter
     BATCH_SIZE = hyper_pars['batch_size']
     VAL_BATCH_SIZE = data_pars['val_batch_size']

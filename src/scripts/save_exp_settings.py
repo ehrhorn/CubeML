@@ -104,14 +104,15 @@ if __name__ == '__main__':
     json_dict = {'hyper_pars': hyper_pars, 'data_pars': data_pars, 'arch_pars': arch_pars, 'meta_pars': meta_pars}
     exp_dir = get_project_root() + '/experiments/'
 
-    # Finally! Make model directory 
+    # * Finally! Make model directory 
     base_name = strftime("%Y-%m-%d-%H.%M.%S", localtime())
-    with open(exp_dir+base_name+'.json', 'w') as name:
+    exp_name = exp_dir+base_name+'.json'
+    with open(exp_name, 'w') as name:
         json.dump(json_dict, name)
     
     if args.run:
         if args.test:
-            run_experiments(log=False)
+            run_experiment(exp_name, log=False)
         else:
-            run_experiments()
+            run_experiment(exp_name)
 
