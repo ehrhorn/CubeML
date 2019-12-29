@@ -500,9 +500,25 @@ def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
 
-def get_lr_scheduler(lr_dict, optimizer, batch_size, n_train):
+def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train):
+    """Instantiates a torch.optim learning rate-scheduler and attaches it to an optimizer (see https://pytorch.org/docs/stable/optim.html)
+    
+    Arguments:
+        hyper_pars {dict} -- A dictionary containing keywords and values required for training - in this dictionary, a lr_dict should be found containing keyword and values required to define the lr-schedule.
+        optimizer {torch.optim-object} -- Optimizer to attach the scheduler to.
+        batch_size {int} -- The used batch-size
+        n_train {int} -- number of events in train set.
+    
+    Raises:
+        ValueError: When an unknown scheduler is requested.
+    
+    Returns:
+        torch.optim-object -- the desired lr-scheduler.
+    """    
 
     # * Simply multiplies lr by 1 on every iteration - equal to no lr-schedule
+    lr_dict = hyper_pars.get('lr_schedule', None)
+    
     if lr_dict['lr_scheduler'] == None:
         lambda1 = lambda step: 1.0
         
@@ -547,6 +563,33 @@ def get_lr_scheduler(lr_dict, optimizer, batch_size, n_train):
         
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, **pars)
     
+    elif lr_dict['lr_scheduler'] == 'OneCycleLR':
+        # * Some default values
+        # {'lr_scheduler':   'OneCycleLR',
+        # 'max_lr':          0.1,
+        # 'min_lr':          1e-6,
+        # 'pct_start':       0.3,
+        # }
+
+        pars = {}
+        pars['max_lr'] = lr_dict['max_lr']
+        pars['div_factor'] = pars['max_lr']/hyper_pars['optimizer']['lr']
+        pars['final_div_factor'] = hyper_pars['optimizer']['lr']/lr_dict.get('min_lr', 1e-6)
+        pars['pct_start'] = lr_dict.get('pct_start', 0.3)
+        pars['epochs'] = hyper_pars['max_epochs']
+        pars['steps_per_epoch'] = int(n_train/batch_size)
+        pars['anneal_strategy'] = lr_dict.get('anneal_strategy', 'cos')
+        pars['cycle_momentum'] = lr_dict.get('cycle_momentum', False)
+        pars['base_momentum'] = lr_dict.get('base_momentum', 0.85)
+        pars['max_momentum'] = lr_dict.get('max_momentum', 0.95)
+
+        # scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.01, steps_per_epoch=len(data_loader), epochs=10)
+        # print(scheduler)
+        scheduler = optim.lr_scheduler.OneCycleLR(optimizer, **pars)
+
+    else:
+        raise ValueError('get_lr_scheduler: Undefined lr_scheduler wanted!')
+
     return scheduler
 
 def get_set_length(dataloader):

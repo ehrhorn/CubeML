@@ -56,9 +56,13 @@ class angle_loss(torch.nn.Module):
         return err
 
 def get_loss_func(name):
-    if name == 'torch.nn.L1Loss': 
+    if name == 'L1': 
         return torch.nn.L1Loss()
     elif name == 'angle_loss':
         return angle_loss()
+    elif name == 'Huber':
+        return torch.nn.SmoothL1Loss()
+    elif name == 'L2':
+        return torch.nn.MSELoss()
     else:
         raise ValueError('Unknown loss function requested!')

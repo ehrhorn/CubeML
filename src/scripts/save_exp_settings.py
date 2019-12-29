@@ -17,22 +17,22 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
-    # ======================================================================== 
-    # DEFINE SCRIPT OBJECTIVE
-    # ========================================================================
+    #* ======================================================================== 
+    #* DEFINE SCRIPT OBJECTIVE
+    #* ========================================================================
 
-    # data_dir = '/data/MuonGun_Level2_139008'
+    # * data_dir = '/data/MuonGun_Level2_139008'
     data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
     pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
 
-    # Options: 'full_reg', 'direction_reg', 'vertex_reg'
+    # * Options: 'full_reg', 'direction_reg', 'vertex_reg'
     regression_type = 'vertex_reg'
 
-    # Options: 'train_new', 'continue_training'
+    # * Options: 'train_new', 'continue_training'
     objective = 'train_new'
 
-    # Options: 'angle_loss', 'torch.nn.L1Loss'
-    error_func = 'torch.nn.L1Loss'
+    # * Options: 'angle_loss', 'L1', 'L2', 'Huber'
+    error_func = 'L2'
     dataset = data_dir.split('/')[-1]
     meta_pars = {'tags':                [regression_type, dataset, error_func],
                 'group':                regression_type,
@@ -43,17 +43,16 @@ if __name__ == '__main__':
                 }
 
     hyper_pars = {'batch_size':        2,
-                'max_epochs':          1,
+                'max_epochs':          2,
                 'early_stop_patience': 20,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             0.001,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9},
-                'lr_schedule':          {'lr_scheduler':   'ReduceLROnPlateau',
-                                        'factor':         0.1,
-                                        'patience':       2,
-                                        'cooldown':       5,
-                                        'min_lr':         1e-6
+                'lr_schedule':          {'lr_scheduler':   'OneCycleLR',
+                                        'max_lr':          0.1,
+                                        'min_lr':          1e-6,
+                                        'pct_start':       0.3,
                                         }
             }
 
@@ -64,8 +63,8 @@ if __name__ == '__main__':
                 'n_val_events_wanted':   100,# np.inf,
                 'n_train_events_wanted': 100,# np.inf,
                 'n_predictions_wanted': 100,
-                'train_frac':  0.80,
-                'val_frac':    0.20,
+                'train_frac':  0.010,
+                'val_frac':    0.010,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   -1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
