@@ -295,6 +295,15 @@ class AziPolarPerformance:
 class IceCubePerformance:
 
     def __init__(self, dataset_name, n_data=50000):
+        """A class to create and hold histogram-data for the resolution of Icecubes own algorithms. The error-histograms can be plotted by passing dictionaries (IceCubePerformance.get_x_dict etc.) to make_graph.
+        
+        Arguments:
+            dataset_name {str} -- the name of the directory containing the dataset-files.
+        
+        Keyword Arguments:
+            n_data {int} -- How many reconstructions to calculate the Icecube performance from (default: {50000})
+        """        
+
         self.dataset_name = '/data/'+dataset_name
         self.n_data = n_data
         self._calculate_histograms()
@@ -1015,12 +1024,12 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
     else:
         raise ValueError('Unknown plot wanted!')
     
-    #* Plot vertical lines if wanted
+    # * Plot vertical lines if wanted
     if 'axvline' in plot_dict:
         for vline in plot_dict['axvline']:
-            h_axis.axvline(y=vline, color = 'k', ls = ':')
+            h_axis.axvline(x=vline, color = 'k', ls = ':')
     
-    #* ... And horizontal lines
+    # * ... And horizontal lines
     if 'axhline' in plot_dict:
         for hline in plot_dict['axhline']:
             h_axis.axhline(y=hline, color = 'k', ls = '--')
