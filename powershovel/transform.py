@@ -17,12 +17,15 @@ def bjoern_transform(x):
 
 def histogram_reader(file, dictionary, group, BANNED_GROUPS):
     with File(file, 'r') as f:
-        array_iter = f.root.histograms._f_get_child(group).__iter__()
+        array_iter = f.root._f_get_child(group).__iter__()
         for array in array_iter:
             if array._v_name not in BANNED_GROUPS:
+                obj = array.read()
+                if type(obj[0]) == np.ndarray:
+                    obj = np.concatenate(obj).ravel()
                 dictionary[array._v_name] = np.append(
                     dictionary[array._v_name],
-                    array.read()
+                    obj
                 )
     return dictionary
 
@@ -30,7 +33,7 @@ def histogram_reader(file, dictionary, group, BANNED_GROUPS):
 def groups_reader(file, group, BANNED_GROUPS):
     group_list = []
     with File(file, 'r') as f:
-        array_iter = f.root.histograms._f_get_child(group).__iter__()
+        array_iter = f.root._f_get_child(group).__iter__()
         for array in array_iter:
             if array._v_name not in BANNED_GROUPS:
                 group_list.append(array._v_name)
@@ -65,20 +68,20 @@ def transformer_fit(hist_dict, ROBUST_KEYS, QUANTILE_KEYS, GEOMETRY_KEYS):
 
 
 DATA_DIR = Path(
-    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
+    '/groups/hep/ehrhorn/oscnext-genie-level5-v01-01-pass2_new'
 )
 # DATA_DIR = Path(
 #     '/groups/hep/ehrhorn/transform_test'
 # )
 OUT_DIR = Path(
-    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
+    '/groups/hep/ehrhorn/oscnext-genie-level5-v01-01-pass2_new/'
     'transformers'
 )
 # OUT_DIR = Path(
 #     '/groups/hep/ehrhorn/'
 # )
 
-PARTICLE_TYPES = ['120000', '140000', '160000']
+PARTICLE_TYPES = ['140000']
 BANNED_GROUPS = [
     'dom_atwd',
     'dom_fadc',

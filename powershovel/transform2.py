@@ -56,11 +56,6 @@ def scaled_data_saver(file, data, transform_level):
             where='/',
             name=transform_level
         )
-        hist_group = f.create_group(
-            where='/histograms',
-            name=transform_level,
-            createparents=False
-        )
         for key in data:
             if type(data[key][0]) == list:
                 vlarray = f.create_vlarray(
@@ -70,34 +65,24 @@ def scaled_data_saver(file, data, transform_level):
                 )
                 for i in range(len(data[key])):
                     vlarray.append(data[key][i])
-                f.create_array(
-                    where=hist_group,
-                    name=key,
-                    obj=np.hstack(data[key])
-                )
             else:
                 f.create_array(
                     where=transformed_data_group,
                     name=key,
                     obj=data[key]
                 )
-                f.create_array(
-                    where=hist_group,
-                    name=key,
-                    obj=data[key]
-                )
 
 
-PARTICLE_TYPES = ['120000', '140000', '160000']
+PARTICLE_TYPES = ['140000']
 
 DATA_DIR = Path(
-    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2'
+    '/groups/hep/ehrhorn/oscnext-genie-level5-v01-01-pass2_new'
 )
 # DATA_DIR = Path(
 #     '/groups/hep/ehrhorn/transform_test'
 # )
 SCALER_DIR = Path(
-    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
+    '/groups/hep/ehrhorn/oscnext-genie-level5-v01-01-pass2_new/'
     'transformers'
 )
 # SCALER_DIR = Path(
