@@ -416,11 +416,11 @@ class SeqScalarTargetLoader(data.Dataset):
 class FullBatchLoader(data.Dataset):
     '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads an entire batch from one file and closes the file again upon every __getitem__. It also has the option to stop preparing more files, when n_events_wanted have been surpassed.
     
-    # ! REMEMBER TO CALL THE make_batches()-METHOD BEFORE EACH NEW EPOCH!
+    REMEMBER TO CALL THE make_batches()-METHOD BEFORE EACH NEW EPOCH!
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and batch_size.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None):
 
         self.directory = get_project_root() + directory
         self.scalar_features = scalar_features
@@ -431,6 +431,7 @@ class FullBatchLoader(data.Dataset):
         self.n_targets = len(targets)
         self.type = set_type
         self.n_events_wanted = n_events_wanted
+        self._particle_code = particle_code
         self.train_frac = train_frac
         self.val_frac = val_frac
         self.test_frac = test_frac
@@ -507,7 +508,7 @@ class FullBatchLoader(data.Dataset):
     
     def __repr__(self):
         return 'FullBatchLoader'
-        
+
     def _get_from_to(self):
         if self.type == 'train':
             from_frac, to_frac = 0.0, self.train_frac
@@ -526,6 +527,10 @@ class FullBatchLoader(data.Dataset):
         from_frac, to_frac = self._get_from_to()
         ID = 1
         for file in Path(self.directory).iterdir():
+            
+            # * Only extract events from files with the proper particle type (necessary due to how Icecube-simfiles are named)
+            if not confirm_particle_type(self._particle_code, file):
+                continue
             
             # * If enough datapoints have been prepared, stop loading more
             if n_events > self.n_events_wanted:
@@ -562,6 +567,7 @@ class FullBatchLoader(data.Dataset):
         
         self.batches = next_epoch_batches
         shuffler(self.batches)
+        
         # * Free up some memory
         del batches
         del next_epoch_batches
@@ -609,6 +615,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
     seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
     scalar_features = data_pars['scalar_feat'] # * feature names
     targets = get_target_keys(data_pars, meta_pars) # * target names
+    particle_code = get_particle_code(data_pars['particle'])
     train_frac = data_pars['train_frac'] # * how much data should be trained on?
     val_frac = data_pars['val_frac'] # * how much data should be used for validation?
     test_frac = data_pars['test_frac'] # * how much data should be used for training
@@ -636,7 +643,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
         if file_keys['transform'] == -1:
             prefix = 'raw/'
 
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code)
 
     
     elif 'CnnLoader' == data_pars['dataloader']:

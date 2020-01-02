@@ -33,17 +33,21 @@ if __name__ == '__main__':
 
     # * Options: 'angle_loss', 'L1', 'L2', 'Huber'
     error_func = 'L2'
+
+    # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
+    particle = 'electron_neutrino'
+
     dataset = data_dir.split('/')[-1]
-    meta_pars = {'tags':                [regression_type, dataset, error_func],
+    meta_pars = {'tags':                [regression_type, dataset, error_func, particle],
                 'group':                regression_type,
-                'project':             'cubeml_test',
+                'project':              'cubeml_test',
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
                 'log_every':            10 
                 }
 
     hyper_pars = {'batch_size':        2,
-                'max_epochs':          2,
+                'max_epochs':          1,
                 'early_stop_patience': 20,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             0.001,#0.00003,#0.001, 
@@ -58,6 +62,7 @@ if __name__ == '__main__':
 
 
     data_pars = {'data_dir':     data_dir,
+                'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio'],
                 'n_val_events_wanted':   100,# np.inf,

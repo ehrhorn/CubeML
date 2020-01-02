@@ -12,7 +12,7 @@ import PIL
 import json
 import subprocess
 
-#* Custom classes and functions
+# * Custom classes and functions
 import src.modules.loss_funcs
 from src.modules.classes import *
 from src.modules.loss_funcs import *
@@ -201,13 +201,13 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
     device = get_device()
     model = MakeModel(architecture_pars, device)
 
-    #* Makes model parameters to float precision
+    # * Makes model parameters to float precision
     model = model.float()
 
     if hyper_pars['lr_schedule']['lr_scheduler'] == 'CyclicLR':
         hyper_pars['optimizer']['lr'] = hyper_pars['lr_schedule']['base_lr']
     
-    #* If training is to be continued on a pretrained model, load its parameters
+    # * If training is to be continued on a pretrained model, load its parameters
     if meta_pars['objective'] == 'continue_training':
         checkpoint_path = get_project_root() + meta_pars['pretrained_path'] + '/backup.pth'
 
@@ -243,6 +243,7 @@ def predict(save_dir, wandb_ID=None):
     '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
     '''
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
+    particle_code = get_particle_code(data_pars['particle'])
     device = get_device()
 
     model_dir = save_dir+'/checkpoints'
@@ -267,7 +268,7 @@ def predict(save_dir, wandb_ID=None):
     with h5.File(pred_full_address, 'w') as f:
         
         for file in Path(get_project_root()+data_dir).iterdir():
-            if file.suffix == '.h5':
+            if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
 
                 # * Do not predict more than wanted - takes up space aswell...
                 if n_predicted >= n_predictions_wanted:

@@ -279,6 +279,24 @@ def calc_widths(sorted_data, entries, width_measure='iqr'):
     else:
         return widths
 
+def confirm_particle_type(particle_code, file):
+    """When loading data and looping over files, this function tries to confirm if the file in question contains events with the right particle.
+    
+    Arguments:
+        particle_code {str} -- 6-digit particle code of the desired particle
+        file {pathlib.Path-object} -- Path-object of the file in question
+    
+    Returns:
+        Bool -- True if file contains event of particle in question, False if not.
+    """    
+    file_splitted = str(file).split('.')
+    if particle_code in file_splitted:
+        checker = True
+    else:
+        checker = False
+    
+    return checker
+
 def convert_id_to_int(file_path, id_str):
     '''A very non-modular conversion of a file ID.. For each new dataset, a new converter must be added.
     '''
@@ -650,6 +668,36 @@ def get_optimizer(model_pars, d_opt):
     
     else:
         raise ValueError('Unknown optimizer chosen!')
+
+def get_particle_code(particle):
+    """Retrieves the particle code (a 6-digit number) as a str for the desired particle.
+    
+    Arguments:
+        particle {str} -- name of particle (for instance muon_neutrino)
+    
+    Raises:
+        ValueError: If an unknown particle is given
+    
+    Returns:
+        str -- the 6-digit particle code as a string
+    """    
+
+    if particle == 'electron':
+        particle_code = '110000'
+    elif particle == 'electron_neutrino':
+        particle_code = '120000'
+    elif particle == 'muon':
+        particle_code = '130000'
+    elif particle == 'muon_neutrino':
+        particle_code = '140000'
+    elif particle == 'tau':
+        particle_code = '150000'
+    elif particle == 'tau_neutrino':
+        particle_code = '160000'
+    else:
+        raise ValueError('Unknown particle type (%s) given to get_particle_code!'%(particle))    
+
+    return particle_code
 
 def get_path_from_root(path):
     '''Given a path, get_path_from_root strips the potential path to the root directory.
