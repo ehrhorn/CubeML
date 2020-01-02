@@ -43,7 +43,7 @@ if __name__ == '__main__':
     error_func = 'L2'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
-    particle = 'tau_neutrino'
+    particle = 'muon_neutrino'
 
     dataset = data_dir.split('/')[-1]
     meta_pars = {'tags':                [regression_type, dataset, error_func, particle],
@@ -51,11 +51,11 @@ if __name__ == '__main__':
                 'project':              'cubeml_test',
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            10,
+                'log_every':            1000,
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        2,
+    hyper_pars = {'batch_size':        128,
                 'max_epochs':          1,
                 'early_stop_patience': 20,
                 'optimizer':           {'optimizer':      'Adam',
@@ -80,16 +80,16 @@ if __name__ == '__main__':
                 'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
-                'n_val_events_wanted':   100,# np.inf,
-                'n_train_events_wanted': 100,# np.inf,
-                'n_predictions_wanted': 100,
-                'train_frac':  0.020,
-                'val_frac':    0.020,
+                'n_val_events_wanted':   1000,# np.inf,
+                'n_train_events_wanted': 10000,# np.inf,
+                'n_predictions_wanted': 10000,
+                'train_frac':  0.80,
+                'val_frac':    0.10,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      32
+                'val_batch_size':      128
                 }
 
 

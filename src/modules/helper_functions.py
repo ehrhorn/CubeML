@@ -488,7 +488,6 @@ def get_dataset_size(data_dir, particle='any'):
     path = get_project_root() + get_path_from_root(data_dir)
     n_files = 0.0
     particle_code = get_particle_code(particle)
-    print(particle_code)
     for file in Path(path).iterdir():
         if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
             n_files += 1.0  
@@ -976,7 +975,7 @@ def make_lr_dir(data_folder_address, project, batch_size):
     
     return lr_dir
 
-def make_model_dir(reg_type, data_folder_address, clean_keys, project):
+def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle='any'):
     '''Makes a model folder at CubeML/models/<DATA_TRAINED_ON>/regression/<REGRESSION_TYPE>/<WHEN_TRAINED>/ with subdirectories figures and data.
     '''
 
@@ -1013,7 +1012,8 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project):
     Path(model_dir+'/data').mkdir()
 
     # * Copy transform dicts
-    transformer_address = get_project_root()+'/data/'+data_name+'/transformers/'+'transform'+str(clean_keys['transform'])+'.pickle'
+    particle_code = get_particle_code(particle)
+    transformer_address = get_project_root()+'/data/'+data_name+'/transformers/'+particle_code+'_transform'+str(clean_keys['transform'])+'.pickle'
     try:
         data_dir = shutil.copy(transformer_address, model_dir+'/transformers.pickle')
     except FileNotFoundError:

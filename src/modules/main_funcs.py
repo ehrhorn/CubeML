@@ -332,8 +332,8 @@ def predict(save_dir, wandb_ID=None):
                 indices = sorted(indices)
 
                 # * Run predictions through desired functions - transform back to 'true' values, if transformed
-                predictions_transformed = inverse_transform_predictions(predictions, predictions.keys(), save_dir)
-                truths_transformed = inverse_transform_predictions(truths, truths.keys(), save_dir)
+                predictions_transformed = inverse_transform(predictions, save_dir)
+                truths_transformed = inverse_transform(truths, save_dir)
 
                 eval_functions = get_eval_functions(meta_pars)
                 for func in eval_functions:
@@ -675,9 +675,10 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
     group = meta_pars['group'] # * under which dir to save?
     project = meta_pars['project']
+    particle = data_pars.get('particle', 'any')
 
     if log:
-        save_dir = make_model_dir(group, data_dir, file_keys, project)
+        save_dir = make_model_dir(group, data_dir, file_keys, project, particle=particle)
         wandb_ID = save_dir.split('/')[-1]
         print('Model saved at', save_dir)
     else:
