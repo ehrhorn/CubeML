@@ -19,7 +19,7 @@ def dict_creator(data_file, group):
     ]
     dictionary = {}
     with File(data_file, 'r') as f:
-        array_iter = f.root.histograms._f_get_child(group).__iter__()
+        array_iter = f.root._f_get_child(group).__iter__()
         for array in array_iter:
             if array._v_name not in BANNED_GROUPS:
                 dictionary[array._v_name] = []
@@ -37,10 +37,13 @@ def file_reader(data_file, group):
     ]
     dictionary = {}
     with File(data_file, 'r') as f:
-        array_iter = f.root.histograms._f_get_child(group).__iter__()
+        array_iter = f.root._f_get_child(group).__iter__()
         for array in array_iter:
             if array._v_name not in BANNED_GROUPS:
-                dictionary[array._v_name] = array.read()
+                obj = array.read()
+                if type(obj[0]) == np.ndarray:
+                    obj = np.concatenate(obj).ravel()
+                dictionary[array._v_name] = obj
     return dictionary
 
 
@@ -109,10 +112,10 @@ def hist_saver(out_file, hist_dict, bin_edges, transform):
 process = psutil.Process(os.getpid())
 
 TRANSFORMS = ['transform1']
-PARTICLE_TYPES = ['120000', '140000', '160000']
+PARTICLE_TYPES = ['140000']
 
 DATA_DIR = Path(
-    '/groups/hep/ehrhorn/repos/CubeML/data/oscnext-genie-level5-v01-01-pass2'
+    '/groups/hep/ehrhorn/oscnext-genie-level5-v01-01-pass2_new'
 )
 # DATA_DIR = Path(
 #     '/groups/hep/ehrhorn/transform_test'
