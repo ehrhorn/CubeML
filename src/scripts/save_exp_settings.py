@@ -13,6 +13,12 @@ description = 'Saves settings for an experiment to be run.'
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument('-r', '--run', action='store_true', help='Runs experiment immediately.')
 parser.add_argument('-t', '--test', action='store_true', help='Initiates testmode - logging is turned off.')
+parser.add_argument('-e', '--explore_lr', action='store_true', help='Performs a learning rate exploration.')
+parser.add_argument('-s', '--scan_lr', action='store_true', help='Performs a learning rate scan before training.')
+parser.add_argument('--start_lr', default=1e-6, type=float, help='Sets the start learning rate for the learning rate finder.')
+parser.add_argument('--end_lr', default=0.1, type=float, help='Sets the end learning rate for the learning rate finder.')
+parser.add_argument('--lr_finder_epochs', default=1, type=int, help='Sets the number of epochs the learning rate finder should run.')
+
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -28,14 +34,16 @@ if __name__ == '__main__':
     # * Options: 'full_reg', 'direction_reg', 'vertex_reg'
     regression_type = 'vertex_reg'
 
-    # * Options: 'train_new', 'continue_training'
+    # * Options: 'train_new', 'continue_training', 'explore_lr'
     objective = 'train_new'
+    if args.explore_lr:
+        objective = 'explore_lr'
 
     # * Options: 'angle_loss', 'L1', 'L2', 'Huber'
     error_func = 'L2'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
-    particle = 'electron_neutrino'
+    particle = 'tau_neutrino'
 
     dataset = data_dir.split('/')[-1]
     meta_pars = {'tags':                [regression_type, dataset, error_func, particle],
@@ -43,7 +51,8 @@ if __name__ == '__main__':
                 'project':              'cubeml_test',
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            10 
+                'log_every':            10,
+                'lr_scan':              args.scan_lr 
                 }
 
     hyper_pars = {'batch_size':        2,
@@ -52,26 +61,32 @@ if __name__ == '__main__':
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             0.001,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
-                                        'eps':            1.0e-9},
+                                        'eps':            1.0e-9
+                                        },
                 'lr_schedule':          {'lr_scheduler':   'OneCycleLR',
                                         'max_lr':          0.1,
                                         'min_lr':          1e-6,
                                         'pct_start':       0.3,
+                                        },
+                'lr_finder':            {'start_lr':       args.start_lr,
+                                        'end_lr':          args.end_lr,
+                                        'n_epochs':        args.lr_finder_epochs
                                         }
-            }
+                                        
+                 }
 
 
     data_pars = {'data_dir':     data_dir,
                 'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
-                'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio'],
+                'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
                 'n_val_events_wanted':   100,# np.inf,
                 'n_train_events_wanted': 100,# np.inf,
                 'n_predictions_wanted': 100,
-                'train_frac':  0.010,
-                'val_frac':    0.010,
+                'train_frac':  0.020,
+                'val_frac':    0.020,
                 'test_frac':   0.0,
-                'file_keys':             {'transform':   -1},
+                'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
                 'val_batch_size':      32
@@ -102,9 +117,9 @@ if __name__ == '__main__':
                         }
                                                 
 
-    # ======================================================================== 
-    # SAVE SETTINGS
-    # ========================================================================
+    #* ======================================================================== 
+    #* SAVE SETTINGS
+    #* ========================================================================
 
     json_dict = {'hyper_pars': hyper_pars, 'data_pars': data_pars, 'arch_pars': arch_pars, 'meta_pars': meta_pars}
     exp_dir = get_project_root() + '/experiments/'

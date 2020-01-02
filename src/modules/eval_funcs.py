@@ -122,7 +122,7 @@ def get_eval_functions(meta_pars):
     elif regression_type == 'full_reg':
         eval_funcs = [relative_logE_error]
     elif regression_type == 'vertex_reg':
-        eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error]
+        eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error]
     else:
         raise ValueError('Unknown regression type (%s) encountered!'%(regression_type))
 
@@ -241,6 +241,37 @@ def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
     elif units == 'degrees':
         diff = (180/pi)*(polar_preds-polar_truth)
     
+    return diff
+
+def vertex_t_error(pred, truth):
+    """Calculates the error on the t-coordinate prediction of the neutrino interaction vertex.
+    
+    Arguments:
+        pred {dict} -- dictionary containing the key 'true_primary_time' or 't' and the predictions.
+        truth {dict} -- dictionary containing the true values and the key 'true_primary_time'.   
+    
+    Raises:
+        KeyError: If wrong dictionary given
+    
+    Returns:
+        [torch.tensor] -- Signed error on prediction.
+    """    
+
+    # * Ensure we are dealing with the right data
+    if 'true_primary_time' in pred:
+        t_key = 'true_primary_time'
+    elif 't' in pred:
+        t_key = 't'
+    else:
+        raise KeyError('Wrong dictionary given to vertex_t_error!')
+    
+    t_pred = pred[t_key]
+    t_true = truth[t_key]
+
+    t_pred = torch.tensor(t_pred)
+    t_truth = torch.tensor(t_true, dtype=t_pred.dtype)
+
+    diff = t_pred - t_truth
     return diff
 
 def vertex_x_error(pred, truth):

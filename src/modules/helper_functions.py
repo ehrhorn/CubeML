@@ -290,7 +290,7 @@ def confirm_particle_type(particle_code, file):
         Bool -- True if file contains event of particle in question, False if not.
     """    
     file_splitted = str(file).split('.')
-    if particle_code in file_splitted:
+    if particle_code in file_splitted or particle_code == '-1':
         checker = True
     else:
         checker = False
@@ -470,11 +470,14 @@ def get_dataset_name(file_path):
     
     return name
 
-def get_dataset_size(data_dir):
+def get_dataset_size(data_dir, particle='any'):
     """Loops over a data directory and returns the total number of events
     
     Arguments:
         data_dir {str} -- relative or full path to data directory
+    
+    Keyword Arguments:
+        particle {str} -- name of particle (Default: 'any') 
     
     Returns:
         float -- number of files, average number of events per file and std on number of events pr file
@@ -484,8 +487,10 @@ def get_dataset_size(data_dir):
     n_events_sqr = 0.0
     path = get_project_root() + get_path_from_root(data_dir)
     n_files = 0.0
+    particle_code = get_particle_code(particle)
+    print(particle_code)
     for file in Path(path).iterdir():
-        if file.suffix == '.h5':  
+        if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
             n_files += 1.0  
             with h5.File(file, 'r') as f:
                 n_events += f['meta/events'][()]
@@ -667,7 +672,7 @@ def get_optimizer(model_pars, d_opt):
         return optim.Adam(model_pars, lr = lr, betas = betas, eps = eps, weight_decay = weight_decay)
     
     else:
-        raise ValueError('Unknown optimizer chosen!')
+        raise ValueError('Unknown optimizer (%s) chosen!'%(d_opt['optimizer']))
 
 def get_particle_code(particle):
     """Retrieves the particle code (a 6-digit number) as a str for the desired particle.
@@ -694,6 +699,8 @@ def get_particle_code(particle):
         particle_code = '150000'
     elif particle == 'tau_neutrino':
         particle_code = '160000'
+    elif particle == 'any':
+        particle_code = '-1'
     else:
         raise ValueError('Unknown particle type (%s) given to get_particle_code!'%(particle))    
 
@@ -750,7 +757,7 @@ def get_retro_crs_prefit_vertex_keys():
     Returns:
         list -- keys of Icecubes reconstruction
     """    
-    reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
+    reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
     return reco_keys
 
 def get_target_keys(data_pars, meta_pars):
@@ -774,7 +781,7 @@ def get_target_keys(data_pars, meta_pars):
         if meta_pars['group'] == 'direction_reg':
             target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
         elif meta_pars['group'] == 'vertex_reg':
-            target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z']
+            target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z', 'true_primary_time']
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
     
@@ -1047,28 +1054,42 @@ def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indice
     
     return data
 
-def read_h5_directory(data_dir, keys, prefix=None, from_frac = 0, to_frac = 1):
-    '''Loops over each h5-file in a directory and reads the datasets induced by keys and prefix.
-
-    Inputs
-    data_dir: path from project root to the data directory.
-    keys: list of keys/variablenames to read.
-    prefix: If required, a string to ensure correct path in file (path is prefix+/+key)
-    from_frac: Used to calculate the index to read from; index = int( N_data_in_file*from_frac+0.5)
-    to_frac: The index to read to. Calculated as from_frac.
-
-    output: Dictionary with desired datasets.
-    '''
-    values = {key: np.array([]) for key in keys}
-    values = {key: {} for key in keys}
-
+def read_h5_directory(data_dir, keys, prefix=None, from_frac=0, to_frac=1, n_wanted=np.inf, particle='any'):
+    """Loops over each h5-file in a directory and reads the datasets induced by keys and prefix. Optionally, only a part of the entire dataset is read.
     
+    Arguments:
+        data_dir {str} -- path from project root to the data directory.
+        keys {list} -- list of keys/variable names to read.
+    
+    Keyword Arguments:
+        prefix {str} -- String to ensure correct path in h5-file (default: {None})
+        from_frac {float} -- Used to calculate the index to read from; index = int( N_data_in_file*from_frac+0.5) (default: {0})
+        to_frac {float} -- the index to read to. Calculated as from_frac (default: {1})
+        n_wanted {int} -- An upper bound on the amount of data to be read. Stops reading from additional files if n_loaded > n_wanted. (default: {np.inf})
+        particle {str} -- If a dataset with several particle types is read, the name of the desired particle should be given (default: {None})
+    
+    Returns:
+        dict -- Desired datasets.
+    """    
+    
+    values = {key: {} for key in keys}
+    n_loaded = 0
+
     for file in Path(get_project_root()+data_dir).iterdir():
         
-        if file.suffix == '.h5':
+        particle_code = get_particle_code(particle)
+
+        if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
+            
+            # * Do not readt more than wanted - takes up space aswell...
+            if n_loaded >= n_wanted:
+                break
+
             for key in keys:
                 values[key][file.stem] = read_h5_dataset(file, key, prefix, from_frac=from_frac, to_frac=to_frac)
-    
+            
+            n_loaded += values[key][file.stem].shape[0]
+
     # * Sort wrt file index
     values_sorted = sort_wrt_file_id(str(file), values)
 
@@ -1097,7 +1118,7 @@ def read_predicted_h5_data(file_address, keys):
 
     return values_sorted
 
-def remove_tests_modeldir(directory = get_project_root() + '/models/'):
+def remove_tests_modeldir(directory=get_project_root() + '/models/'):
     '''Deletes all cubeml_test-models and all models that failed during training.
     '''
     for file in Path(directory).iterdir():

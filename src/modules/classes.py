@@ -958,7 +958,7 @@ def add_linear_embedder(arch_dict, layer_dict):
         isize = layer_dict['input_sizes'][i_layer]
         hsize = layer_dict['input_sizes'][i_layer+1]
 
-        # Add a matrix to linearly 
+        # * Add a matrix to linearly 
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
         init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
         if layer_dict.get('LayerNorm', False):

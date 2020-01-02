@@ -127,60 +127,69 @@ def evaluate_model(model_dir, wandb_ID=None):
         WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
         subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
 
-def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs=1, start_lr=0.000001, end_lr=0.1, save=True):
-    '''Calculates loss as a function of learning rate in a given interval and saves the graph and the dictionaries used to generate the plot.
-    Used to choose lr-schedule.
-    '''
-
+def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
+    """Calculates loss as a funciton of learning rate in a given interval and saves the graph and the dictionaries used to generate the plot. Used to choose lr-schedule.
+    
+    Arguments:
+        hyper_pars {dict} -- Dictionary containing hyperparameters for the model.
+        data_pars {dict} -- Dictionary containing datapath and relevant data parameters.
+        architecture_pars {dict} -- Dictionary containing the keywords required to build the model architecture
+        meta_pars {dict} -- Dictionary containing metaparameters for the model such as regression-tag.
+    
+    Keyword Arguments:
+        save {bool} -- Whether to save plots and dicts or not. (default: {True})
+    """    
+    
     #* ======================================================================== 
     #* SETUP AND UNPACK
     #* ======================================================================== 
-    print(strftime("%d/%m %H:%M", localtime()), ': Learning rate finder initiated...')
-
+    
+    print(strftime("%d/%m %H:%M", localtime()), ': LEARNING RATE FINDER INITIATED')
     BATCH_SIZE = hyper_pars['batch_size']
-
-    # * Use GPU if avaiable
-    device = get_device()
-    print('Used device:', device)
-    
-    # * The script expects a H5-file with a structure as shown at https://github.com/ehrhorn/CubeML
-    # * Extract DATA parameters
-    data_dir = data_pars['data_dir'] #* WHere to load data from
-    
-    print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
+    print('Loading data...')
     train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train')
     N_TRAIN = get_set_length(train_set)
-    print(strftime("%d/%m %H:%M", localtime()), ': Data loaded!')
-
+    n_epochs = hyper_pars['lr_finder']['n_epochs'] 
+    start_lr = hyper_pars['lr_finder']['start_lr']
+    end_lr = hyper_pars['lr_finder']['end_lr'] 
+    
     #* ======================================================================== 
     #* MAKE LR SCAN
-    #* ========================================================================    
-    
+    #* ======================================================================== 
+
     # * num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
     dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
 
-    # * Setup generators
-    collate_fn = get_collate_fn(data_pars.get('collate_fn', None))
-    train_generator = data.DataLoader(train_set, **dataloader_params_train, collate_fn=collate_fn)
+    # * Initialize model and log it - use GPU if available
+    model, optimizer, device = initiate_model_and_optimizer(None, hyper_pars, data_pars, architecture_pars, meta_pars)
 
-    # * Initialize model and set model parameters to float precision
-    model = MakeModel(architecture_pars, device)
-    model = model.float()
-    model = model.to(device)
-
-    #* Adjust optimizer-parameters in case function was called in a sloppy manner..
-    hyper_pars['optimizer']['lr'] = start_lr
-    optimizer = get_optimizer(model.parameters(), hyper_pars['optimizer'])
-    
-    #* Try to find a custom loss - if not, try torch's library
+    # * Get type of scheduler, since different schedulers need different kinds of updating
+    lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, BATCH_SIZE, N_TRAIN)
+    type_lr_scheduler = type(lr_scheduler)
     loss = get_loss_func(architecture_pars['loss_func'])
 
-    lr, loss_vals = calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=n_epochs, start_lr=start_lr, end_lr=end_lr)
+    # * Setup generators - make a generator for training, validation on trainset and validation on test set
+    collate_fn = get_collate_fn(data_pars)
+    train_generator = data.DataLoader(train_set, **dataloader_params_train, collate_fn=collate_fn)#, pin_memory=True)
     
+    # * Use IGNITE to train
+    trainer = create_supervised_trainer(model, optimizer, loss, device=device)
+
+    pretrain_hyper_pars = hyper_pars['optimizer'].copy()
+    pretrain_hyper_pars['lr'] = start_lr
+
+    lr_model = MakeModel(architecture_pars, device)
+    lr_model = lr_model.float()
+    lr_model = lr_model.to(device)
+
+    pretrain_optimizer = get_optimizer(lr_model.parameters(), pretrain_hyper_pars)
+    lr, loss_vals = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
+
     #* ======================================================================== 
     #* SAVE RELEVANT THINGS
     #* ========================================================================
     
+    data_dir = data_pars['data_dir'] #* WHere to load data from
     lr_dir = make_lr_dir(data_dir, meta_pars['project'], BATCH_SIZE)
     _ = make_plot({'x': [lr], 'y': [loss_vals], 'xscale': 'log', 'savefig': lr_dir+'/lr_vs_loss.png', 'xlabel': 'Learning Rate', 'ylabel': 'Loss'})
     pickle.dump(lr, open(lr_dir+'/lr.pickle', 'wb'))
@@ -196,6 +205,12 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, n_epochs=1, 
         json.dump(data_pars, fp)
     with open(lr_dir+'/architecture_pars.json', 'w') as fp:
         json.dump(architecture_pars, fp)
+
+    # * Make sure it isn't logged to Github
+    # * Make a .dvc-file to track the model - it automatically adds the path to .gitignore
+    path_to_model_dir = Path(lr_dir).resolve().parent
+    model_name = lr_dir.split('/')[-1]
+    subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
 
 def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars):
     device = get_device()
@@ -224,10 +239,9 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
         print('# PRETRAINED MODEL LOADED #')
         print('###########################')
     
-    elif meta_pars['objective'] == 'train_new':
+    elif meta_pars['objective'] == 'train_new' or meta_pars['objective'] == 'explore_lr':
         model = model.to(device)
         optimizer = get_optimizer(model.parameters(), hyper_pars['optimizer'])
-    
     else:
         raise ValueError('Unknown objective set!')
         
@@ -275,7 +289,7 @@ def predict(save_dir, wandb_ID=None):
                     break
 
                 i_file += 1
-                i_str = str(i_file) if i_file > 9 else '0'+str(i_file)
+                i_str = str(i_file)
                 print('%s/%d: Predicting on %s'%(i_str, N_FILES, get_path_from_root(str(file))))
                 # * Extract validation data
                 val_set = load_predictions(data_pars, meta_pars, 'val', file)
@@ -285,10 +299,7 @@ def predict(save_dir, wandb_ID=None):
                 error_from_preds = {}
 
                 # * Predict 
-                if 'val_batch_size' in data_pars:
-                    VAL_BATCH_SIZE = data_pars['val_batch_size']
-                else:
-                    VAL_BATCH_SIZE = 256
+                VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
                 dataloader_params = {'batch_size': VAL_BATCH_SIZE, 'shuffle': False, 'num_workers': 8}
 
                 # * Setup generators
@@ -363,14 +374,13 @@ def run_experiment(file, log=True):
     Path(file).unlink()
 
     # * Only scan new experiments
-    if meta_pars['objective'] == 'continue_training':
-        scan = False
+    scan = meta_pars['lr_scan']
+    if meta_pars['objective'] == 'explore_lr':
+        explore_lr(hyper_pars, data_pars, arch_pars, meta_pars)
     else:
-        scan= True
-
-    model_dir, wandb_ID = train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=scan, log=log)
-    if log:
-        evaluate_model(model_dir, wandb_ID=wandb_ID)
+        model_dir, wandb_ID = train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=scan, log=log)
+        if log:
+            evaluate_model(model_dir, wandb_ID=wandb_ID)
 
 def run_experiments(log=True):
     """Loops over the experiment-defining files in ~/CubeML/experiments/ and runs each one of them using run_experiment
@@ -447,7 +457,6 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
     dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
-
 
     # * Initialize model and log it - use GPU if available
     model, optimizer, device = initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars)
