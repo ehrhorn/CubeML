@@ -530,8 +530,8 @@ class VertexPerformance:
 
         #* Transform back and extract values into list
         energy = inverse_transform(energy, get_project_root() + self.model_dir)
-        energy = [y for _, y in energy.items()][0]
-
+        for key, items in energy.items():
+            energy = list(items)
         self.counts, self.bin_edges = np.histogram(energy, bins=12)
         
         x_error = data_dict['vertex_x_error']

@@ -50,6 +50,7 @@ def bin_data(l1, l2, bin_edges):
     l1_bins = []
     l2_bins = []
     n = 0
+    
     for lower_bin, upper_bin in zip(bin_edges[:-1], bin_edges[1:]):
         lower_i = np.searchsorted(l1, lower_bin)
         upper_i = np.searchsorted(l1, upper_bin, side='right')
