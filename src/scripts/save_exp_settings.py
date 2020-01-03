@@ -45,18 +45,21 @@ if __name__ == '__main__':
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
 
+    # * Set project
+    project = 'cubeml'
+
     dataset = data_dir.split('/')[-1]
     meta_pars = {'tags':                [regression_type, dataset, error_func, particle],
                 'group':                regression_type,
-                'project':              'cubeml_test',
+                'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            10000,
+                'log_every':            200000,
                 'lr_scan':              args.scan_lr 
                 }
 
     hyper_pars = {'batch_size':        128,
-                'max_epochs':          1,
+                'max_epochs':          5,
                 'early_stop_patience': 20,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             0.001,#0.00003,#0.001, 
@@ -79,10 +82,10 @@ if __name__ == '__main__':
     data_pars = {'data_dir':     data_dir,
                 'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
-                'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
-                'n_val_events_wanted':   10000,# np.inf,
-                'n_train_events_wanted': 100000,# np.inf,
-                'n_predictions_wanted': 10000,
+                'scalar_feat': ['dom_timelength_fwhm']#['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
+                'n_val_events_wanted':   50000,# np.inf,
+                'n_train_events_wanted': 1000000,# np.inf,
+                'n_predictions_wanted': 100000,
                 'train_frac':  0.80,
                 'val_frac':    0.10,
                 'test_frac':   0.0,
@@ -106,12 +109,12 @@ if __name__ == '__main__':
 
                         'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                                      'LayerNorm':          True},},
-                                                {'SelfAttention':   {'input_sizes':        [64, 64],
-                                                                     'LayerNorm':          True,
-                                                                     'Residual':           True,}},
+                                                # {'SelfAttention':   {'input_sizes':        [64, 64],
+                                                #                      'LayerNorm':          True,
+                                                #                      'Residual':           True,}},
                                                 {'LSTM':            {'input_sizes':        [64, 128],
                                                                     'dropout':             0.5,
-                                                                    'bidirectional':       True}},
+                                                                    'bidirectional':       False}},
                                                 {'Linear':          {'input_sizes':        [128+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
