@@ -566,7 +566,7 @@ class VertexPerformance:
 
             pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['x', 'y', 'z', 't'])
             true = convert_keys(true, [key for key in true], ['x', 'y', 'z', 't'])
-
+            true = { key: convert_to_proper_list(item) for key, item in true.items() }
             x_crs_error = vertex_x_error(pred_crs, true)
             y_crs_error = vertex_y_error(pred_crs, true)
             z_crs_error = vertex_z_error(pred_crs, true)
