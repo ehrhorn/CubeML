@@ -1,7 +1,0 @@
-md5: 1a1aaf59c5cc9509fe52dae33a9a278d
-outs:
-- md5: 3f44920a3e8203d76b7d0030db9e7991.dir
-  path: BS128_2020-01-03-13.17.26
-  cache: true
-  metric: false
-  persist: false
