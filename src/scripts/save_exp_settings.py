@@ -58,7 +58,7 @@ if __name__ == '__main__':
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        128,
+    hyper_pars = {'batch_size':        64,
                 'max_epochs':          5,
                 'early_stop_patience': 100,
                 'optimizer':           {'optimizer':      'Adam',
@@ -69,7 +69,7 @@ if __name__ == '__main__':
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
                                         'max_lr':          1e-3,
                                         'min_lr':          1e-6,
-                                        'events_up':       1e6,
+                                        'events_up':       5e6,
                                         'events_down':     25e6,
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
