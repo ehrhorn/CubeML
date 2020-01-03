@@ -561,7 +561,7 @@ class VertexPerformance:
             true = read_h5_directory(self.data_pars['data_dir'], self._true_xyzt_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
 
             # * Ensure keys are proper so the angle calculations work
-            pred_crs = inverse_transform(pred_crs, get_project_root() + self.model_dir)
+            # pred_crs = inverse_transform(pred_crs, get_project_root() + self.model_dir)
             true = inverse_transform(true, get_project_root() + self.model_dir)
 
             pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['x', 'y', 'z', 't'])

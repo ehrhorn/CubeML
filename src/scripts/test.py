@@ -15,11 +15,25 @@ from src.modules.eval_funcs import *
 import src.modules.reporting as rpt
 # from src.modules.main_funcs import *
 
+def func(x, start_lr, max_lr, min_lr, rise, fall):
+    
+    if x < 100:
+        y = x
+    else:
+        y = 100*gamma**(x-100)
+    return y
 
-# a = [np.array([1.0]), np.array([2.0])]
-# a = convert_to_proper_list(a)
-# print(a)
+lambda1 = lambda step: func(step, 0.985)
 
+x = np.linspace(0, 200)
+# x_max = 20
+# lr_max = 0.1
+# c = 1/x_max
+# a = 0.001
+# b = (lr_max-a)*np.exp(1.0)*c
+y = [lambda1(entry) for entry in x]
+print(lambda1(105))
+plt.plot(x, y)
 
 # a = rpt.IceCubePerformance('oscnext-genie-level5-v01-01-pass2')
 # d = a.get_y_dict()
