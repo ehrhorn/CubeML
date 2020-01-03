@@ -23,22 +23,43 @@ def func(x, start_lr, max_lr, min_lr, rise, fall):
         y = 100*gamma**(x-100)
     return y
 
-lambda1 = lambda step: func(step, 0.985)
+class lr_watcher:
+
+    def __init__(self, start_lr, max_lr, min_lr, n_rise, n_fall, batch_size):
+
+        self._steps_up = n_rise//batch_size
+        self._steps_down = n_fall//batch_size
+        self.gamma_up = (max_lr/start_lr)**(1/self._steps_up)
+        self.gamma_down = (min_lr/max_lr)**(1/self._steps_down)
+
+        self._start_lr = start_lr
+        self._max_lr = max_lr
+        self.step = 1
+
+    def get_factor(self):
+
+        if self.step < self._steps_up:
+            factor = self.gamma_up**self.step
+        else:
+            factor = (self._max_lr/self._start_lr) * self.gamma_down**(self.step-self._steps_up)
+        
+        self.step += 1
+
+        return factor
 
 start_lr = 1e-4
 max_lr = 1e-1
 min_lr = 1e-6
 n_rise = 1e6
-n_fall = 28e6
+n_fall = 25e6
 batch_size = 128
 
-stepsup = n_rise/batch_size
-stepsdown = n_fall/batch_size
-gamma_up = (max_lr/start_lr)**(1.0/stepsup)
-gamma_down = (min_lr/max_lr)**(1.0/stepsdown)
-print(gamma_up, gamma_down)
+lr_watch = lr_watcher(start_lr, max_lr, min_lr, n_rise, n_fall, batch_size)
+lambda1 = lambda step: lr_watch.get_factor()
 
-x = np.linspace(0, stepsup+stepsdown)
+y = [lambda1(x) for x in range(100)]
+
+plt.plot(y)
 # a = rpt.IceCubePerformance('oscnext-genie-level5-v01-01-pass2')
 # d = a.get_y_dict()
 # _ = rpt.make_plot(d)
