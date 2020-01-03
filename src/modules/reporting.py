@@ -528,10 +528,11 @@ class VertexPerformance:
     def _create_performance_plots(self, data_dict):
         energy = read_h5_directory(self.data_pars['data_dir'], self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
 
-        #* Transform back and extract values into list
+        # * Transform back and extract values into list
         energy = inverse_transform(energy, get_project_root() + self.model_dir)
         for key, items in energy.items():
-            energy = list(items)
+            energy = convert_to_proper_list(list(items))
+        print(energy)
         self.counts, self.bin_edges = np.histogram(energy, bins=12)
         
         x_error = data_dict['vertex_x_error']

@@ -16,9 +16,14 @@ import src.modules.reporting as rpt
 # from src.modules.main_funcs import *
 
 
-a = rpt.IceCubePerformance('oscnext-genie-level5-v01-01-pass2')
-d = a.get_y_dict()
-_ = rpt.make_plot(d)
+# a = [np.array([1.0]), np.array([2.0])]
+# a = convert_to_proper_list(a)
+# print(a)
+
+
+# a = rpt.IceCubePerformance('oscnext-genie-level5-v01-01-pass2')
+# d = a.get_y_dict()
+# _ = rpt.make_plot(d)
 #* #* print(bootstrap_samples)
 #* #%%
 #* fig = make_plot({'data': [dist_sorted, bootstrap_samples]})

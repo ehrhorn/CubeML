@@ -50,7 +50,7 @@ def bin_data(l1, l2, bin_edges):
     l1_bins = []
     l2_bins = []
     n = 0
-    
+
     for lower_bin, upper_bin in zip(bin_edges[:-1], bin_edges[1:]):
         lower_i = np.searchsorted(l1, lower_bin)
         upper_i = np.searchsorted(l1, upper_bin, side='right')
@@ -334,6 +334,24 @@ def convert_keys(d, old_keys, new_keys):
         d = convert_key(d, old_key, new_key)
     
     return d
+
+def convert_to_proper_list(l):
+    """Converts a list of entries in an unwanted structure (such as a list of arrays with entry 1 in each array) to a proper list. Function is updated each time a new problem arises...
+    
+    Arguments:
+        l {list} -- a list with weird entries
+    
+    Returns:
+        list -- a proper list
+    """    
+
+    if type(l[0]) == np.ndarray:
+        if l[0].shape[0] == 1:
+            converted = [entry[0] for entry in l]
+    else:
+        converted = l
+    
+    return converted
 
 def estimate_percentile(data, percentiles, n_bootstraps=1000):
     """Estimation of percentile of a dataset using bootstrapping and order statistics (see https://en.wikipedia.org/wiki/Order_statistic). A confidence interval of +-1 sigma is created for each percentile
