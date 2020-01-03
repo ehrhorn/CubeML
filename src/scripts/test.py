@@ -26,14 +26,19 @@ def func(x, start_lr, max_lr, min_lr, rise, fall):
 lambda1 = lambda step: func(step, 0.985)
 
 start_lr = 1e-4
-max_lr = 1e0
+max_lr = 1e-1
 min_lr = 1e-6
 n_rise = 1e6
 n_fall = 28e6
 batch_size = 128
 
 stepsup = n_rise/batch_size
+stepsdown = n_fall/batch_size
+gamma_up = (max_lr/start_lr)**(1.0/stepsup)
+gamma_down = (min_lr/max_lr)**(1.0/stepsdown)
+print(gamma_up, gamma_down)
 
+x = np.linspace(0, stepsup+stepsdown)
 # a = rpt.IceCubePerformance('oscnext-genie-level5-v01-01-pass2')
 # d = a.get_y_dict()
 # _ = rpt.make_plot(d)
