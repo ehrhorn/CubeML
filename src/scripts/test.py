@@ -57,7 +57,7 @@ batch_size = 128
 lr_watch = lr_watcher(start_lr, max_lr, min_lr, n_rise, n_fall, batch_size)
 lambda1 = lambda step: lr_watch.get_factor()
 
-y = [lambda1(x) for x in range(100)]
+y = [lambda1(x) for x in range(100000)]
 
 plt.plot(y)
 # a = rpt.IceCubePerformance('oscnext-genie-level5-v01-01-pass2')

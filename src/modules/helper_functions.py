@@ -16,6 +16,29 @@ from ignite.engine import Events
 
 import src.modules.loss_funcs
 
+class lr_watcher:
+
+    def __init__(self, start_lr, max_lr, min_lr, n_rise, n_fall, batch_size):
+
+        self._steps_up = n_rise//batch_size
+        self._steps_down = n_fall//batch_size
+        self.gamma_up = (max_lr/start_lr)**(1/self._steps_up)
+        self.gamma_down = (min_lr/max_lr)**(1/self._steps_down)
+
+        self._start_lr = start_lr
+        self._max_lr = max_lr
+        self.step = 1
+
+    def get_factor(self):
+
+        if self.step < self._steps_up:
+            factor = self.gamma_up**self.step
+        else:
+            factor = (self._max_lr/self._start_lr) * self.gamma_down**(self.step-self._steps_up)
+        
+        self.step += 1
+
+        return factor
 
 def append_list_and_save(list_address, item):
     """Opens or creates a .pickle-file containing a list and appends a number to it.
@@ -625,9 +648,26 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train):
         pars['base_momentum'] = lr_dict.get('base_momentum', 0.85)
         pars['max_momentum'] = lr_dict.get('max_momentum', 0.95)
 
-        # scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.01, steps_per_epoch=len(data_loader), epochs=10)
-        # print(scheduler)
         scheduler = optim.lr_scheduler.OneCycleLR(optimizer, **pars)
+    
+    elif lr_dict['lr_scheduler'] == 'ExpOneCycleLR':
+        # * Some default values
+        # {'lr_scheduler':   'ExpOneCycleLR',
+        # 'max_lr':          1e-3,
+        # 'min_lr':          1e-6,
+        # 'events_up':       1e6,
+        # 'events_down':     25e6,
+        # }
+        start_lr = hyper_pars['optimizer']['lr']
+        max_lr = lr_dict['max_lr']
+        min_lr = lr_dict['min_lr']
+        n_rise = lr_dict['events_up']
+        n_fall = lr_dict['events_down']
+        batch_size = hyper_pars['batch_size']
+         
+        lr_watch = lr_watcher(start_lr, max_lr, min_lr, n_rise, n_fall, batch_size)
+        lambda1 = lambda step: lr_watch.get_factor()
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
     else:
         raise ValueError('get_lr_scheduler: Undefined lr_scheduler wanted!')

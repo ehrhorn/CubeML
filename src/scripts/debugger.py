@@ -43,10 +43,10 @@ if __name__ == '__main__':
     error_func = 'L2'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
-    particle = 'muon_neutrino'
+    particle = 'tau_neutrino'
 
     # * Set project
-    project = 'cubeml'
+    project = 'cubeml_test'
 
     dataset = data_dir.split('/')[-1]
     meta_pars = {'tags':                [regression_type, dataset, error_func, particle],
@@ -54,12 +54,12 @@ if __name__ == '__main__':
                 'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            200000,
+                'log_every':            20,
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        128,
-                'max_epochs':          5,
+    hyper_pars = {'batch_size':        10,
+                'max_epochs':          1,
                 'early_stop_patience': 100,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
@@ -69,8 +69,8 @@ if __name__ == '__main__':
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
                                         'max_lr':          1e-3,
                                         'min_lr':          1e-6,
-                                        'events_up':       1e6,
-                                        'events_down':     25e6,
+                                        'events_up':       1e2,
+                                        'events_down':     2e2,
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
@@ -84,16 +84,16 @@ if __name__ == '__main__':
                 'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
-                'n_val_events_wanted':   50000,# np.inf,
-                'n_train_events_wanted': np.inf,
-                'n_predictions_wanted': 100000,
-                'train_frac':  0.80,
-                'val_frac':    0.10,
+                'n_val_events_wanted':   40,# np.inf,
+                'n_train_events_wanted': 300,
+                'n_predictions_wanted': 100,
+                'train_frac':  0.030,
+                'val_frac':    0.030,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      256
+                'val_batch_size':      20
                 }
 
 
