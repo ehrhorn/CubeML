@@ -25,15 +25,14 @@ def func(x, start_lr, max_lr, min_lr, rise, fall):
 
 lambda1 = lambda step: func(step, 0.985)
 
-x = np.linspace(0, 200)
-# x_max = 20
-# lr_max = 0.1
-# c = 1/x_max
-# a = 0.001
-# b = (lr_max-a)*np.exp(1.0)*c
-y = [lambda1(entry) for entry in x]
-print(lambda1(105))
-plt.plot(x, y)
+start_lr = 1e-4
+max_lr = 1e0
+min_lr = 1e-6
+n_rise = 1e6
+n_fall = 28e6
+batch_size = 128
+
+stepsup = n_rise/batch_size
 
 # a = rpt.IceCubePerformance('oscnext-genie-level5-v01-01-pass2')
 # d = a.get_y_dict()
