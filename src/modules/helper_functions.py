@@ -2,6 +2,7 @@ from time import localtime, strftime
 import random
 from pathlib import Path
 import pickle
+import joblib
 from matplotlib import pyplot as plt
 from torch import optim
 import wandb
@@ -818,7 +819,7 @@ def inverse_transform(data, model_dir):
     '''
 
     try:
-        transformers = pickle.load( open(model_dir+'/transformers.pickle', "rb"))
+        transformers = joblib.load( open(model_dir+'/transformers.pickle', "rb"))
     except FileNotFoundError:
         transformers = None
     transformed = {}
