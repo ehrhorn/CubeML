@@ -58,19 +58,19 @@ if __name__ == '__main__':
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        64,
-                'max_epochs':          5,
-                'early_stop_patience': 100,
+    hyper_pars = {'batch_size':        32,
+                'max_epochs':          10,
+                'early_stop_patience': 25,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
-                                        'max_lr':          1e-3,
+                                        'max_lr':          5e-3,
                                         'min_lr':          1e-6,
-                                        'events_up':       5e6,
-                                        'events_down':     25e6,
+                                        'events_up':       10e6,
+                                        'events_down':     50e6,
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
@@ -93,7 +93,7 @@ if __name__ == '__main__':
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      256
+                'val_batch_size':      512
                 }
 
 
