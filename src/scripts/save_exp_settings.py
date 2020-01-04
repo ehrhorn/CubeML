@@ -58,7 +58,7 @@ if __name__ == '__main__':
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        32,
+    hyper_pars = {'batch_size':        128,
                 'max_epochs':          10,
                 'early_stop_patience': 25,
                 'optimizer':           {'optimizer':      'Adam',
@@ -93,7 +93,7 @@ if __name__ == '__main__':
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      512
+                'val_batch_size':      256
                 }
 
 
@@ -113,10 +113,10 @@ if __name__ == '__main__':
                                                 # {'SelfAttention':   {'input_sizes':        [64, 64],
                                                 #                      'LayerNorm':          True,
                                                 #                      'Residual':           True,}},
-                                                {'LSTM':            {'input_sizes':        [64, 128],
+                                                {'LSTM':            {'input_sizes':        [64, 256],
                                                                     'dropout':             0.5,
-                                                                    'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [128+n_scalar_feat, n_target],
+                                                                    'bidirectional':       True}},
+                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
