@@ -519,7 +519,6 @@ class VertexPerformance:
             reco_keys = None
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
             reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
-            # self._true_xyz = ['true_primary_position_x', 'true_primary_position_y',  'true_primary_position_z']
         else:
             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
         
@@ -560,7 +559,6 @@ class VertexPerformance:
             true = read_h5_directory(self.data_pars['data_dir'], self._true_xyzt_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
 
             # * Ensure keys are proper so the angle calculations work
-            # pred_crs = inverse_transform(pred_crs, get_project_root() + self.model_dir)
             true = inverse_transform(true, get_project_root() + self.model_dir)
 
             pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['x', 'y', 'z', 't'])
@@ -830,14 +828,14 @@ def log_operation_plots(model_dir, wandb_ID=None):
         lr_list = pickle.load(f)
     
     img_address = model_dir+'/figures/train_val_error.png'
-    _ = make_plot({'x': [epochs, epochs], 'y': [train_error, val_error], 'label': ['train error', 'val. error'], 'xlabel': 'Epoch', 'ylabel': 'Loss', 'savefig': img_address})
+    _ = make_plot({'x': [epochs, epochs], 'y': [train_error, val_error], 'label': ['train error', 'val. error'], 'xlabel': 'Events processed', 'ylabel': 'Loss', 'savefig': img_address})
     
     if wandb_ID is not None:
         im = PIL.Image.open(img_address)
         wandb.log({'Train and val. error': wandb.Image(im, caption='Train and val. error')}, commit = False)
     
     img_address = model_dir+'/figures/lr_vs_epoch.png'
-    _ = make_plot({'x': [epochs], 'y': [lr_list], 'xlabel': 'Epoch', 'ylabel': 'Learning rate', 'savefig': img_address})
+    _ = make_plot({'x': [epochs], 'y': [lr_list], 'xlabel': 'Events processed', 'ylabel': 'Learning rate', 'savefig': img_address})
     
     if wandb_ID is not None:
         im = PIL.Image.open(img_address)

@@ -58,7 +58,7 @@ if __name__ == '__main__':
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        10,
+    hyper_pars = {'batch_size':        2,
                 'max_epochs':          1,
                 'early_stop_patience': 100,
                 'optimizer':           {'optimizer':      'Adam',
@@ -69,8 +69,8 @@ if __name__ == '__main__':
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
                                         'max_lr':          1e-3,
                                         'min_lr':          1e-6,
-                                        'events_up':       1e2,
-                                        'events_down':     2e2,
+                                        'frac_up':         0.2,
+                                        'frac_down':       0.8,
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
@@ -85,10 +85,10 @@ if __name__ == '__main__':
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
                 'n_val_events_wanted':   40,# np.inf,
-                'n_train_events_wanted': 300,
+                'n_train_events_wanted': 100,
                 'n_predictions_wanted': 100,
-                'train_frac':  0.030,
-                'val_frac':    0.030,
+                'train_frac':  0.005,
+                'val_frac':    0.005,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',

@@ -3,7 +3,7 @@ import torch
 from torch.utils import data
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
 from ignite.metrics import Accuracy, Loss
-from ignite.handlers import EarlyStopping, ModelCheckpoint, Timer
+from ignite.handlers import EarlyStopping, ModelCheckpoint, Timer, TerminateOnNan
 import pickle
 import pathlib
 from time import localtime, strftime, time
@@ -383,18 +383,24 @@ def run_experiment(file, log=True):
             evaluate_model(model_dir, wandb_ID=wandb_ID)
 
 def run_experiments(log=True):
-    """Loops over the experiment-defining files in ~/CubeML/experiments/ and runs each one of them using run_experiment
+    """Loops over the experiment-defining files in ~/CubeML/experiments/ and runs each one of them using run_experiment. Continously checks if new experiments have been added. 
     
     Keyword Arguments:
         log {bool} -- Whether to log plots, performance etc. locally and to W&B (default: {True})
     """
 
-    exp_dir = get_project_root() + '/experiments/'
+    exp_dir = get_project_root() + '/experiments'
+    exps = Path(exp_dir).glob('*.json')
+    n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
 
-    # * Loop over experiments and delete exp_file if successfully run 
-    for file in Path(exp_dir).iterdir():
-        if str(file).split('.')[-1] == 'json':
-            run_experiment(file, log=log)
+    while n_exps>0:
+        
+        for exp in exps:
+            run_experiment(exp, log=log)
+        
+        exp_dir = get_project_root() + '/experiments/'
+        exps = Path(exp_dir).glob('*.json')
+        n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
 
 def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True):
     """Main training script. Takes experiment-defining dictionaries as input and trains the model induced by them.
@@ -441,7 +447,9 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)
     MAX_ITERATIONS = MAX_EPOCHS*len(train_set)
-    
+    # * Used for some lr-schedulers, so just add it.
+    hyper_pars['lr_schedule']['train_set_size'] = N_TRAIN
+
     if log:
         wandb.config.update({'Trainset size': N_TRAIN})
         wandb.config.update({'Val. set size': N_VAL})
@@ -617,6 +625,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
                 torch.save(backup, save_dir + '/backup.pth')
 
     trainer.add_event_handler(Events.ITERATION_COMPLETED, evaluate)
+    trainer.add_event_handler(Events.ITERATION_COMPLETED, TerminateOnNan())
     
     # ! FullBatchLoader has to be treated in a special way! See the class, it has to be shuffled every epoch
     if data_pars['dataloader'] == 'FullBatchLoader':
