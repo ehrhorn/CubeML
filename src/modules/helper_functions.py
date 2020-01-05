@@ -655,16 +655,19 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train):
         # {'lr_scheduler':   'ExpOneCycleLR',
         # 'max_lr':          1e-3,
         # 'min_lr':          1e-6,
-        # 'events_up':       1e6,
-        # 'events_down':     25e6,
+        # 'frac_up':         0.2,
+        # 'frac_down':       0.8,
         # }
         start_lr = hyper_pars['optimizer']['lr']
         max_lr = lr_dict['max_lr']
         min_lr = lr_dict['min_lr']
-        n_rise = lr_dict['events_up']
-        n_fall = lr_dict['events_down']
+        n_rise = int(lr_dict['frac_up']*lr_dict['train_set_size']*hyper_pars['max_epochs'])
+        n_fall = int(lr_dict['frac_down']*lr_dict['train_set_size']*hyper_pars['max_epochs'])
         batch_size = hyper_pars['batch_size']
-         
+        # * A quick sanity check
+        if lr_dict['frac_up'] + lr_dict['frac_down'] != 1.0:
+            raise ValueError('ExpOneCycleLR frac_up and frac_down does not add up to 1 (adds to %.2f)'%(lr_dict['frac_up'] + lr_dict['frac_down']))
+
         lr_watch = lr_watcher(start_lr, max_lr, min_lr, n_rise, n_fall, batch_size)
         lambda1 = lambda step: lr_watch.get_factor()
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
