@@ -1325,6 +1325,70 @@ def show_train_val_error(x_address, train_address, val_address, save_address=Non
         print('Figure saved at: ')
         print(save_address+'train_val_e.pdf','\n')
 
+def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1, particle='any'):
+    """Given a dataset in several files, it is split into lists containing relative paths to training-files, validation-files and test-files. Assumes files are in hdf5-format as shown on https://github.com/ehrhorn/CubeML
+    
+    Arguments:
+        data_dir {str} -- Absolute or relative path to dataset
+    
+    Keyword Arguments:
+        train_frac {float} -- fraction of data train on (default: {0.8})
+        val_frac {float} -- fraction of data to validate on (default: {0.1})
+        test_frac {float} -- fraction of data to test on (default: {0.1})
+        particle {str} -- particle name (if the dataset contains data on different particles) (default: {'any'})
+    
+    Returns:
+        [list] -- relative paths to training files
+        [list] -- relative paths to validation files
+        [list] -- relative paths to test files    
+    """    
+
+    # * First, get total size of dataset
+    n_files, mean, std = get_dataset_size(data_dir, particle=particle)
+
+    # * Calculate amounts wanted
+    n_data = n_files*mean
+    n_train =n_data*train_frac
+    n_val =n_data*val_frac
+    n_test =n_data*test_frac
+
+    # * Split files 
+    train_files = []
+    val_files = []
+    test_files = []   
+    train_count = 0
+    val_count = 0
+    test_count = 0
+
+    particle_code = get_particle_code(particle)
+    path = get_project_root() + get_path_from_root(data_dir)
+    
+    for file in Path(path).iterdir():
+
+        # * If file is not of interest, continue to next file
+        if not (file.suffix == '.h5' and confirm_particle_type(particle_code, file)):
+            continue
+        
+        if train_count <= n_train:
+            with h5.File(file, 'r') as f:
+                train_count += f['meta/events'][()]
+                relative_file_path = get_path_from_root(str(file))
+                train_files.append(relative_file_path)
+        
+        elif val_count <= n_val:
+            with h5.File(file, 'r') as f:
+                val_count += f['meta/events'][()]
+                relative_file_path = get_path_from_root(str(file))
+                val_files.append(relative_file_path)
+        
+        elif test_count <= n_test:
+            with h5.File(file, 'r') as f:
+                test_count += f['meta/events'][()]
+                relative_file_path = get_path_from_root(str(file))
+                test_files.append(relative_file_path)
+    
+    return train_files, val_files, test_files
+
 def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
     '''Updates parameterdictionaries used for continuing training of a pretrained mode. Only certain keys can be updated (for instance, not model architecture.)
 

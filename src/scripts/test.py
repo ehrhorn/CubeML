@@ -14,204 +14,242 @@ from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 import src.modules.reporting as rpt
 
-class VertexPerformance:
-    """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
+
+path = '/media/data/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2'
+particle_code = '160000'
+path = get_project_root() + path
+save_dir = '/media/data/bjoernhm/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/test_2020.01.06-15.36.39'
+with open(save_dir+'/test_files.pickle', 'rb') as f:
+    file_list = pickle.load(f)
+    file_list = [get_project_root()+file for file in file_list]
+
+lst=['160.005__lol', '160.010__lol', '160.002__lol']
+print(sorted(lst))
+# class VertexPerformance:
+#     """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
     
-    Raises:
-        KeyError: If an unknown dataset is encountered.
+#     Raises:
+#         KeyError: If an unknown dataset is encountered.
     
-    Returns:
-        [type] -- Instance of class.
-    """    
+#     Returns:
+#         [type] -- Instance of class.
+#     """    
 
-    def __init__(self, model_dir, wandb_ID=None):
-        _, data_pars, _, meta_pars = load_model_pars(model_dir)
-        prefix = 'transform'+str(data_pars['file_keys']['transform'])
-        from_frac = data_pars['train_frac']
-        to_frac = data_pars['train_frac'] + data_pars['val_frac']
+#     def __init__(self, model_dir, wandb_ID=None):
+#         model_dir = get_project_root() + get_path_from_root(model_dir)
+#         _, data_pars, _, meta_pars = load_model_pars(model_dir)
+#         prefix = 'transform'+str(data_pars['file_keys']['transform'])
+#         from_frac = data_pars['train_frac']
+#         to_frac = data_pars['train_frac'] + data_pars['val_frac']
 
-        self.model_dir = get_path_from_root(model_dir)
-        self.data_pars = data_pars
-        self.meta_pars = meta_pars
-        self.prefix = prefix
-        self.energy_key = self._get_energy_key()
-        self._reco_keys = self._get_reco_keys()
-        self._true_xyzt_keys = get_target_keys(data_pars, meta_pars)
+#         self.model_dir = get_path_from_root(model_dir)
+#         self.data_pars = data_pars
+#         self.meta_pars = meta_pars
+#         self.prefix = prefix
+#         self.energy_key = self._get_energy_key()
+#         self._reco_keys = self._get_reco_keys()
+#         self._true_xyzt_keys = get_target_keys(data_pars, meta_pars)
 
-        self.from_frac = from_frac
-        self.to_frac = to_frac
-        self.wandb_ID = wandb_ID
+#         self.from_frac = from_frac
+#         self.to_frac = to_frac
+#         self.wandb_ID = wandb_ID
 
-        data_dict = self._get_data_dict()
-        self._create_performance_plots(data_dict)
-        self._calculate_onenum_performance(data_dict)
+#         data_dict = self._get_data_dict()
+#         self.x_error = self._create_performance_plots(data_dict)
+#     def x_error(self):
+#         return self.x_error
+#     def _get_data_dict(self):
+#         full_pred_address = self._get_pred_path()
+#         keys = self._get_keys()
 
-    def _get_data_dict(self):
-        full_pred_address = self._get_pred_path()
-        keys = self._get_keys()
+#         data_dict = read_predicted_h5_data(full_pred_address, keys)
+#         return data_dict
 
-        data_dict = read_predicted_h5_data(full_pred_address, keys)
-        return data_dict
+#     def _get_energy_key(self):
+#         dataset_name = get_dataset_name(self.data_pars['data_dir'])
 
-    def _get_energy_key(self):
-        dataset_name = get_dataset_name(self.data_pars['data_dir'])
-
-        if dataset_name == 'MuonGun_Level2_139008':
-            energy_key = ['true_muon_energy']
-        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            energy_key = ['true_primary_energy']
-        else:
-            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
+#         if dataset_name == 'MuonGun_Level2_139008':
+#             energy_key = ['true_muon_energy']
+#         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
+#             energy_key = ['true_primary_energy']
+#         else:
+#             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
         
-        return energy_key
+#         return energy_key
     
-    def _get_pred_path(self):
-        path_to_data = get_project_root() + self.model_dir + '/data'
-        for file in Path(path_to_data).iterdir():
-            if file.suffix == '.h5':
-                path = str(file)
-        return path
+#     def _get_pred_path(self):
+#         path_to_data = get_project_root() + self.model_dir + '/data'
+#         for file in Path(path_to_data).iterdir():
+#             if file.suffix == '.h5':
+#                 path = str(file)
+#         return path
     
-    def _get_keys(self):
-        funcs = get_eval_functions(self.meta_pars)
-        keys = []
+#     def _get_keys(self):
+#         funcs = get_eval_functions(self.meta_pars)
+#         keys = []
 
-        for func in funcs:
-            keys.append(func.__name__)
-        return keys
+#         for func in funcs:
+#             keys.append(func.__name__)
+#         return keys
 
-    def _get_reco_keys(self):
-        dataset_name = get_dataset_name(self.data_pars['data_dir'])
+#     def _get_reco_keys(self):
+#         dataset_name = get_dataset_name(self.data_pars['data_dir'])
 
-        if dataset_name == 'MuonGun_Level2_139008':
-            reco_keys = None
-        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
-            # self._true_xyz = ['true_primary_position_x', 'true_primary_position_y',  'true_primary_position_z']
-        else:
-            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
+#         if dataset_name == 'MuonGun_Level2_139008':
+#             reco_keys = None
+#         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
+#             reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
+#             # self._true_xyz = ['true_primary_position_x', 'true_primary_position_y',  'true_primary_position_z']
+#         else:
+#             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
         
-        return reco_keys
+#         return reco_keys
     
-    def _create_performance_plots(self, data_dict):
+#     def _create_performance_plots(self, data_dict):
 
-        # * Transform back and extract values into list
+#         # * Transform back and extract values into list
         
-        x_error = data_dict['vertex_x_error']
-        print(type(x_error), x_error.shape)
-        a += 1
-        print('\nCalculating x performance...')
-        self.x_sigmas, self.x_errors = calc_perf2_as_fn_of_energy(energy, x_error, self.bin_edges)
-        print('Calculation finished!')
+#         x_error = data_dict['vertex_x_error']
+#         # print(type(x_error), x_error.shape)
+#         energy = read_h5_directory(self.data_pars['data_dir'], self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
 
-        y_error = data_dict['vertex_y_error']
-        print('\nCalculating y performance...')
-        self.y_sigmas, self.y_errors = calc_perf2_as_fn_of_energy(energy, y_error, self.bin_edges)
-        print('Calculation finished!')
+#         # * Transform back and extract values into list
+#         energy = inverse_transform(energy, get_project_root() + self.model_dir)
+#         for key, items in energy.items():
+#             energy = convert_to_proper_list(list(items))
+#         return energy
+#         a += 1
+#         print('\nCalculating x performance...')
+#         self.x_sigmas, self.x_errors = calc_perf2_as_fn_of_energy(energy, x_error, self.bin_edges)
+#         print('Calculation finished!')
 
-        z_error = data_dict['vertex_z_error']
-        print('\nCalculating z performance...')
-        self.z_sigmas, self.z_errors = calc_perf2_as_fn_of_energy(energy, z_error, self.bin_edges)
-        print('Calculation finished!')
+#         y_error = data_dict['vertex_y_error']
+#         print('\nCalculating y performance...')
+#         self.y_sigmas, self.y_errors = calc_perf2_as_fn_of_energy(energy, y_error, self.bin_edges)
+#         print('Calculation finished!')
 
-        t_error = data_dict['vertex_t_error']
-        print('\nCalculating time performance...')
-        self.t_sigmas, self.t_errors = calc_perf2_as_fn_of_energy(energy, t_error, self.bin_edges)
-        print('Calculation finished!')
+#         z_error = data_dict['vertex_z_error']
+#         print('\nCalculating z performance...')
+#         self.z_sigmas, self.z_errors = calc_perf2_as_fn_of_energy(energy, z_error, self.bin_edges)
+#         print('Calculation finished!')
 
-        # * If an I3-reconstruction exists, get it
-        if self._reco_keys:
-            pred_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
-            true = read_h5_directory(self.data_pars['data_dir'], self._true_xyzt_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
+#         t_error = data_dict['vertex_t_error']
+#         print('\nCalculating time performance...')
+#         self.t_sigmas, self.t_errors = calc_perf2_as_fn_of_energy(energy, t_error, self.bin_edges)
+#         print('Calculation finished!')
 
-            # * Ensure keys are proper so the angle calculations work
-            # pred_crs = inverse_transform(pred_crs, get_project_root() + self.model_dir)
-            true = inverse_transform(true, get_project_root() + self.model_dir)
 
-            pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['x', 'y', 'z', 't'])
-            true = convert_keys(true, [key for key in true], ['x', 'y', 'z', 't'])
-            true = { key: convert_to_proper_list(item) for key, item in true.items() }
-            x_crs_error = vertex_x_error(pred_crs, true)
-            y_crs_error = vertex_y_error(pred_crs, true)
-            z_crs_error = vertex_z_error(pred_crs, true)
-            t_crs_error = vertex_t_error(pred_crs, true)
-
-            print('\nCalculating crs x performance...')
-            self.x_crs_sigmas, self.x_crs_errors = calc_perf2_as_fn_of_energy(energy, x_crs_error, self.bin_edges)
-            print('Calculation finished!')
-
-            print('\nCalculating crs y performance...')
-            self.y_crs_sigmas, self.y_crs_errors = calc_perf2_as_fn_of_energy(energy, y_crs_error, self.bin_edges)
-            print('Calculation finished!')
-
-            print('\nCalculating crs z performance...')
-            self.z_crs_sigmas, self.z_crs_errors = calc_perf2_as_fn_of_energy(energy, z_crs_error, self.bin_edges)
-            print('Calculation finished!')
-
-            print('\nCalculating crs time performance...')
-            self.t_crs_sigmas, self.t_crs_errors = calc_perf2_as_fn_of_energy(energy, t_crs_error, self.bin_edges)
-            print('Calculation finished!')
-
-            # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive result
-            a, b = calc_relative_error(self.x_crs_sigmas, self.x_sigmas, self.x_crs_errors, self.x_errors)
-            self.x_relative_improvements, self.x_sigma_improvements = -a, b
-
-            a, b = calc_relative_error(self.y_crs_sigmas, self.y_sigmas, self.y_crs_errors, self.y_errors)
-            self.y_relative_improvements, self.y_sigma_improvements = -a, b
-
-            a, b = calc_relative_error(self.z_crs_sigmas, self.z_sigmas, self.z_crs_errors, self.z_errors)
-            self.z_relative_improvements, self.z_sigma_improvements = -a, b
-
-            a, b = calc_relative_error(self.t_crs_sigmas, self.t_sigmas, self.t_crs_errors, self.t_errors)
-            self.t_relative_improvements, self.t_sigma_improvements = -a, b
-        
-        else:
-            self.x_relative_improvements = None
-            self.x_sigma_improvements = None
-            self.y_relative_improvements = None
-            self.y_sigma_improvements = None
-            self.z_relative_improvements = None
-            self.z_sigma_improvements = None
-            self.t_relative_improvements = None
-            self.t_sigma_improvements = None
-    
-
-    def get_energy_dict(self):
-        return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
-
-    def get_x_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.x_sigmas], 'yerr': [self.x_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
-    def get_y_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.y_sigmas], 'yerr': [self.y_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
-    def get_z_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.z_sigmas], 'yerr': [self.z_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
-    def get_t_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.t_sigmas], 'yerr': [self.t_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
-
-    def get_rel_x_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.x_relative_improvements], 'yerr': [self.x_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
-    def get_rel_y_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.y_relative_improvements], 'yerr': [self.y_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
-    def get_rel_z_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.z_relative_improvements], 'yerr': [self.z_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
-    def get_rel_t_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.t_relative_improvements], 'yerr': [self.t_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
-
-# from src.modules.main_funcs import *
+# # from src.modules.main_funcs import *
 # model_path = '/home/bjoern/Thesis/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/2020-01-04-02.15.02'
 # a = VertexPerformance(model_path)
-import time
-def check_dir(path):
-    n_exps = len([str(exp) for exp in Path(path).glob('*.json')])
-    while n_exps>0:
-        print(n_exps)
-        n_exps = len([str(exp) for exp in Path(path).glob('*.json')])
-        time.sleep(5)
+# a = a.x_error
+# print(len(a))
+# plt.hist(a, bins='fd')
+# plt.yscale('log')
 
+#%%
+# perf_path = '/media/data/bjoernhm/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/2020-01-04-02.15.02/data'
+# b = pickle.load( open( perf_path+'/VertexPerformance.pickle', "rb" ) )
 
-path = get_project_root()+'/src/scripts/testlol'
-check_dir(path)
-print('outside')
+# # * Save x first
+# d = b.get_x_dict()
+
+# # ? should this line be deleted? Prolly a residual mistake
+# # h_fig = rpt.make_plot(d) 
+
+# h_fig = rpt.make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
+# d = b.get_rel_x_dict()
+# d['subplot'] = True
+# d['axhline'] = [0.0]
+# d['grid'] = True
+# d['y_minor_ticks_multiple'] = 0.2
+# h_fig = rpt.make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
+# d_energy = b.get_energy_dict()
+# _ = rpt.make_plot(d_energy, h_figure=h_fig, axes_index=0)
+# # %%
+# ticks = h_fig.axes[1].get_yticks()
+# #* Load img with PIL - this format can be logged
+# if self.wandb_ID is not None:
+#     im = PIL.Image.open(img_address)
+#     wandb.log({'xVertexPerformance': wandb.Image(im, caption='xVertexPerformance')}, commit = False)
+
+    #     # * If an I3-reconstruction exists, get it
+    #     if self._reco_keys:
+    #         pred_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
+    #         true = read_h5_directory(self.data_pars['data_dir'], self._true_xyzt_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
+
+    #         # * Ensure keys are proper so the angle calculations work
+    #         # pred_crs = inverse_transform(pred_crs, get_project_root() + self.model_dir)
+    #         true = inverse_transform(true, get_project_root() + self.model_dir)
+
+    #         pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['x', 'y', 'z', 't'])
+    #         true = convert_keys(true, [key for key in true], ['x', 'y', 'z', 't'])
+    #         true = { key: convert_to_proper_list(item) for key, item in true.items() }
+    #         x_crs_error = vertex_x_error(pred_crs, true)
+    #         y_crs_error = vertex_y_error(pred_crs, true)
+    #         z_crs_error = vertex_z_error(pred_crs, true)
+    #         t_crs_error = vertex_t_error(pred_crs, true)
+
+    #         print('\nCalculating crs x performance...')
+    #         self.x_crs_sigmas, self.x_crs_errors = calc_perf2_as_fn_of_energy(energy, x_crs_error, self.bin_edges)
+    #         print('Calculation finished!')
+
+    #         print('\nCalculating crs y performance...')
+    #         self.y_crs_sigmas, self.y_crs_errors = calc_perf2_as_fn_of_energy(energy, y_crs_error, self.bin_edges)
+    #         print('Calculation finished!')
+
+    #         print('\nCalculating crs z performance...')
+    #         self.z_crs_sigmas, self.z_crs_errors = calc_perf2_as_fn_of_energy(energy, z_crs_error, self.bin_edges)
+    #         print('Calculation finished!')
+
+    #         print('\nCalculating crs time performance...')
+    #         self.t_crs_sigmas, self.t_crs_errors = calc_perf2_as_fn_of_energy(energy, t_crs_error, self.bin_edges)
+    #         print('Calculation finished!')
+
+    #         # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive result
+    #         a, b = calc_relative_error(self.x_crs_sigmas, self.x_sigmas, self.x_crs_errors, self.x_errors)
+    #         self.x_relative_improvements, self.x_sigma_improvements = -a, b
+
+    #         a, b = calc_relative_error(self.y_crs_sigmas, self.y_sigmas, self.y_crs_errors, self.y_errors)
+    #         self.y_relative_improvements, self.y_sigma_improvements = -a, b
+
+    #         a, b = calc_relative_error(self.z_crs_sigmas, self.z_sigmas, self.z_crs_errors, self.z_errors)
+    #         self.z_relative_improvements, self.z_sigma_improvements = -a, b
+
+    #         a, b = calc_relative_error(self.t_crs_sigmas, self.t_sigmas, self.t_crs_errors, self.t_errors)
+    #         self.t_relative_improvements, self.t_sigma_improvements = -a, b
+        
+    #     else:
+    #         self.x_relative_improvements = None
+    #         self.x_sigma_improvements = None
+    #         self.y_relative_improvements = None
+    #         self.y_sigma_improvements = None
+    #         self.z_relative_improvements = None
+    #         self.z_sigma_improvements = None
+    #         self.t_relative_improvements = None
+    #         self.t_sigma_improvements = None
+    
+
+    # def get_energy_dict(self):
+    #     return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+
+    # def get_x_dict(self):
+    #     return {'edges': [self.bin_edges], 'y': [self.x_sigmas], 'yerr': [self.x_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
+    # def get_y_dict(self):
+    #     return {'edges': [self.bin_edges], 'y': [self.y_sigmas], 'yerr': [self.y_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
+    # def get_z_dict(self):
+    #     return {'edges': [self.bin_edges], 'y': [self.z_sigmas], 'yerr': [self.z_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
+    # def get_t_dict(self):
+    #     return {'edges': [self.bin_edges], 'y': [self.t_sigmas], 'yerr': [self.t_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
+
+    # def get_rel_x_dict(self):
+    #     return {'edges': [self.bin_edges], 'y': [self.x_relative_improvements], 'yerr': [self.x_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
+    # def get_rel_y_dict(self):
+    #     return {'edges': [self.bin_edges], 'y': [self.y_relative_improvements], 'yerr': [self.y_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
+    # def get_rel_z_dict(self):
+    #     return {'edges': [self.bin_edges], 'y': [self.z_relative_improvements], 'yerr': [self.z_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
+    # def get_rel_t_dict(self):
+    #     return {'edges': [self.bin_edges], 'y': [self.t_relative_improvements], 'yerr': [self.t_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
 # a = rpt.IceCubePerformance('oscnext-genie-level5-v01-01-pass2')
 # d = a.get_y_dict()
 # _ = rpt.make_plot(d)

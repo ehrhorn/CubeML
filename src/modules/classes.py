@@ -420,7 +420,7 @@ class FullBatchLoader(data.Dataset):
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and batch_size.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None):
 
         self.directory = get_project_root() + directory
         self.scalar_features = scalar_features
@@ -442,6 +442,7 @@ class FullBatchLoader(data.Dataset):
         self.n_batches = {}
         self.file_order = []
         self.batches = []
+        self._file_list = file_list
 
         self._get_meta_information()
         self.make_batches()
@@ -504,11 +505,42 @@ class FullBatchLoader(data.Dataset):
         return batch
 
     def __len__(self):
-        return self.n_batches_total
+        return self.n_events_wanted//self.batch_size
     
     def __repr__(self):
         return 'FullBatchLoader'
 
+    def _extract_from_splitted_files(self):
+        """Extracts meta-information from files that have been designated as train- test or val-files - therefore, all data in a file is used
+        """ 
+        n_batches = 0
+        n_events = 0
+        ID = 1
+
+        for rel_path in self._file_list:
+            # * If enough datapoints have been prepared, stop loading more
+            # ! Actually dont! Instead extract all and change len(.) such that all statistic is used
+            # if n_events > self.n_events_wanted:
+            #     break
+            path = get_project_root()+rel_path
+
+            with h5.File(path, 'r') as f:
+
+                n_data_in_file = f['meta/events'][()]
+                indices = get_indices_from_fraction(n_data_in_file, 0, 1)
+                file_ID = str(ID)
+                
+                # * Ignore last batch if not a full batch
+                self.file_path[file_ID] = path
+                self.file_indices[file_ID] = indices
+                self.n_batches[file_ID] = int(len(indices)/self.batch_size)
+
+                n_events += len(indices)
+                n_batches += int(len(indices)/self.batch_size)
+                ID += 1
+        
+        self.n_batches_total = n_batches
+            
     def _get_from_to(self):
         if self.type == 'train':
             from_frac, to_frac = 0.0, self.train_frac
@@ -520,8 +552,15 @@ class FullBatchLoader(data.Dataset):
         return from_frac, to_frac
 
     def _get_meta_information(self):
-        '''Extracts filenames, calculates indices induced by train-, val.- and 
+        if not self._file_list:
+            self._split_in_files()
+        else:
+            self._extract_from_splitted_files()
+    
+    def _split_in_files(self):
+        '''Extracts filenames, calculates indices induced by train-, val.- and test-fracs. 
         '''
+
         n_batches = 0
         n_events = 0
         from_frac, to_frac = self._get_from_to()
@@ -533,8 +572,9 @@ class FullBatchLoader(data.Dataset):
                 continue
             
             # * If enough datapoints have been prepared, stop loading more
-            if n_events > self.n_events_wanted:
-                break
+            # ! Actually dont! Instead extract all and change len(.) such that all statistic is used
+            # if n_events > self.n_events_wanted:
+            #     break
             
             if file.suffix == '.h5':
                 with h5.File(file, 'r') as f:
@@ -567,7 +607,7 @@ class FullBatchLoader(data.Dataset):
         
         self.batches = next_epoch_batches
         shuffler(self.batches)
-        
+
         # * Free up some memory
         del batches
         del next_epoch_batches
@@ -609,7 +649,7 @@ class CnnCollater:
 #* DATALOADER FUNCTIONS
 #* ========================================================================
 
-def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
+def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None):
 
     data_dir = data_pars['data_dir'] # * WHere to load data from
     seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
@@ -643,7 +683,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
         if file_keys['transform'] == -1:
             prefix = 'raw/'
 
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list)
 
     
     elif 'CnnLoader' == data_pars['dataloader']:
@@ -655,7 +695,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword):
     
     return dataloader
     
-def load_predictions(data_pars, meta_pars, keyword, file):
+def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
 
     cond1 = 'LstmLoader' == data_pars['dataloader']
     cond2 = 'SeqScalarTargetLoader' == data_pars['dataloader']
@@ -669,6 +709,20 @@ def load_predictions(data_pars, meta_pars, keyword, file):
         val_frac = data_pars['val_frac'] # * how much data should be used for validation?
         test_frac = data_pars['test_frac'] # * how much data should be used for training
         file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
+
+        if use_whole_file:
+            if keyword == 'train':
+                train_frac = 1.0
+                val_frac = 0.0
+                test_frac = 0.0
+            elif keyword == 'val':
+                train_frac = 0.0
+                val_frac = 1.0
+                test_frac = 0.0
+            elif keyword == 'test':
+                train_frac = 0.0
+                val_frac = 0.0
+                test_frac = 1.0
 
         return LstmPredictLoader(file, file_keys, targets, scalar_features, seq_features, 'val', train_frac, val_frac, test_frac)
     

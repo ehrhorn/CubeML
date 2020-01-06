@@ -59,18 +59,18 @@ if __name__ == '__main__':
                 }
 
     hyper_pars = {'batch_size':        128,
-                'max_epochs':          10,
-                'early_stop_patience': 25,
+                'max_epochs':          12,
+                'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
-                                        'max_lr':          5e-3,
-                                        'min_lr':          1e-6,
-                                        'frac_up':         0.2,
-                                        'frac_down':       0.8,
+                                        'max_lr':          6e-3,
+                                        'min_lr':          5e-6,
+                                        'frac_up':         0.17,
+                                        'frac_down':       0.83,
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
@@ -113,10 +113,10 @@ if __name__ == '__main__':
                                                 # {'SelfAttention':   {'input_sizes':        [64, 64],
                                                 #                      'LayerNorm':          True,
                                                 #                      'Residual':           True,}},
-                                                {'LSTM':            {'input_sizes':        [64, 256],
+                                                {'LSTM':            {'input_sizes':        [64, 1028],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       True}},
-                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [1028+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

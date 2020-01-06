@@ -3,6 +3,7 @@ import PIL
 import pickle
 import torch
 from matplotlib import pyplot as plt
+from matplotlib.ticker import MultipleLocator
 from time import localtime, strftime
 
 from src.modules.helper_functions import *
@@ -438,7 +439,7 @@ class DirErrorPerformance:
         figure = make_plot(self.get_dict())
         figure.savefig(img_address)
 
-        # Load img with PIL - this format can be logged
+        # * Load img with PIL - this format can be logged
         if self.wandb_ID is not None:
             im = PIL.Image.open(img_address)
             wandb.log({'DirErrorPerformance': wandb.Image(im, caption='DirErrorPerformance')}, commit = False)
@@ -630,20 +631,19 @@ class VertexPerformance:
         return {'edges': [self.bin_edges], 'y': [self.t_sigmas], 'yerr': [self.t_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
 
     def get_rel_x_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.x_relative_improvements], 'yerr': [self.x_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
+        return {'edges': [self.bin_edges], 'y': [self.x_relative_improvements], 'yerr': [self.x_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
     def get_rel_y_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.y_relative_improvements], 'yerr': [self.y_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
+        return {'edges': [self.bin_edges], 'y': [self.y_relative_improvements], 'yerr': [self.y_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
     def get_rel_z_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.z_relative_improvements], 'yerr': [self.z_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
+        return {'edges': [self.bin_edges], 'y': [self.z_relative_improvements], 'yerr': [self.z_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
     def get_rel_t_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.t_relative_improvements], 'yerr': [self.t_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
+        return {'edges': [self.bin_edges], 'y': [self.t_relative_improvements], 'yerr': [self.t_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
 
     def save(self):
 
         # * Save x first
         img_address = get_project_root()+self.model_dir+'/figures/xVertexPerformance.png'
         d = self.get_x_dict()
-        h_fig = make_plot(d)
         
         if self._reco_keys:
             h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
@@ -657,7 +657,7 @@ class VertexPerformance:
         else:
             h_fig = make_plot(d)
             d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
+            # d_energy['savefig'] = img_address
             _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
 
         #* Load img with PIL - this format can be logged
@@ -669,7 +669,6 @@ class VertexPerformance:
         # * Save y next
         img_address = get_project_root()+self.model_dir+'/figures/yVertexPerformance.png'
         d = self.get_y_dict()
-        h_fig = make_plot(d)
         
         if self._reco_keys:
             h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
@@ -695,7 +694,6 @@ class VertexPerformance:
         # * Save z
         img_address = get_project_root()+self.model_dir+'/figures/zVertexPerformance.png'
         d = self.get_z_dict()
-        h_fig = make_plot(d)
         
         if self._reco_keys:
             h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
@@ -721,7 +719,6 @@ class VertexPerformance:
         # * Save time last
         img_address = get_project_root()+self.model_dir+'/figures/tVertexPerformance.png'
         d = self.get_t_dict()
-        h_fig = make_plot(d)
         
         if self._reco_keys:
             h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
@@ -894,7 +891,7 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
     """    
     
     plt.style.use('default')
-    alpha = 0.25
+    alpha = 0.3
     if 'grid' in plot_dict:
         grid_on = plot_dict['grid']
     else:
@@ -913,7 +910,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
                 h_axis = h_figure.axes[axes_index].twinx()
     
     if 'subplot' in plot_dict:
-        h_axis = h_figure.add_axes(position)
+        # * By default, x-axis is shared
+        h_axis = h_figure.add_axes(position, sharex=h_figure.axes[0])
     
     #* Make a xy-plot
     if 'x' in plot_dict and 'y' in plot_dict:
@@ -1070,7 +1068,16 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
             h_axis.axhline(y=hline, color = 'k', ls = '--')
 
     if grid_on:
+        if 'y_major_ticks_multiple' in plot_dict:
+            multiple = plot_dict['y_major_ticks_multiple']
+            h_axis.yaxis.set_major_locator(MultipleLocator(multiple))
+        if 'y_minor_ticks_multiple' in plot_dict:
+            multiple = plot_dict['y_minor_ticks_multiple']
+            major_ticks = h_axis.get_yticks()
+            major_size = abs(major_ticks[0]-major_ticks[1])
+            h_axis.yaxis.set_minor_locator(MultipleLocator(multiple*major_size))
         h_axis.grid(alpha=alpha)
+        h_axis.grid(True, which='minor', alpha=alpha)#, linestyle='--')
 
     if 'text' in plot_dict:
         plt.text(*plot_dict['text'], transform=h_axis.transAxes)

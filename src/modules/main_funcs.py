@@ -273,83 +273,91 @@ def predict(save_dir, wandb_ID=None):
     print('\n', strftime("%d/%m %H:%M", localtime()), ': Prediction begun.')
     pred_filename = str(best_pars).split('.pth')[0].split('/')[-1]
     pred_full_address = save_dir+'/data/predict'+pred_filename+'.h5'
-    data_dir = data_pars['data_dir'] # * Where to load data from
-    N_FILES = len(list(Path(get_project_root()+data_dir).glob('*.h5')))
     i_file = 0
     n_predicted = 0
     n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
 
+    # * Create list of files to predict on - either load it from model-directory if specific files are to be predicted on or iterate over the data directory
+    path = get_project_root() + data_pars['data_dir']
+    try:
+        with open(save_dir+'/test_files.pickle', 'rb') as f:
+            file_list = pickle.load(f)
+        file_list = sorted([get_project_root()+file for file in file_list])
+        USE_WHOLE_FILE = True
+    except FileNotFoundError: 
+        file_list = sorted([str(file) for file in Path(path).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)])
+        USE_WHOLE_FILE = False
+
+    N_FILES = len(file_list)
     with h5.File(pred_full_address, 'w') as f:
         
-        for file in Path(get_project_root()+data_dir).iterdir():
-            if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
+        for file in file_list:
+            # * Do not predict more than wanted - takes up space aswell...
+            if n_predicted >= n_predictions_wanted:
+                break
 
-                # * Do not predict more than wanted - takes up space aswell...
-                if n_predicted >= n_predictions_wanted:
-                    break
+            i_file += 1
+            i_str = str(i_file)
+            print('%s/%d: Predicting on %s'%(i_str, N_FILES, get_path_from_root(str(file))))
+            # * Extract validation data
+            val_set = load_predictions(data_pars, meta_pars, 'val', file, use_whole_file=USE_WHOLE_FILE)
+            predictions = {key: [] for key in val_set.targets}
+            truths = {key: [] for key in val_set.targets}
 
-                i_file += 1
-                i_str = str(i_file)
-                print('%s/%d: Predicting on %s'%(i_str, N_FILES, get_path_from_root(str(file))))
-                # * Extract validation data
-                val_set = load_predictions(data_pars, meta_pars, 'val', file)
-                predictions = {key: [] for key in val_set.targets}
-                truths = {key: [] for key in val_set.targets}
+            error_from_preds = {}
 
-                error_from_preds = {}
+            # * Predict 
+            VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
+            dataloader_params = {'batch_size': VAL_BATCH_SIZE, 'shuffle': False, 'num_workers': 8}
 
-                # * Predict 
-                VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
-                dataloader_params = {'batch_size': VAL_BATCH_SIZE, 'shuffle': False, 'num_workers': 8}
+            # * Setup generators
+            collate_fn = get_collate_fn(data_pars)
+            indices = sort_indices(val_set, data_pars, dataloader_params=dataloader_params)
+            val_generator = data.DataLoader(val_set, **dataloader_params, collate_fn=collate_fn)
 
-                # * Setup generators
-                collate_fn = get_collate_fn(data_pars)
-                indices = sort_indices(val_set, data_pars, dataloader_params=dataloader_params)
-                val_generator = data.DataLoader(val_set, **dataloader_params, collate_fn=collate_fn)
-
-                # * Use IGNITE to predict
-                def log_prediction(engine):
-                    pred, truth = engine.state.output[0], engine.state.output[1]
-                    
-                    # * give list of functions to calculate
-                    for i_batch in range(pred.shape[0]):
-                        for i_key, key in enumerate(predictions):
-                            predictions[key].append(pred[i_batch, i_key])
-                            truths[key].append(truth[i_batch, i_key])
+            # * Use IGNITE to predict
+            def log_prediction(engine):
+                pred, truth = engine.state.output[0], engine.state.output[1]
                 
-                evaluator_val = create_supervised_evaluator(model, device=device)
-                evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
-                evaluator_val.run(val_generator)
+                # * give list of functions to calculate
+                for i_batch in range(pred.shape[0]):
+                    for i_key, key in enumerate(predictions):
+                        predictions[key].append(pred[i_batch, i_key])
+                        truths[key].append(truth[i_batch, i_key])
+            
+            evaluator_val = create_supervised_evaluator(model, device=device)
+            evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
+            evaluator_val.run(val_generator)
 
-                # * Sort w.r.t. index before saving
-                for key, values in predictions.items():
-                    _, sorted_vals = sort_pairs(indices, values)
-                    predictions[key] = sorted_vals
-                # * Sort w.r.t. index before saving
-                for key, values in truths.items():
-                    _, sorted_vals = sort_pairs(indices, values)
-                    truths[key] = sorted_vals
-                indices = sorted(indices)
+            # * Sort w.r.t. index before saving
+            for key, values in predictions.items():
+                _, sorted_vals = sort_pairs(indices, values)
+                predictions[key] = sorted_vals
+            # * Sort w.r.t. index before saving
+            for key, values in truths.items():
+                _, sorted_vals = sort_pairs(indices, values)
+                truths[key] = sorted_vals
+            indices = sorted(indices)
 
-                # * Run predictions through desired functions - transform back to 'true' values, if transformed
-                predictions_transformed = inverse_transform(predictions, save_dir)
-                truths_transformed = inverse_transform(truths, save_dir)
+            # * Run predictions through desired functions - transform back to 'true' values, if transformed
+            predictions_transformed = inverse_transform(predictions, save_dir)
+            truths_transformed = inverse_transform(truths, save_dir)
 
-                eval_functions = get_eval_functions(meta_pars)
-                for func in eval_functions:
-                    error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
+            eval_functions = get_eval_functions(meta_pars)
+            for func in eval_functions:
+                error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
 
-                # * Save predictions
-                name = str(file).split('.')[-2].split('/')[-1]
-                grp = f.create_group(name)
-                grp.create_dataset('index', data=np.array(indices))
-                
-                for key, pred in predictions.items():
-                    grp.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
-                for key, pred in error_from_preds.items():
-                    grp.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
-                
-                n_predicted += len(val_set)
+            # * Save predictions
+            name = str(file).split('.')[-2].split('/')[-1]
+            grp = f.create_group(name)
+            grp.create_dataset('index', data=np.array(indices))
+            
+            for key, pred in predictions.items():
+                grp.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
+            for key, pred in error_from_preds.items():
+                grp.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
+            
+            n_predicted += len(val_set)
                 
         print(strftime("%d/%m %H:%M", localtime()), ': Predictions finished!')
 
@@ -432,17 +440,25 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     EARLY_STOP_PATIENCE = hyper_pars['early_stop_patience']
     LOG_EVERY = meta_pars.get('log_every', 200000) # ! 200000 chosen as a default parameter
 
-    print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
-    train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train')
-    
     # * Only calculate train error on a fraction of the training data - a fraction equal to val. frac.
     data_pars_copy = data_pars.copy()
     hyper_pars_copy = hyper_pars.copy()
     data_pars_copy['train_frac'] = data_pars['val_frac']
     data_pars_copy['n_train_events_wanted'] = data_pars.get('n_val_events_wanted', np.inf)
     hyper_pars_copy['batch_size'] = data_pars['val_batch_size']
-    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train')
-    val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val')
+    
+    print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
+    # * Split data into train-, val.- and test-sets
+    train_paths, val_paths, test_paths = split_files_in_dataset(data_pars['data_dir'], train_frac=data_pars['train_frac'], val_frac=data_pars['val_frac'], test_frac=data_pars['test_frac'], particle=data_pars['particle'])
+    if log:
+        pickle.dump(train_paths, open(save_dir+'/train_files.pickle', 'wb'))
+        pickle.dump(val_paths, open(save_dir+'/val_files.pickle', 'wb'))
+        pickle.dump(test_paths, open(save_dir+'/test_files.pickle', 'wb'))
+    
+    # * Now load data
+    train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train', file_list=train_paths)
+    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train', file_list=train_paths)
+    val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val', file_list=val_paths)
 
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)
@@ -608,6 +624,9 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
             # * Run evaluation on train- and validation-sets
             evaluator_train.run(trainerr_generator)
             evaluator_val.run(val_generator)
+            if data_pars['dataloader'] == 'FullBatchLoader':
+                trainerr_set.make_batches()
+                val_set.make_batches()
             
             # * Log maximum memory allocated and speed.
             if log:
@@ -693,7 +712,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     else:
         save_dir = None
         wandb_ID = None
-
+    
     # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
     if meta_pars['objective'] == 'continue_training':
         hyper_pars, data_pars, architecture_pars = update_model_pars(hyper_pars, data_pars, meta_pars)
