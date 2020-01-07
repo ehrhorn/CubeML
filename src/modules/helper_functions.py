@@ -57,7 +57,7 @@ def apply_mask(file, mask_name='None', min_doms=0, max_doms=np.inf):
     Returns:
         [list] -- indices of events satisfying criterion.
     """
-    
+
     if mask_name == 'None':
         with h5.File(file, 'r') as f:
             n = f['meta/events'][()]
@@ -876,6 +876,8 @@ def get_target_keys(data_pars, meta_pars):
             target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
         elif meta_pars['group'] == 'vertex_reg':
             target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z', 'true_primary_time']
+        elif meta_pars['group'] == 'vertex_reg_no_time':
+            target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z']
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
     

@@ -519,23 +519,20 @@ class VertexPerformance:
         if dataset_name == 'MuonGun_Level2_139008':
             reco_keys = None
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
+            if self.meta_pars['group'] == 'vertex_reg':
+                reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
+            elif self.meta_pars['group'] == 'vertex_reg_no_time':
+                reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
         else:
             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
         
         return reco_keys
     
     def _create_performance_plots(self, pred_dict, true_dict):
-        # energy = read_h5_directory(self.data_pars['data_dir'], self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
-        # energy = true_dict[self._energy_key[0]]
-        # print(energy)
         # * Transform back and extract values into list
-        # energy = inverse_transform(energy, get_project_root() + self.model_dir)
         true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
         energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
     
-        # for key, items in energy.items():
-            # energy = convert_to_proper_list(list(items))
         self.counts, self.bin_edges = np.histogram(energy, bins=12)
         
         x_error = pred_dict['vertex_x_error']
@@ -553,29 +550,36 @@ class VertexPerformance:
         self.z_sigmas, self.z_errors = calc_perf2_as_fn_of_energy(energy, z_error, self.bin_edges)
         print('Calculation finished!')
 
-        t_error = pred_dict['vertex_t_error']
-        print('\nCalculating time performance...')
-        self.t_sigmas, self.t_errors = calc_perf2_as_fn_of_energy(energy, t_error, self.bin_edges)
-        print('Calculation finished!')
+        try:
+            t_error = pred_dict['vertex_t_error']
+            print('\nCalculating time performance...')
+            self.t_sigmas, self.t_errors = calc_perf2_as_fn_of_energy(energy, t_error, self.bin_edges)
+            print('Calculation finished!')
+        except KeyError:
+            pass
 
         # * If an I3-reconstruction exists, get it
         if self._reco_keys:
-            # pred_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
-            # true = read_h5_directory(self.data_pars['data_dir'], self._true_xyzt_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
-
-            # # * Ensure keys are proper so the angle calculations work
-            # true = inverse_transform(true, get_project_root() + self.model_dir)
+            # * Ensure keys are proper so the angle calculations work
             pred_crs = {key: true_transformed[key] for key in self._reco_keys}
-            pred_crs = convert_keys(pred_crs, self._reco_keys, ['x', 'y', 'z', 't'])
+            if self.meta_pars['group'] == 'vertex_reg':
+                vertex_keys = ['x', 'y', 'z', 't']
+            elif self.meta_pars['group'] == 'vertex_reg_no_time':
+                vertex_keys = ['x', 'y', 'z']
+
+            pred_crs = convert_keys(pred_crs, self._reco_keys, vertex_keys)
 
             true = {key: true_transformed[key] for key in self._true_xyzt_keys}
-            true = convert_keys(true, self._true_xyzt_keys, ['x', 'y', 'z', 't'])
+            true = convert_keys(true, self._true_xyzt_keys, vertex_keys)
             true = { key: convert_to_proper_list(item) for key, item in true.items() }
 
             x_crs_error = vertex_x_error(pred_crs, true)
             y_crs_error = vertex_y_error(pred_crs, true)
             z_crs_error = vertex_z_error(pred_crs, true)
-            t_crs_error = vertex_t_error(pred_crs, true)
+            try:
+                t_crs_error = vertex_t_error(pred_crs, true)
+            except KeyError:
+                pass
 
             print('\nCalculating crs x performance...')
             self.x_crs_sigmas, self.x_crs_errors = calc_perf2_as_fn_of_energy(energy, x_crs_error, self.bin_edges)
@@ -588,10 +592,13 @@ class VertexPerformance:
             print('\nCalculating crs z performance...')
             self.z_crs_sigmas, self.z_crs_errors = calc_perf2_as_fn_of_energy(energy, z_crs_error, self.bin_edges)
             print('Calculation finished!')
-
-            print('\nCalculating crs time performance...')
-            self.t_crs_sigmas, self.t_crs_errors = calc_perf2_as_fn_of_energy(energy, t_crs_error, self.bin_edges)
-            print('Calculation finished!')
+            
+            try:
+                print('\nCalculating crs time performance...')
+                self.t_crs_sigmas, self.t_crs_errors = calc_perf2_as_fn_of_energy(energy, t_crs_error, self.bin_edges)
+                print('Calculation finished!')
+            except UnboundLocalError:
+                pass
 
             # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive result
             rel_e, sigma_rel = calc_relative_error(self.x_crs_sigmas, self.x_sigmas, self.x_crs_errors, self.x_errors)
@@ -603,8 +610,11 @@ class VertexPerformance:
             rel_e, sigma_rel = calc_relative_error(self.z_crs_sigmas, self.z_sigmas, self.z_crs_errors, self.z_errors)
             self.z_relative_improvements, self.z_sigma_improvements = -rel_e, sigma_rel
 
-            rel_e, sigma_rel = calc_relative_error(self.t_crs_sigmas, self.t_sigmas, self.t_crs_errors, self.t_errors)
-            self.t_relative_improvements, self.t_sigma_improvements = -rel_e, sigma_rel
+            try:
+                rel_e, sigma_rel = calc_relative_error(self.t_crs_sigmas, self.t_sigmas, self.t_crs_errors, self.t_errors)
+                self.t_relative_improvements, self.t_sigma_improvements = -rel_e, sigma_rel
+            except AttributeError:
+                pass
         
         else:
             self.x_relative_improvements = None
@@ -724,28 +734,31 @@ class VertexPerformance:
         
 
         # * Save time last
-        img_address = get_project_root()+self.model_dir+'/figures/tVertexPerformance.png'
-        d = self.get_t_dict()
-        
-        if self._reco_keys:
-            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
-            d = self.get_rel_t_dict()
-            d['subplot'] = True
-            d['axhline'] = [0.0]
-            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-        else:
-            h_fig = make_plot(d)
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
+        try:
+            img_address = get_project_root()+self.model_dir+'/figures/tVertexPerformance.png'
+            d = self.get_t_dict()
+            
+            if self._reco_keys:
+                h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
+                d = self.get_rel_t_dict()
+                d['subplot'] = True
+                d['axhline'] = [0.0]
+                h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
+                d_energy = self.get_energy_dict()
+                d_energy['savefig'] = img_address
+                _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
+            else:
+                h_fig = make_plot(d)
+                d_energy = self.get_energy_dict()
+                d_energy['savefig'] = img_address
+                _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
 
-        #* Load img with PIL - this format can be logged
-        if self.wandb_ID is not None:
-            im = PIL.Image.open(img_address)
-            wandb.log({'tVertexPerformance': wandb.Image(im, caption='tVertexPerformance')}, commit = False)
+            #* Load img with PIL - this format can be logged
+            if self.wandb_ID is not None:
+                im = PIL.Image.open(img_address)
+                wandb.log({'tVertexPerformance': wandb.Image(im, caption='tVertexPerformance')}, commit = False)
+        except AttributeError:
+            pass
 
         perf_savepath = get_project_root() + self.model_dir + '/data/VertexPerformance.pickle'
         with open(perf_savepath, 'wb') as f:
@@ -872,7 +885,7 @@ def log_performance_plots(model_dir, wandb_ID=None):
         perf = DirErrorPerformance(model_dir, wandb_ID=wandb_ID)
         perf.save()
 
-    elif meta_pars['group'] == 'vertex_reg':
+    elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
         vertex_perf = VertexPerformance(model_dir, wandb_ID=wandb_ID)
         vertex_perf.save()
     else:
@@ -1118,7 +1131,7 @@ def summarize_model_performance(model_dir, wandb_ID=None):
 
         onenum_performance = direrrperf_class.median
     
-    elif meta_pars['group'] == 'vertex_reg':
+    elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
         vertex_err_path = model_dir + '/data/VertexPerformance.pickle'
         vertex_err_perf_class = pickle.load( open( vertex_err_path, "rb" ) )
 

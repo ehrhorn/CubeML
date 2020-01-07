@@ -31,8 +31,8 @@ if __name__ == '__main__':
     data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
     pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
 
-    # * Options: 'full_reg', 'direction_reg', 'vertex_reg'
-    regression_type = 'vertex_reg'
+    # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time'
+    regression_type = 'vertex_reg_no_time'
 
     # * Options: 'train_new', 'continue_training', 'explore_lr'
     objective = 'train_new'
