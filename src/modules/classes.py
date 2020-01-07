@@ -443,10 +443,11 @@ class FullBatchLoader(data.Dataset):
         self.file_order = []
         self.batches = []
         self._file_list = file_list
+        self._len = None # * is calculated in _get_meta_information()
 
         self._get_meta_information()
         self.make_batches()
-
+       
     def __getitem__(self, index):
         # * Find right file and get sorted indices to load
         fname = self.batches[index]['path']
@@ -505,7 +506,7 @@ class FullBatchLoader(data.Dataset):
         return batch
 
     def __len__(self):
-        return self.n_events_wanted//self.batch_size
+        return self._len
     
     def __repr__(self):
         return 'FullBatchLoader'
@@ -539,6 +540,7 @@ class FullBatchLoader(data.Dataset):
                 n_batches += int(len(indices)/self.batch_size)
                 ID += 1
         
+        self._len = n_events//self.batch_size if self.n_events_wanted == np.inf else self.n_events_wanted//self.batch_size
         self.n_batches_total = n_batches
             
     def _get_from_to(self):

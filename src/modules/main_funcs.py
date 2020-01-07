@@ -299,7 +299,7 @@ def predict(save_dir, wandb_ID=None):
 
             i_file += 1
             i_str = str(i_file)
-            print('Progress: %.0f \%. Predicting on %s'%(n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
+            print('Progress: %.0f %%. Predicting on %s'%(n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
             
             # * Extract validation data
             val_set = load_predictions(data_pars, meta_pars, 'val', file, use_whole_file=USE_WHOLE_FILE)
@@ -350,7 +350,8 @@ def predict(save_dir, wandb_ID=None):
                 error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
 
             # * Save predictions
-            name = str(file).split('.')[-2].split('/')[-1]
+            # name = str(file).split('.')[-2].split('/')[-1]
+            name = Path(file).stem
             grp = f.create_group(name)
             grp.create_dataset('index', data=np.array(indices))
             
@@ -610,6 +611,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
 
     # * Call evaluator after each iteration - only evaluate after each LOG_EVERY events
     def evaluate(trainer):
+
         if trainer.state.iteration%(int(LOG_EVERY/BATCH_SIZE)) == 0:
             print('\nEvent %d completed'%(trainer.state.iteration*BATCH_SIZE),strftime("%d/%m %H:%M", localtime()))
 

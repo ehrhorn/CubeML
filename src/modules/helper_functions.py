@@ -893,7 +893,8 @@ def inverse_transform(data, model_dir):
     else:
         for key in data:
 
-            if transformers[key] == None: 
+            # * If key is not in transformers, it shouldn't be transformed
+            if transformers.get(key, None) == None: 
                 transformed[key] = data[key]
 
             # * The reshape is required for scikit to function...
@@ -906,34 +907,34 @@ def inverse_transform(data, model_dir):
 
     return transformed
 
-# TODO: delete inverse_transform_predictions and only use inverse_transform, predict() needs adjusting
-def inverse_transform_predictions(preds, keys, model_dir):
+# # TODO: delete inverse_transform_predictions and only use inverse_transform, predict() needs adjusting
+# def inverse_transform_predictions(preds, keys, model_dir):
 
-    try:
-        transformers = pickle.load( open(model_dir+'/transformers.pickle', "rb"))
-    except FileNotFoundError:
-        transformers = None
-    transformed = {}
+#     try:
+#         transformers = pickle.load( open(model_dir+'/transformers.pickle', "rb"))
+#     except FileNotFoundError:
+#         transformers = None
+#     transformed = {}
     
-    if transformers == None:
-        for key in keys:
-            transformed[key] = preds[key]
+#     if transformers == None:
+#         for key in keys:
+#             transformed[key] = preds[key]
     
-    else:
-        for key in keys:
+#     else:
+#         for key in keys:
 
-            if transformers[key] == None: 
-                transformed[key] = preds[key]
+#             if transformers[key] == None: 
+#                 transformed[key] = preds[key]
 
-            # * The reshape is required for scikit to function...
-            else: 
-                # * Input might be given as a dictionary of lists
-                try: 
-                    transformed[key] = transformers[key].inverse_transform(preds[key].reshape(-1, 1))
-                except AttributeError: 
-                    transformed[key] = transformers[key].inverse_transform(np.array(preds[key]).reshape(-1, 1))
+#             # * The reshape is required for scikit to function...
+#             else: 
+#                 # * Input might be given as a dictionary of lists
+#                 try: 
+#                     transformed[key] = transformers[key].inverse_transform(preds[key].reshape(-1, 1))
+#                 except AttributeError: 
+#                     transformed[key] = transformers[key].inverse_transform(np.array(preds[key]).reshape(-1, 1))
 
-    return transformed
+#     return transformed
 
 def load_model_pars(model_dir):
     """Loads and returns hyperparameters, datapatameters, architectureparameters and metaparameters from a model directory
@@ -1213,7 +1214,7 @@ def read_predicted_h5_data(file_address, keys, data_pars, true_keys):
     dummy_key = next(iter(preds))
     filenames = preds[dummy_key].keys()
     for file in filenames:
-        # * Fetch the file in question
+        # * Fetch the file in question and load the indices of the predictions for the raw file
         path = get_project_root()+data_dir
         file_path = next(iter(Path(path).glob('*'+file+'.h5')))
         indices = preds['indices'][file]

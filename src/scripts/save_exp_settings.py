@@ -67,10 +67,10 @@ if __name__ == '__main__':
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
-                                        'max_lr':          6e-3,
+                                        'max_lr':          5e-3,
                                         'min_lr':          5e-6,
-                                        'frac_up':         0.17,
-                                        'frac_down':       0.83,
+                                        'frac_up':         0.14,
+                                        'frac_down':       1-0.14,
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
@@ -86,14 +86,14 @@ if __name__ == '__main__':
                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
                 'n_val_events_wanted':   50000,# np.inf,
                 'n_train_events_wanted': np.inf,
-                'n_predictions_wanted': 100000,
+                'n_predictions_wanted': 800000,
                 'train_frac':  0.80,
                 'val_frac':    0.10,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      256
+                'val_batch_size':      512
                 }
 
 
@@ -113,10 +113,10 @@ if __name__ == '__main__':
                                                 # {'SelfAttention':   {'input_sizes':        [64, 64],
                                                 #                      'LayerNorm':          True,
                                                 #                      'Residual':           True,}},
-                                                {'LSTM':            {'input_sizes':        [64, 1028],
+                                                {'LSTM':            {'input_sizes':        [64, 512],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       True}},
-                                                {'Linear':          {'input_sizes':        [1028+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
