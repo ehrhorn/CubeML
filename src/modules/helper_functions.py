@@ -40,6 +40,38 @@ class lr_watcher:
 
         return factor
 
+def apply_mask(file, mask_name='None', min_doms=0, max_doms=np.inf):
+    """Given a path to a h5-file with data, the indices of the events satisfying a criterion are extracted.
+    
+    Arguments:
+        file {str or pathlib.Path} -- absolute path to h5-datafile
+    
+    Keyword Arguments:
+        mask_name {str} -- Name of mask. The mask is associated with a user-defined criterion (default: {'None'})
+        min_doms {int} -- Minimum amount of activated doms for an event to pass the test (default: {0})
+        max_doms {int} -- Maximum amount. (default: {Infinity})
+    
+    Raises:
+        ValueError: If an unknown mask_name is given
+    
+    Returns:
+        [list] -- indices of events satisfying criterion.
+    """
+
+    if mask_name == 'None':
+        with h5.File(file, 'r') as f:
+            n = f['meta/events'][()]
+            indices = np.arange(n)
+    
+    elif mask_name == 'dom_interval':
+        with h5.File(file, 'r') as f:
+            n_doms = np.array([max_doms >= x.shape[0] >= min_doms for x in f['raw/dom_charge']])
+            indices = np.where(n_doms)[0]
+    else:
+        raise ValueError('No mask supplied!')
+    
+    return indices
+
 def append_list_and_save(list_address, item):
     """Opens or creates a .pickle-file containing a list and appends a number to it.
     
@@ -844,6 +876,8 @@ def get_target_keys(data_pars, meta_pars):
             target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
         elif meta_pars['group'] == 'vertex_reg':
             target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z', 'true_primary_time']
+        elif meta_pars['group'] == 'vertex_reg_no_time':
+            target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z']
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
     

@@ -116,149 +116,28 @@ class LstmLoader(data.Dataset):
     def __len__(self):
         return self.scalar_features[next(iter(self.scalar_features))].shape[0]
 
-class CnnLoader(data.Dataset):
-    def __init__(
-        self,
-        directory,
-        file_keys,
-        targets,
-        scalar_features,
-        seq_features,
-        set_type,
-        train_frac,
-        val_frac,
-        test_frac,
-        longest_seq
-    ):   
-        root = get_project_root()
-        directory = root + directory
-        #* Retrieve wanted cleaning level and transformation
-        data_address = 'transform' + str(file_keys['transform']) + '/'
-        self.longest_seq = longest_seq
-    
-        #* Loop over files in directory - first time to get number of datapoints
-        n_data = 0
-        for file in Path(directory).iterdir():
-            if str(file).split('.')[-1] == 'h5':
-                with h5.File(file, 'r') as f:
-                    n_data_in_file = f['meta/events'][()]
-                    n_train, n_val, n_test = get_n_train_val_test(
-                        n_data_in_file,
-                        train_frac,
-                        val_frac,
-                        test_frac
-                    )
-                    if set_type == 'train':
-                        n_data += n_train
-                    elif set_type == 'val':
-                        n_data += n_val
-                    else:
-                        n_data += n_test
-        #* Initialize dataholders
-        self.scalar_features = {
-            key: np.empty(n_data) for key in scalar_features
-        }
-        self.seq_features = {
-            key: [
-                np.zeros(self.longest_seq) for i in range(n_data)
-            ] for key in seq_features
-        }
-        self.targets = {key: np.empty(n_data) for key in targets}
-        added = 0
-        # * Actually load the data
-        for file in Path(directory).iterdir():
-            if str(file).split('.')[-1] == 'h5':
-                with h5.File(file, 'r') as f:
-                    n_events = f['meta/events'][()]
-                    # * Get indices
-                    if set_type == 'train':
-                        indices, _, _ = get_train_val_test_indices(
-                            n_events,
-                            train_frac=train_frac,
-                            val_frac=val_frac,
-                            test_frac=test_frac,
-                            shuffle=False
-                        )
-                    elif set_type == 'val':
-                        _, indices, _ = get_train_val_test_indices(
-                            n_events,
-                            train_frac=train_frac,
-                            val_frac=val_frac,
-                            test_frac=test_frac,
-                            shuffle=False
-                        )
-                    else:
-                        _, _, indices = get_train_val_test_indices(
-                            n_events,
-                            train_frac=train_frac,
-                            val_frac=val_frac,
-                            test_frac=test_frac,
-                            shuffle=False
-                        )
-                    # * Append to or make dictionaries of data
-                    n_to_add = len(indices)
-                    for key in scalar_features:                        
-                        try:
-                            self.scalar_features[key][added:added + n_to_add] = f[data_address + key][indices]
-                        # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
-                        except KeyError:
-                            self.scalar_features[key][added:added + n_to_add] = f['raw/' + key][indices]
-                    for key in seq_features:
-                        for no, index in zip(range(added, n_to_add + 1), indices):
-                            seq_data = f[data_address + key][index]
-                            self.seq_features[key][no][0:len(seq_data)] = seq_data
-                    for key in targets:
-                        try:
-                            self.targets[key][added:added + n_to_add] = f[data_address + key][indices]
-                        # * If key does not exist, it means the key hasn't been transformed - it is therefore located raw/key
-                        except KeyError:
-                            self.targets[key][added:added + n_to_add] = f['raw/' + key][indices]
-
-                    added += n_to_add
-        self.n_scalar_vars = len(scalar_features)
-        self.n_seq_vars = len(seq_features)
-        self.n_targets = len(targets)
-    def __getitem__(self, index):
-        seq_len = self.longest_seq
-        seq_array = np.empty((self.n_seq_vars, seq_len))
-        for i, key in enumerate(self.seq_features):
-            seq_array[i, :] = self.seq_features[key][index]
-        scalar_array = np.empty(self.n_scalar_vars)
-        for i, key in enumerate(self.scalar_features):
-            scalar_array[i] = self.scalar_features[key][index]
-        targets_array = np.empty(self.n_targets)
-        for i, key in enumerate(self.targets):
-            targets_array[i] = self.targets[key][index]
-        if len(self.scalar_features) == 0:
-            out = (seq_array, targets_array)
-            return out
-        else:
-            return (seq_array, scalar_array, targets_array)
-    def __len__(self):
-        return self.targets[next(iter(self.targets))].shape[0]
-
 class LstmPredictLoader(data.Dataset):
     '''Loads a datafile and returns a data.Dataset object for PyTorch's dataloader. The object has the indices of the data from its parent datafile.
     '''
-    def __init__(self, file, file_keys, targets, scalar_features, seq_features, set_type, train_frac, val_frac, test_frac):   
+    def __init__(self, file, file_keys, targets, scalar_features, seq_features, set_type, train_frac, val_frac, test_frac, mask_dict={}):   
         # * Retrieve wanted cleaning level and transformation
         data_address = 'transform'+str(file_keys['transform'])+'/'
-        with h5.File(file, 'r') as f:
-            n_events = f['meta/events'][()]
+        
+        # * First, extract indices of all events satisfying the mask
+        viable_events = apply_mask(file, **mask_dict)
+        n_events = len(viable_events)
 
+        with h5.File(file, 'r') as f:
+            # n_events = f['meta/events'][()]
             # * Get indices
             if set_type == 'train':
                 indices = get_indices_from_fraction(n_events, 0.0, train_frac)
-                # * indices, _, _ = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
             elif set_type == 'val':
                 indices = get_indices_from_fraction(n_events, train_frac, train_frac+val_frac)
-
-                # * _, indices, _ = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
             else:
                 indices = get_indices_from_fraction(n_events, train_frac+val_frac, train_frac+val_frac+test_frac)
-
-                # * _, _, indices = get_train_val_test_indices(n_events, train_frac = train_frac, val_frac = val_frac, test_frac = test_frac, shuffle = False)
-
+            
+            indices = viable_events[indices]
             self.indices = indices
             self.scalar_features = {}
             self.seq_features = {}
@@ -420,7 +299,7 @@ class FullBatchLoader(data.Dataset):
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and batch_size.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None, mask_dict={}):
 
         self.directory = get_project_root() + directory
         self.scalar_features = scalar_features
@@ -437,6 +316,8 @@ class FullBatchLoader(data.Dataset):
         self.test_frac = test_frac
         self.batch_size = batch_size
         self.prefix = prefix
+        self._mask_dict = mask_dict
+
         self.file_path = {}
         self.file_indices = {}
         self.n_batches = {}
@@ -524,13 +405,14 @@ class FullBatchLoader(data.Dataset):
             # if n_events > self.n_events_wanted:
             #     break
             path = get_project_root()+rel_path
+            indices = apply_mask(path, **self._mask_dict)
 
             with h5.File(path, 'r') as f:
 
-                n_data_in_file = f['meta/events'][()]
-                indices = get_indices_from_fraction(n_data_in_file, 0, 1)
+                # n_data_in_file = f['meta/events'][()]
+                # indices = get_indices_from_fraction(n_data_in_file, 0, 1)
                 file_ID = str(ID)
-                print('indices end: %d, len: %d, n_data: %d'%(indices[-1], len(indices), n_data_in_file))
+                
                 # * Ignore last batch if not a full batch
                 self.file_path[file_ID] = path
                 self.file_indices[file_ID] = indices
@@ -583,10 +465,15 @@ class FullBatchLoader(data.Dataset):
             #     break
             
             if file.suffix == '.h5':
+                
+                # * First, extract indices of all events satisfying the mask
+                viable_events = apply_mask(file, **self._mask_dict)
                 with h5.File(file, 'r') as f:
-
-                    n_data_in_file = f['meta/events'][()]
+                    
+                    # * Now split into test, train and val
+                    n_data_in_file = viable_events.shape[0]
                     indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac)
+                    indices = viable_events[indices]
                     file_ID = str(ID)
                    
                     # * Ignore last batch if not a full batch

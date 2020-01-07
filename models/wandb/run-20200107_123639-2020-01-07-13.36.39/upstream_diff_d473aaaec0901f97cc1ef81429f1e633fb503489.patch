@@ -1,0 +1,78 @@
+diff --git a/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/.gitignore b/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/.gitignore
+index 0899152..f02a1e4 100644
+--- a/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/.gitignore
++++ b/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/.gitignore
+@@ -56,3 +56,5 @@
+ /2020-01-07-11.36.06
+ /2020-01-07-11.38.08
+ /2020-01-07-11.48.28
++/test_2020.01.07-13.29.50
++/test_2020.01.07-13.32.29
+diff --git a/models/wandb/.gitignore b/models/wandb/.gitignore
+index ac1562c..6fd5951 100644
+--- a/models/wandb/.gitignore
++++ b/models/wandb/.gitignore
+@@ -188,3 +188,6 @@
+ /run-20200107_103606-2020-01-07-11.36.06
+ /run-20200107_103808-2020-01-07-11.38.08
+ /run-20200107_104828-2020-01-07-11.48.28
++/run-20200107_122950-test_2020.01.07-13.29.50
++/run-20200107_123229-test_2020.01.07-13.32.29
++/run-20200107_123229-test_2020.01.07-13.32.29
+diff --git a/src/modules/classes.py b/src/modules/classes.py
+index 87c7fa7..092ec88 100644
+--- a/src/modules/classes.py
++++ b/src/modules/classes.py
+@@ -530,7 +530,6 @@ class FullBatchLoader(data.Dataset):
+                 n_data_in_file = f['meta/events'][()]
+                 indices = get_indices_from_fraction(n_data_in_file, 0, 1)
+                 file_ID = str(ID)
+-                print('indices end: %d, len: %d, n_data: %d'%(indices[-1], len(indices), n_data_in_file))
+                 # * Ignore last batch if not a full batch
+                 self.file_path[file_ID] = path
+                 self.file_indices[file_ID] = indices
+@@ -1151,4 +1150,4 @@ def get_layer_names(arch_dict):
+                     layer_names.append(layer_name)
+             else:
+                 layer_names.append(layer_name)
+-    return layer_names
+\ No newline at end of file
++    return layer_names
+diff --git a/src/scripts/debugger.py b/src/scripts/debugger.py
+index 5764483..416b780 100644
+--- a/src/scripts/debugger.py
++++ b/src/scripts/debugger.py
+@@ -54,7 +54,7 @@ if __name__ == '__main__':
+                 'project':              project,
+                 'objective':            objective,
+                 'pretrained_path':      pretrained_path,
+-                'log_every':            20,
++                'log_every':            1000,
+                 'lr_scan':              args.scan_lr 
+                 }
+ 
+@@ -85,9 +85,9 @@ if __name__ == '__main__':
+                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
+                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
+                 'n_val_events_wanted':   100,# np.inf,
+-                'n_train_events_wanted': 100,
++                'n_train_events_wanted': np.inf,
+                 'n_predictions_wanted': 100,
+-                'train_frac':  0.01,
++                'train_frac':  0.001,
+                 'val_frac':    0.01,
+                 'test_frac':   0.0,
+                 'file_keys':             {'transform':   1},
+diff --git a/src/scripts/save_exp_settings.py b/src/scripts/save_exp_settings.py
+index 9eee70b..b073a04 100644
+--- a/src/scripts/save_exp_settings.py
++++ b/src/scripts/save_exp_settings.py
+@@ -86,7 +86,7 @@ if __name__ == '__main__':
+                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
+                 'n_val_events_wanted':   50000,# np.inf,
+                 'n_train_events_wanted': np.inf,
+-                'n_predictions_wanted': 800000,
++                'n_predictions_wanted': np.inf,
+                 'train_frac':  0.80,
+                 'val_frac':    0.10,
+                 'test_frac':   0.0,

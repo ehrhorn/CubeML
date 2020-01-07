@@ -123,8 +123,10 @@ def get_eval_functions(meta_pars):
         eval_funcs = [relative_logE_error]
     elif regression_type == 'vertex_reg':
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error]
+    elif regression_type == 'vertex_reg_no_time':
+        eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error]
     else:
-        raise ValueError('Unknown regression type (%s) encountered!'%(regression_type))
+        raise ValueError('eval_funcs: Unknown regression type (%s) encountered!'%(regression_type))
 
     return eval_funcs
 

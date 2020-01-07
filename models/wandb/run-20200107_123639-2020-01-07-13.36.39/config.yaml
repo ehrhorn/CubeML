@@ -1,0 +1,139 @@
+wandb_version: 1
+
+Avg. Events/second (eval.):
+  desc: null
+  value: 7157.800020039092
+Avg. Events/second (train):
+  desc: null
+  value: 2142.182974547664
+Max memory allocated [MiB]:
+  desc: null
+  value: 3523.203125
+Model parameters:
+  desc: null
+  value: 2370056
+Trainset size:
+  desc: null
+  value: 5760000
+Val. set size:
+  desc: null
+  value: 49664
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.8.15
+    framework: torch
+    is_jupyter_run: false
+    python_version: 3.7.5
+batch_size:
+  desc: null
+  value: 128
+collate_fn:
+  desc: null
+  value: PadSequence
+data_dir:
+  desc: null
+  value: /data/oscnext-genie-level5-v01-01-pass2
+dataloader:
+  desc: null
+  value: FullBatchLoader
+early_stop_patience:
+  desc: null
+  value: 30
+file_keys:
+  desc: null
+  value:
+    transform: 1
+layers:
+  desc: null
+  value:
+  - Linear_embedder:
+      LayerNorm: true
+      input_sizes:
+      - 5
+      - 64
+  - LSTM:
+      bidirectional: true
+      dropout: 0.5
+      input_sizes:
+      - 64
+      - 512
+  - Linear:
+      input_sizes:
+      - 513
+      - 4
+      norm_before_nonlin: true
+loss_func:
+  desc: null
+  value: L2
+lr_finder:
+  desc: null
+  value:
+    end_lr: 0.1
+    n_epochs: 1
+    start_lr: 1.0e-06
+lr_schedule:
+  desc: null
+  value:
+    frac_down: 0.9
+    frac_up: 0.1
+    lr_scheduler: ExpOneCycleLR
+    max_lr: 0.005
+    min_lr: 5.0e-06
+max_epochs:
+  desc: null
+  value: 12
+n_predictions_wanted:
+  desc: null
+  value: .inf
+n_train_events_wanted:
+  desc: null
+  value: .inf
+n_val_events_wanted:
+  desc: null
+  value: 50000
+non_lin:
+  desc: null
+  value:
+    func: LeakyReLU
+norm:
+  desc: null
+  value:
+    momentum: 0.9
+    norm: null
+optimizer:
+  desc: null
+  value:
+    betas:
+    - 0.9
+    - 0.998
+    eps: 1.0e-09
+    lr: 1.0e-06
+    optimizer: Adam
+particle:
+  desc: null
+  value: muon_neutrino
+scalar_feat:
+  desc: null
+  value:
+  - dom_timelength_fwhm
+seq_feat:
+  desc: null
+  value:
+  - dom_charge
+  - dom_x
+  - dom_y
+  - dom_z
+  - dom_time
+test_frac:
+  desc: null
+  value: 0.0
+train_frac:
+  desc: null
+  value: 0.8
+val_batch_size:
+  desc: null
+  value: 512
+val_frac:
+  desc: null
+  value: 0.1

@@ -1,0 +1,1 @@
+{"non_lin": {"func": "LeakyReLU"}, "loss_func": "L2", "norm": {"norm": null, "momentum": 0.9}, "layers": [{"Linear_embedder": {"input_sizes": [5, 64], "LayerNorm": true}}, {"LSTM": {"input_sizes": [64, 512], "dropout": 0.5, "bidirectional": true}}, {"Linear": {"input_sizes": [513, 4], "norm_before_nonlin": true}}]}
