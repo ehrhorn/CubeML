@@ -530,18 +530,17 @@ class FullBatchLoader(data.Dataset):
                 n_data_in_file = f['meta/events'][()]
                 indices = get_indices_from_fraction(n_data_in_file, 0, 1)
                 file_ID = str(ID)
-                
+                print('indices end: %d, len: %d, n_data: %d'%(indices[-1], len(indices), n_data_in_file))
                 # * Ignore last batch if not a full batch
                 self.file_path[file_ID] = path
                 self.file_indices[file_ID] = indices
                 self.n_batches[file_ID] = int(len(indices)/self.batch_size)
 
                 n_events += len(indices)
-                n_batches += int(len(indices)/self.batch_size)
+                n_batches += len(indices)//self.batch_size
                 ID += 1
         
-        self._len = n_events//self.batch_size if self.n_events_wanted == np.inf else self.n_events_wanted//self.batch_size
-        self.n_batches_total = n_batches
+        self._n_batches_total = n_batches
             
     def _get_from_to(self):
         if self.type == 'train':
@@ -558,7 +557,13 @@ class FullBatchLoader(data.Dataset):
             self._split_in_files()
         else:
             self._extract_from_splitted_files()
-    
+
+        self._len = self._n_batches_total if self.n_events_wanted == np.inf else self.n_events_wanted//self.batch_size
+        
+        # * In case some weird n_events_wanted was chosen such that wanted/bs > n_batches
+        if self._len > n_batches:
+            self._len = n_batches
+            
     def _split_in_files(self):
         '''Extracts filenames, calculates indices induced by train-, val.- and test-fracs. 
         '''
@@ -594,7 +599,7 @@ class FullBatchLoader(data.Dataset):
                     n_batches += int(len(indices)/self.batch_size)
                     ID += 1
         
-        self.n_batches_total = n_batches
+        self._n_batches_total = n_batches
         
     def make_batches(self):
         '''Shuffles the INDICES from each file, the Torch dataloader fetches a batch from. For each file, self.n_batches dictionaries are made as {ID: shuffled_indices_to_load}. They are then extended to a list, which will contain all such dictionaries for all files. The final list is shuffled aswell. 
