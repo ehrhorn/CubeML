@@ -276,11 +276,11 @@ def predict(save_dir, wandb_ID=None):
     i_file = 0
     n_predicted = 0
     n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
-
+    
     # * Create list of files to predict on - either load it from model-directory if specific files are to be predicted on or iterate over the data directory
     path = get_project_root() + data_pars['data_dir']
     try:
-        with open(save_dir+'/test_files.pickle', 'rb') as f:
+        with open(save_dir+'/val_files.pickle', 'rb') as f:
             file_list = pickle.load(f)
         file_list = sorted([get_project_root()+file for file in file_list])
         USE_WHOLE_FILE = True
@@ -292,13 +292,15 @@ def predict(save_dir, wandb_ID=None):
     with h5.File(pred_full_address, 'w') as f:
         
         for file in file_list:
+            
             # * Do not predict more than wanted - takes up space aswell...
-            if n_predicted >= n_predictions_wanted:
+            if n_predicted > n_predictions_wanted:
                 break
 
             i_file += 1
             i_str = str(i_file)
-            print('%s/%d: Predicting on %s'%(i_str, N_FILES, get_path_from_root(str(file))))
+            print('Progress: %.0f \%. Predicting on %s'%(n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
+            
             # * Extract validation data
             val_set = load_predictions(data_pars, meta_pars, 'val', file, use_whole_file=USE_WHOLE_FILE)
             predictions = {key: [] for key in val_set.targets}
@@ -450,6 +452,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
     # * Split data into train-, val.- and test-sets
     train_paths, val_paths, test_paths = split_files_in_dataset(data_pars['data_dir'], train_frac=data_pars['train_frac'], val_frac=data_pars['val_frac'], test_frac=data_pars['test_frac'], particle=data_pars['particle'])
+    
     if log:
         pickle.dump(train_paths, open(save_dir+'/train_files.pickle', 'wb'))
         pickle.dump(val_paths, open(save_dir+'/val_files.pickle', 'wb'))

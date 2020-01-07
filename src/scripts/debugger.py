@@ -43,7 +43,7 @@ if __name__ == '__main__':
     error_func = 'L2'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
-    particle = 'tau_neutrino'
+    particle = 'muon_neutrino'
 
     # * Set project
     project = 'cubeml_test'
@@ -84,9 +84,9 @@ if __name__ == '__main__':
                 'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
-                'n_val_events_wanted':   40,# np.inf,
+                'n_val_events_wanted':   100,# np.inf,
                 'n_train_events_wanted': 100,
-                'n_predictions_wanted': 100,
+                'n_predictions_wanted': 0,
                 'train_frac':  0.005,
                 'val_frac':    0.005,
                 'test_frac':   0.0,

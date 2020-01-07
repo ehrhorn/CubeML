@@ -1084,7 +1084,7 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle=
 
     return model_dir
 
-def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indices=None):
+def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indices=[]):
     """Reads a dataset from a h5-file induced by key and prefix.
     
     Arguments:
@@ -1095,7 +1095,7 @@ def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indice
         prefix {str} -- a string to ensure correct path in file (path is prefix+'/'+key) (default: {''})
         from_frac {int} -- Used to calculate the index to read from. Index = int( n_data_in_file*from_frac+0.5 ) (default: {0})
         to_frac {int} -- Index to read to. Calculated as from_frac (default: {1})
-        indices {list} -- Optional list of indices to read (overwrites from_frac, to_frac) (default: {None})
+        indices {list} -- Optional list of indices to read (overwrites from_frac, to_frac) (default: {[]})
     
     Returns:
         array-like -- Array of desired dataset.
@@ -1103,7 +1103,7 @@ def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indice
 
     with h5.File(file_address, 'r') as f:
         n_events = f['meta/events'][()]
-        if indices == None:
+        if len(indices) == 0:
             indices = get_indices_from_fraction(n_events, from_frac, to_frac)
         
         # * If not transformed, it is found under raw/
@@ -1158,7 +1158,8 @@ def read_h5_directory(data_dir, keys, prefix=None, from_frac=0, to_frac=1, n_wan
 
     return values_sorted
 
-def read_predicted_h5_data(file_address, keys):
+# ! Should be deleted - deprecated
+def read_predicted_h5_data_old(file_address, keys):
     '''Reads predictions from a h5-file.
 
     Inputs
@@ -1180,6 +1181,50 @@ def read_predicted_h5_data(file_address, keys):
     values_sorted = sort_wrt_file_id(file_address, preds) 
 
     return values_sorted
+
+def read_predicted_h5_data(file_address, keys, data_pars, true_keys):
+    """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
+    
+    Arguments:
+        file_address {str} -- absolute path to predictions-file.
+        keys {list} -- names of datasets to read in predictions-file
+        data_pars {dict} -- dictionary containing data-parameters of the model.
+        true_keys {list} -- names of datasets to read in raw data-files.
+    
+    Returns:
+        dicts -- predictions_dict, raw_dict
+    """    
+
+    data_dir = data_pars['data_dir']
+    prefix = 'transform'+str(data_pars['file_keys']['transform'])
+
+    preds = {key: {} for key in keys}
+    preds['indices'] = {}
+    truths = {key: {} for key in true_keys}
+
+    # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
+    with h5.File(file_address, 'r') as f:
+        for dfile in f:
+            preds['indices'][str(dfile)] = f[dfile+'/index'][:]
+            for key in keys:
+                preds[key][str(dfile)] = f[dfile+'/'+key][:]
+
+    # * Now read the matching true values. The group-name from the predictions-file matches the raw data filename
+    dummy_key = next(iter(preds))
+    filenames = preds[dummy_key].keys()
+    for file in filenames:
+        # * Fetch the file in question
+        path = get_project_root()+data_dir
+        file_path = next(iter(Path(path).glob('*'+file+'.h5')))
+        indices = preds['indices'][file]
+        for key in true_keys:
+            truths[key][file] = read_h5_dataset(file_path, key, prefix=prefix, indices=indices)
+    
+    # * Sort wrt file index
+    preds_sorted = sort_wrt_file_id(file_address, preds) 
+    truths_sorted = sort_wrt_file_id(file_address, truths) 
+    
+    return preds_sorted, truths_sorted
 
 def remove_tests_modeldir(directory=get_project_root() + '/models/'):
     '''Deletes all cubeml_test-models and all models that failed during training.

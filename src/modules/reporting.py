@@ -449,7 +449,6 @@ class DirErrorPerformance:
 
 class VertexPerformance:
     """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
-    
     Raises:
         KeyError: If an unknown dataset is encountered.
     
@@ -467,7 +466,9 @@ class VertexPerformance:
         self.data_pars = data_pars
         self.meta_pars = meta_pars
         self.prefix = prefix
-        self.energy_key = self._get_energy_key()
+        
+        self._energy_key = self._get_energy_key()
+        self._pred_keys = self._get_prediction_keys()
         self._reco_keys = self._get_reco_keys()
         self._true_xyzt_keys = get_target_keys(data_pars, meta_pars)
 
@@ -475,16 +476,15 @@ class VertexPerformance:
         self.to_frac = to_frac
         self.wandb_ID = wandb_ID
 
-        data_dict = self._get_data_dict()
-        self._create_performance_plots(data_dict)
-        self._calculate_onenum_performance(data_dict)
+        pred_dict, true_dict = self._get_data_dicts()
+        self._create_performance_plots(pred_dict, true_dict)
+        self._calculate_onenum_performance(pred_dict)
 
-    def _get_data_dict(self):
+    def _get_data_dicts(self):
         full_pred_address = self._get_pred_path()
-        keys = self._get_keys()
-
-        data_dict = read_predicted_h5_data(full_pred_address, keys)
-        return data_dict
+        true_keys = self._energy_key + self._reco_keys + self._true_xyzt_keys
+        pred_dict, true_dict = read_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
+        return pred_dict, true_dict
 
     def _get_energy_key(self):
         dataset_name = get_dataset_name(self.data_pars['data_dir'])
@@ -505,7 +505,7 @@ class VertexPerformance:
                 path = str(file)
         return path
     
-    def _get_keys(self):
+    def _get_prediction_keys(self):
         funcs = get_eval_functions(self.meta_pars)
         keys = []
 
@@ -525,46 +525,53 @@ class VertexPerformance:
         
         return reco_keys
     
-    def _create_performance_plots(self, data_dict):
-        energy = read_h5_directory(self.data_pars['data_dir'], self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
-
+    def _create_performance_plots(self, pred_dict, true_dict):
+        # energy = read_h5_directory(self.data_pars['data_dir'], self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
+        # energy = true_dict[self._energy_key[0]]
+        # print(energy)
         # * Transform back and extract values into list
-        energy = inverse_transform(energy, get_project_root() + self.model_dir)
-        for key, items in energy.items():
-            energy = convert_to_proper_list(list(items))
+        # energy = inverse_transform(energy, get_project_root() + self.model_dir)
+        true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
+        energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
+    
+        # for key, items in energy.items():
+            # energy = convert_to_proper_list(list(items))
         self.counts, self.bin_edges = np.histogram(energy, bins=12)
         
-        x_error = data_dict['vertex_x_error']
+        x_error = pred_dict['vertex_x_error']
         print('\nCalculating x performance...')
         self.x_sigmas, self.x_errors = calc_perf2_as_fn_of_energy(energy, x_error, self.bin_edges)
         print('Calculation finished!')
 
-        y_error = data_dict['vertex_y_error']
+        y_error = pred_dict['vertex_y_error']
         print('\nCalculating y performance...')
         self.y_sigmas, self.y_errors = calc_perf2_as_fn_of_energy(energy, y_error, self.bin_edges)
         print('Calculation finished!')
 
-        z_error = data_dict['vertex_z_error']
+        z_error = pred_dict['vertex_z_error']
         print('\nCalculating z performance...')
         self.z_sigmas, self.z_errors = calc_perf2_as_fn_of_energy(energy, z_error, self.bin_edges)
         print('Calculation finished!')
 
-        t_error = data_dict['vertex_t_error']
+        t_error = pred_dict['vertex_t_error']
         print('\nCalculating time performance...')
         self.t_sigmas, self.t_errors = calc_perf2_as_fn_of_energy(energy, t_error, self.bin_edges)
         print('Calculation finished!')
 
         # * If an I3-reconstruction exists, get it
         if self._reco_keys:
-            pred_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
-            true = read_h5_directory(self.data_pars['data_dir'], self._true_xyzt_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
+            # pred_crs = read_h5_directory(self.data_pars['data_dir'], self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
+            # true = read_h5_directory(self.data_pars['data_dir'], self._true_xyzt_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf), particle=self.data_pars['particle'])
 
-            # * Ensure keys are proper so the angle calculations work
-            true = inverse_transform(true, get_project_root() + self.model_dir)
+            # # * Ensure keys are proper so the angle calculations work
+            # true = inverse_transform(true, get_project_root() + self.model_dir)
+            pred_crs = {key: true_transformed[key] for key in self._reco_keys}
+            pred_crs = convert_keys(pred_crs, self._reco_keys, ['x', 'y', 'z', 't'])
 
-            pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['x', 'y', 'z', 't'])
-            true = convert_keys(true, [key for key in true], ['x', 'y', 'z', 't'])
+            true = {key: true_transformed[key] for key in self._true_xyzt_keys}
+            true = convert_keys(true, self._true_xyzt_keys, ['x', 'y', 'z', 't'])
             true = { key: convert_to_proper_list(item) for key, item in true.items() }
+
             x_crs_error = vertex_x_error(pred_crs, true)
             y_crs_error = vertex_y_error(pred_crs, true)
             z_crs_error = vertex_z_error(pred_crs, true)
@@ -587,17 +594,17 @@ class VertexPerformance:
             print('Calculation finished!')
 
             # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive result
-            a, b = calc_relative_error(self.x_crs_sigmas, self.x_sigmas, self.x_crs_errors, self.x_errors)
-            self.x_relative_improvements, self.x_sigma_improvements = -a, b
+            rel_e, sigma_rel = calc_relative_error(self.x_crs_sigmas, self.x_sigmas, self.x_crs_errors, self.x_errors)
+            self.x_relative_improvements, self.x_sigma_improvements = -rel_e, sigma_rel
 
-            a, b = calc_relative_error(self.y_crs_sigmas, self.y_sigmas, self.y_crs_errors, self.y_errors)
-            self.y_relative_improvements, self.y_sigma_improvements = -a, b
+            rel_e, sigma_rel = calc_relative_error(self.y_crs_sigmas, self.y_sigmas, self.y_crs_errors, self.y_errors)
+            self.y_relative_improvements, self.y_sigma_improvements = -rel_e, sigma_rel
 
-            a, b = calc_relative_error(self.z_crs_sigmas, self.z_sigmas, self.z_crs_errors, self.z_errors)
-            self.z_relative_improvements, self.z_sigma_improvements = -a, b
+            rel_e, sigma_rel = calc_relative_error(self.z_crs_sigmas, self.z_sigmas, self.z_crs_errors, self.z_errors)
+            self.z_relative_improvements, self.z_sigma_improvements = -rel_e, sigma_rel
 
-            a, b = calc_relative_error(self.t_crs_sigmas, self.t_sigmas, self.t_crs_errors, self.t_errors)
-            self.t_relative_improvements, self.t_sigma_improvements = -a, b
+            rel_e, sigma_rel = calc_relative_error(self.t_crs_sigmas, self.t_sigmas, self.t_crs_errors, self.t_errors)
+            self.t_relative_improvements, self.t_sigma_improvements = -rel_e, sigma_rel
         
         else:
             self.x_relative_improvements = None

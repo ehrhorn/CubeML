@@ -14,17 +14,8 @@ from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 import src.modules.reporting as rpt
 
-
-path = '/media/data/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2'
-particle_code = '160000'
-path = get_project_root() + path
-save_dir = '/media/data/bjoernhm/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/test_2020.01.06-15.36.39'
-with open(save_dir+'/test_files.pickle', 'rb') as f:
-    file_list = pickle.load(f)
-    file_list = [get_project_root()+file for file in file_list]
-
-lst=['160.005__lol', '160.010__lol', '160.002__lol']
-print(sorted(lst))
+path = '/home/bjoern/Thesis/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/test_2020.01.06-20.20.55'
+a = rpt.VertexPerformance(path)
 # class VertexPerformance:
 #     """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
     
