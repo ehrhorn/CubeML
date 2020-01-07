@@ -54,7 +54,7 @@ if __name__ == '__main__':
                 'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            20,
+                'log_every':            40,
                 'lr_scan':              args.scan_lr 
                 }
 

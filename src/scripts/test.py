@@ -14,8 +14,9 @@ from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 import src.modules.reporting as rpt
 
-path = '/home/bjoern/Thesis/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/vertex_reg/test_2020.01.06-20.20.55'
-a = rpt.VertexPerformance(path)
+a = [1, 2, 3]
+b = [4, 5, 6, 7]
+print(b[a])
 # class VertexPerformance:
 #     """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
     
