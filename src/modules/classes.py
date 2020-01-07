@@ -561,9 +561,8 @@ class FullBatchLoader(data.Dataset):
         self._len = self._n_batches_total if self.n_events_wanted == np.inf else self.n_events_wanted//self.batch_size
         
         # * In case some weird n_events_wanted was chosen such that wanted/bs > n_batches
-        if self._len > n_batches:
-            self._len = n_batches
-            
+        self._len = min(self._len, self._n_batches_total)
+
     def _split_in_files(self):
         '''Extracts filenames, calculates indices induced by train-, val.- and test-fracs. 
         '''
