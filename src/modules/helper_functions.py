@@ -554,7 +554,7 @@ def get_dataset_name(file_path):
     
     return name
 
-def get_dataset_size(data_dir, particle='any', mask_dict={'mask_name': 'all'}):
+def get_dataset_size(data_dir, particle='any', mask_name='all'):
     """Loops over a data directory and returns the total number of events
     
     Arguments:
@@ -572,10 +572,11 @@ def get_dataset_size(data_dir, particle='any', mask_dict={'mask_name': 'all'}):
     path = get_project_root() + get_path_from_root(data_dir)
     n_files = 0.0
     particle_code = get_particle_code(particle)
+
     for file in Path(path).iterdir():
         if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
             n_files += 1.0
-            indices = apply_mask(file, **mask_dict)
+            indices = load_mask(file, mask_name)
             n_events += len(indices)
             n_events_sqr += len(indices)**2
             
@@ -988,7 +989,7 @@ def load_mask(file_path, mask_name):
 
     else:
         # * Create path to mask-file
-        path = PATH_MASKS+'/'+get_dataset_name(file_path)+'/'+mask_name+'.h5'
+        path = PATH_MASKS+get_dataset_name(file_path)+'/'+mask_name+'.h5'
         try:
             file_name = file_path.stem
         except AttributeError:
