@@ -335,6 +335,7 @@ class FullBatchLoader(data.Dataset):
         # * Find right file and get sorted indices to load
         fname = self.batches[index]['path']
         indices = self.batches[index]['indices']
+        batch_size = len(indices)
         
         # * Extract relevant data from h5-file
         seq_features = {} 
@@ -370,7 +371,7 @@ class FullBatchLoader(data.Dataset):
         
         # * Prepare batch for collate_fn
         batch = []
-        for i_batch in range(self.batch_size):
+        for i_batch in range(batch_size):
             
             seq_array = np.empty((self.n_seq_features, seq_features[self.seq_features[0]][i_batch].shape[0]))
             for i_seq, key in enumerate(seq_features):
@@ -456,7 +457,6 @@ class FullBatchLoader(data.Dataset):
         n_batches = 0
         n_events = 0
         from_frac, to_frac = self._get_from_to()
-        print(from_frac, to_frac)
         ID = 1
         for file in Path(self.directory).iterdir():
             
@@ -479,7 +479,6 @@ class FullBatchLoader(data.Dataset):
                     n_data_in_file = viable_events.shape[0]
                     indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac, shuffle=True, file_name=file.stem, dataset_path=self.directory)
                     indices = viable_events[indices]
-                    print(len(indices))
                     file_ID = str(ID)
                    
                     # * Ignore last batch if not a full batch
