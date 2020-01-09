@@ -57,11 +57,11 @@ if __name__ == '__main__':
                 'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            40,
+                'log_every':            45,
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        20,
+    hyper_pars = {'batch_size':        21,
                 'max_epochs':          1,
                 'early_stop_patience': 100,
                 'optimizer':           {'optimizer':      'Adam',
@@ -88,8 +88,8 @@ if __name__ == '__main__':
                 'mask':          mask_name,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
-                'n_val_events_wanted':   100,# np.inf,
-                'n_train_events_wanted': 100,# np.inf,
+                'n_val_events_wanted':   110,# np.inf,
+                'n_train_events_wanted': 110,# np.inf,
                 'n_predictions_wanted': 100,
                 'train_frac':  0.1,
                 'val_frac':    0.1,
@@ -97,7 +97,7 @@ if __name__ == '__main__':
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      20
+                'val_batch_size':      21
                 }
 
 

@@ -487,7 +487,7 @@ class FullBatchLoader(data.Dataset):
                     self.n_full_batches[file_ID] = len(indices)//self.batch_size
 
                     n_events += len(indices)
-                    n_batches += int(1 + len(indices)/self.batch_size)
+                    n_batches += ceil(len(indices)/self.batch_size)
                     ID += 1
         
         self._n_batches_total = n_batches
@@ -505,7 +505,8 @@ class FullBatchLoader(data.Dataset):
             last_batch = {'path': self.file_path[ID], 'indices': sorted(self.file_indices[ID][self.n_full_batches[ID]*self.batch_size:-1])}
             
             next_epoch_batches.extend(batches)
-            next_epoch_batches.append(last_batch)
+            if len(last_batch['indices'])>0: 
+                next_epoch_batches.append(last_batch)
 
         self.batches = next_epoch_batches
         random.shuffle(self.batches)
