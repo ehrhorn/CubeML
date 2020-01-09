@@ -126,7 +126,7 @@ class LstmPredictLoader(data.Dataset):
         # * First, extract indices of all events satisfying the mask
         viable_events = apply_mask(file, **mask_dict)
         n_events = len(viable_events)
-
+        
         with h5.File(file, 'r') as f:
             # n_events = f['meta/events'][()]
             # * Get indices
@@ -400,7 +400,10 @@ class FullBatchLoader(data.Dataset):
 
     def _extract_from_splitted_files(self):
         """Extracts meta-information from files that have been designated as train- test or val-files - therefore, all data in a file is used
+
+        Not used atm.
         """ 
+        return 0
         n_batches = 0
         n_events = 0
         ID = 1
@@ -412,7 +415,6 @@ class FullBatchLoader(data.Dataset):
             #     break
             path = get_project_root()+rel_path
             indices = apply_mask(path, **self._mask_dict)
-
             with h5.File(path, 'r') as f:
 
                 # n_data_in_file = f['meta/events'][()]
@@ -474,6 +476,7 @@ class FullBatchLoader(data.Dataset):
                 
                 # * First, extract indices of all events satisfying the mask
                 viable_events = apply_mask(file, **self._mask_dict)
+
                 with h5.File(file, 'r') as f:
                     
                     # * Now split into test, train and val
@@ -552,19 +555,16 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     val_frac = data_pars['val_frac'] # * how much data should be used for validation?
     test_frac = data_pars['test_frac'] # * how much data should be used for training
     file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
+    mask_dict = data_pars['mask']
 
     if 'LstmLoader' == data_pars['dataloader']:
-
         dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
     
     elif 'SeqScalarTargetLoader' == data_pars['dataloader']:
-
         prefix = 'transform'+str(file_keys['transform'])+'/'
-
         dataloader = SeqScalarTargetLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix)
     
     elif 'FullBatchLoader' == data_pars['dataloader']:
-
         if keyword == 'train':
             batch_size = hyper_pars['batch_size']
             n_events_wanted = data_pars.get('n_train_events_wanted', np.inf)
@@ -575,13 +575,8 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
         if file_keys['transform'] == -1:
             prefix = 'raw/'
 
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_dict=mask_dict)
 
-    
-    elif 'CnnLoader' == data_pars['dataloader']:
-
-        print('DO SOMETHING MADS PIKFJÆS')
-    
     else:
         raise ValueError('Unknown data loader requested!')
     
@@ -601,7 +596,8 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
         val_frac = data_pars['val_frac'] # * how much data should be used for validation?
         test_frac = data_pars['test_frac'] # * how much data should be used for training
         file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
-
+        mask_dict = data_pars['mask']
+        
         if use_whole_file:
             if keyword == 'train':
                 train_frac = 1.0
@@ -616,7 +612,7 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
                 val_frac = 0.0
                 test_frac = 1.0
 
-        return LstmPredictLoader(file, file_keys, targets, scalar_features, seq_features, 'val', train_frac, val_frac, test_frac)
+        return LstmPredictLoader(file, file_keys, targets, scalar_features, seq_features, 'val', train_frac, val_frac, test_frac, mask_dict=mask_dict)
     
     else:
         raise ValueError('An unknown prediction loader was requested!')

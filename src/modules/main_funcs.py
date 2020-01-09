@@ -451,14 +451,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     hyper_pars_copy['batch_size'] = data_pars['val_batch_size']
     
     print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
-    # # * Split data into train-, val.- and test-sets - NO! Atm, we split in each file (after its been shuffled..)
-    # train_paths, val_paths, test_paths = split_files_in_dataset(data_pars['data_dir'], train_frac=data_pars['train_frac'], val_frac=data_pars['val_frac'], test_frac=data_pars['test_frac'], particle=data_pars['particle'])
-    
-    # if log:
-    #     pickle.dump(train_paths, open(save_dir+'/train_files.pickle', 'wb'))
-    #     pickle.dump(val_paths, open(save_dir+'/val_files.pickle', 'wb'))
-    #     pickle.dump(test_paths, open(save_dir+'/test_files.pickle', 'wb'))
-    
+    # * We split in each file (after its been shuffled..)
     # * Now load data
     train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train')
     trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train')

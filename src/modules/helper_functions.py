@@ -40,7 +40,7 @@ class lr_watcher:
 
         return factor
 
-def apply_mask(file, mask_name='None', min_doms=0, max_doms=np.inf):
+def apply_mask(file, mask_name='all', min_doms=0, max_doms=np.inf):
     """Given a path to a h5-file with data, the indices of the events satisfying a criterion are extracted.
     
     Arguments:
@@ -58,7 +58,7 @@ def apply_mask(file, mask_name='None', min_doms=0, max_doms=np.inf):
         [list] -- indices of events satisfying criterion.
     """
 
-    if mask_name == 'None':
+    if mask_name == 'all':
         with h5.File(file, 'r') as f:
             n = f['meta/events'][()]
             indices = np.arange(n)
@@ -553,7 +553,7 @@ def get_dataset_name(file_path):
     
     return name
 
-def get_dataset_size(data_dir, particle='any'):
+def get_dataset_size(data_dir, particle='any', mask_dict={'mask_name': 'all'}):
     """Loops over a data directory and returns the total number of events
     
     Arguments:
@@ -573,10 +573,11 @@ def get_dataset_size(data_dir, particle='any'):
     particle_code = get_particle_code(particle)
     for file in Path(path).iterdir():
         if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
-            n_files += 1.0  
-            with h5.File(file, 'r') as f:
-                n_events += f['meta/events'][()]
-                n_events_sqr += f['meta/events'][()]**2
+            n_files += 1.0
+            indices = apply_mask(file, **mask_dict)
+            n_events += len(indices)
+            n_events_sqr += len(indices)**2
+            
     mean = n_events/n_files
     std = np.sqrt(n_events_sqr/n_files - mean**2)
     return n_files, mean, std
@@ -1444,6 +1445,8 @@ def show_train_val_error(x_address, train_address, val_address, save_address=Non
 
 def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1, particle='any', seed=2912):
     """Given a dataset in several files, it is split into lists containing relative paths to training-files, validation-files and test-files. Assumes files are in hdf5-format as shown on https://github.com/ehrhorn/CubeML. The dataset files are shuffled before being split, preferably in the same way for every model - hence, seed. After shuffling, a random seed is chosen.
+
+    Not used atm.
     
     Arguments:
         data_dir {str} -- Absolute or relative path to dataset
@@ -1459,7 +1462,7 @@ def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1
         [list] -- relative paths to validation files
         [list] -- relative paths to test files    
     """    
-
+    return -1
     # * First, get total size of dataset
     n_files, mean, std = get_dataset_size(data_dir, particle=particle)
 
