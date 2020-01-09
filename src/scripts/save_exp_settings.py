@@ -32,7 +32,7 @@ if __name__ == '__main__':
     pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
 
     # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time'
-    regression_type = 'vertex_reg_no_time'
+    regression_type = 'vertex_reg'
 
     # * Options: 'train_new', 'continue_training', 'explore_lr'
     objective = 'train_new'
@@ -68,7 +68,7 @@ if __name__ == '__main__':
                                         },
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
                                         'max_lr':          5e-3,
-                                        'min_lr':          5e-6,
+                                        'min_lr':          1e-6,
                                         'frac_up':         0.07,
                                         'frac_down':       1-0.07,
                                         },
@@ -86,7 +86,7 @@ if __name__ == '__main__':
                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
                 'n_val_events_wanted':   50000,# np.inf,
                 'n_train_events_wanted': np.inf,
-                'n_predictions_wanted': 800000,
+                'n_predictions_wanted': np.inf,
                 'train_frac':  0.80,
                 'val_frac':    0.10,
                 'test_frac':   0.0,

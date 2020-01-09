@@ -1,4 +1,4 @@
-from time import localtime, strftime
+from time import localtime, strftime, time
 import random
 from pathlib import Path
 import pickle
@@ -892,7 +892,7 @@ def get_target_keys(data_pars, meta_pars):
     
     return target_keys
 
-def get_train_val_test_indices(n_data, train_frac, val_frac, test_frac, shuffle = True):
+def get_train_val_test_indices(n_data, train_frac, val_frac, test_frac, shuffle=True):
     '''Split a dataset into a test-sample with test_frac*n_data datapoints, a training-sample with (1-test_frac)*train_frac*n_data datapoints and a validation set with (1-test_frac)*(1-train_frac)*n_data datapoints.
     '''
     
@@ -1405,8 +1405,8 @@ def show_train_val_error(x_address, train_address, val_address, save_address=Non
         print('Figure saved at: ')
         print(save_address+'train_val_e.pdf','\n')
 
-def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1, particle='any'):
-    """Given a dataset in several files, it is split into lists containing relative paths to training-files, validation-files and test-files. Assumes files are in hdf5-format as shown on https://github.com/ehrhorn/CubeML
+def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1, particle='any', seed=2912):
+    """Given a dataset in several files, it is split into lists containing relative paths to training-files, validation-files and test-files. Assumes files are in hdf5-format as shown on https://github.com/ehrhorn/CubeML. The dataset files are shuffled before being split, preferably in the same way for every model - hence, seed. After shuffling, a random seed is chosen.
     
     Arguments:
         data_dir {str} -- Absolute or relative path to dataset
@@ -1443,7 +1443,13 @@ def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1
     particle_code = get_particle_code(particle)
     path = get_project_root() + get_path_from_root(data_dir)
     
-    for file in Path(path).iterdir():
+    # * Shuffle the file-list!
+    random.seed(seed)
+    files = [file for file in Path(path).iterdir()]
+    random.shuffle(files)    
+    random.seed(time()*1e7)
+    
+    for file in files:
 
         # * If file is not of interest, continue to next file
         if not (file.suffix == '.h5' and confirm_particle_type(particle_code, file)):
