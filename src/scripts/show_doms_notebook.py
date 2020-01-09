@@ -37,7 +37,7 @@ doms, energy = sort_pairs(tot_n_doms, tot_energy)
 # tot_n_doms = [entry for entry in tot_n_doms if entry<100]
 # %%
 FRAC = 0.1
-from_, to_ = 0.0, 1.0
+from_, to_ = 0.0, 0.9
 end = int(FRAC*len(doms))
 from_i, to_i = int(from_*len(doms)), int(to_*len(doms))
 
