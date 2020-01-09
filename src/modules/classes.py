@@ -322,7 +322,7 @@ class FullBatchLoader(data.Dataset):
 
         self.file_path = {}
         self.file_indices = {}
-        self.n_batches = {}
+        self.n_full_batches = {}
         self.file_order = []
         self.batches = []
         self._file_list = file_list
@@ -456,6 +456,7 @@ class FullBatchLoader(data.Dataset):
         n_batches = 0
         n_events = 0
         from_frac, to_frac = self._get_from_to()
+        print(from_frac, to_frac)
         ID = 1
         for file in Path(self.directory).iterdir():
             
@@ -478,15 +479,16 @@ class FullBatchLoader(data.Dataset):
                     n_data_in_file = viable_events.shape[0]
                     indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac, shuffle=True, file_name=file.stem, dataset_path=self.directory)
                     indices = viable_events[indices]
+                    print(len(indices))
                     file_ID = str(ID)
                    
                     # * Ignore last batch if not a full batch
                     self.file_path[file_ID] = str(file)
                     self.file_indices[file_ID] = indices
-                    self.n_batches[file_ID] = int(len(indices)/self.batch_size)
+                    self.n_full_batches[file_ID] = len(indices)//self.batch_size
 
                     n_events += len(indices)
-                    n_batches += int(len(indices)/self.batch_size)
+                    n_batches += int(1 + len(indices)/self.batch_size)
                     ID += 1
         
         self._n_batches_total = n_batches
@@ -498,10 +500,14 @@ class FullBatchLoader(data.Dataset):
         next_epoch_batches = []
         for ID in self.file_indices:
             random.shuffle(self.file_indices[ID])
-            batches = [{'path': self.file_path[ID], 'indices': sorted(self.file_indices[ID][i*self.batch_size:(i+1)*self.batch_size])} for i in range(self.n_batches[ID])]
+            batches = [{'path': self.file_path[ID], 'indices': sorted(self.file_indices[ID][i*self.batch_size:(i+1)*self.batch_size])} for i in range(self.n_full_batches[ID])]
 
+            # * Add remaining non-full batch
+            last_batch = {'path': self.file_path[ID], 'indices': sorted(self.file_indices[ID][self.n_full_batches[ID]*self.batch_size:-1])}
+            
             next_epoch_batches.extend(batches)
-        
+            next_epoch_batches.append(last_batch)
+
         self.batches = next_epoch_batches
         random.shuffle(self.batches)
 
