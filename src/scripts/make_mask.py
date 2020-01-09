@@ -18,9 +18,7 @@ def make_mask(data_path, mask_name='any', min_doms=0, max_doms=np.inf):
 
     # * Make a .dvc-file to track mask
     dvc_path = hf.get_project_root() + '/data'
-    # print(dvc_path)
     subprocess.run(['dvc', 'add', 'masks'], cwd=dvc_path)
-
 
 def make_dom_interval_mask(data_path, own_path, min_doms, max_doms):
     file_name = own_path+'/dom_interval_min%d_max%d.h5'%(min_doms, max_doms)

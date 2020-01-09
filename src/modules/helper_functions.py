@@ -15,7 +15,7 @@ import json
 from ignite.engine import Events
 
 import src.modules.loss_funcs
-
+ABCD = 1
 class lr_watcher:
 
     def __init__(self, start_lr, max_lr, min_lr, n_rise, n_fall, batch_size):

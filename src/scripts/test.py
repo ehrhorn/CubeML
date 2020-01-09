@@ -13,78 +13,8 @@ import src.modules.loss_funcs as lf
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 import src.modules.reporting as rpt
+from src.modules.constants import *
 
-def split_indices_all_files(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1, particle='any', seed=2912):
-    # # * First, get total size of dataset
-    # n_files, mean, std = get_dataset_size(data_dir, particle=particle)
-    particle_code = get_particle_code(particle)
-
-
-    # * Calculate amounts wanted
-    # n_data = n_files*mean
-    # n_train = int(n_data*train_frac)
-    # n_val = int(n_data*val_frac)
-    # n_test = int(n_data*test_frac)
-
-    # * Make tuples of (size, name)
-    index_tuples = []
-    for file in Path(data_dir).iterdir():
-        if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
-            with h5.File(file, 'r') as f:
-                n_events = f['meta/events'][()]
-                index_tuples.append((n_events, file))
-    print(index_tuples[0:5])
-    a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    b = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    random.seed(1)
-    random.shuffle(a)
-    random.seed(1)
-    random.shuffle(b)
-    print(a, b)
-    # random.shuffle(files)    
-    # random.seed(time()*1e7)
-    # # * Split files 
-    # train_files = []
-    # val_files = []
-    # test_files = []   
-    # train_count = 0
-    # val_count = 0
-    # test_count = 0
-
-    # particle_code = get_particle_code(particle)
-    # path = get_project_root() + get_path_from_root(data_dir)
-    
-    # # * Shuffle the file-list!
-    # random.seed(seed)
-    # files = [file for file in Path(path).iterdir()]
-    # random.shuffle(files)    
-    # random.seed(time()*1e7)
-    
-    # for file in files:
-
-    #     # * If file is not of interest, continue to next file
-    #     if not (file.suffix == '.h5' and confirm_particle_type(particle_code, file)):
-    #         continue
-        
-    #     if train_count <= n_train:
-    #         with h5.File(file, 'r') as f:
-    #             train_count += f['meta/events'][()]
-    #             relative_file_path = get_path_from_root(str(file))
-    #             train_files.append(relative_file_path)
-        
-    #     elif val_count <= n_val:
-    #         with h5.File(file, 'r') as f:
-    #             val_count += f['meta/events'][()]
-    #             relative_file_path = get_path_from_root(str(file))
-    #             val_files.append(relative_file_path)
-        
-    #     elif test_count <= n_test:
-    #         with h5.File(file, 'r') as f:
-    #             test_count += f['meta/events'][()]
-    #             relative_file_path = get_path_from_root(str(file))
-    #             test_files.append(relative_file_path)
-    
-    # return train_files, val_files, test_files
 
 class test:
 
@@ -122,7 +52,8 @@ class test:
 particle = 'muon_neutrino'
 code = get_particle_code(particle)
 dataset = get_project_root()+get_path_from_root('/CubeML/data/oscnext-genie-level5-v01-01-pass2')
-test(dataset, code)
+# test(dataset, code)
+print(PATH_MASKS)
 # split_indices_all_files(dataset, particle=particle)
 # a, b, c = split_files_in_dataset(dataset, particle=particle)
 
