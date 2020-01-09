@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 import argparse
 
-# from src import modules
 from src.modules.classes import *
 from src.modules.loss_funcs import *
 from src.modules.helper_functions import *
@@ -45,15 +44,14 @@ if __name__ == '__main__':
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
 
-    # * Options: 'all', 'dom_interval' (keywords: 'min_doms', 'max_doms')
-    mask_name, minimum, maximum = 'dom_interval', 32, 64
-    mask_dict = {'mask_name': mask_name, 'min_doms': minimum, 'max_doms': maximum}
+    # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
+    mask_name = 'dom_interval_min32_max64'
 
     # * Set project
     project = 'cubeml'
 
     dataset = data_dir.split('/')[-1]
-    meta_pars = {'tags':                [regression_type, dataset, error_func, particle],
+    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, mask_name],
                 'group':                regression_type,
                 'project':              project,
                 'objective':            objective,
@@ -85,7 +83,7 @@ if __name__ == '__main__':
 
 
     data_pars = {'data_dir':     data_dir,
-                'mask':          mask_dict,
+                'mask':          mask_name,
                 'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],

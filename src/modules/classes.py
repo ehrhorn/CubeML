@@ -1,11 +1,7 @@
-import h5py as h5
-import numpy as np
 import torch
 from torch.utils import data
-from pathlib import Path
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as unpack
-from random import shuffle as shuffler
 from math import sqrt
 # from pynvml.smi import nvidia_smi
 
@@ -119,12 +115,12 @@ class LstmLoader(data.Dataset):
 class LstmPredictLoader(data.Dataset):
     '''Loads a datafile and returns a data.Dataset object for PyTorch's dataloader. The object has the indices of the data from its parent datafile.
     '''
-    def __init__(self, file, file_keys, targets, scalar_features, seq_features, set_type, train_frac, val_frac, test_frac, mask_dict={}):   
+    def __init__(self, file, file_keys, targets, scalar_features, seq_features, set_type, train_frac, val_frac, test_frac, mask_name='all'):   
         # * Retrieve wanted cleaning level and transformation
         data_address = 'transform'+str(file_keys['transform'])+'/'
         
         # * First, extract indices of all events satisfying the mask
-        viable_events = apply_mask(file, **mask_dict)
+        viable_events = load_mask(file, mask_name)
         n_events = len(viable_events)
         
         with h5.File(file, 'r') as f:
@@ -305,7 +301,7 @@ class FullBatchLoader(data.Dataset):
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and batch_size.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None, mask_dict={}):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None, mask_name='all'):
 
         self.directory = get_project_root() + directory
         self.scalar_features = scalar_features
@@ -322,7 +318,7 @@ class FullBatchLoader(data.Dataset):
         self.test_frac = test_frac
         self.batch_size = batch_size
         self.prefix = prefix
-        self._mask_dict = mask_dict
+        self._mask = mask_name
 
         self.file_path = {}
         self.file_indices = {}
@@ -475,8 +471,7 @@ class FullBatchLoader(data.Dataset):
             if file.suffix == '.h5':
                 
                 # * First, extract indices of all events satisfying the mask
-                viable_events = apply_mask(file, **self._mask_dict)
-
+                viable_events = load_mask(file, self._mask)
                 with h5.File(file, 'r') as f:
                     
                     # * Now split into test, train and val
@@ -502,13 +497,13 @@ class FullBatchLoader(data.Dataset):
 
         next_epoch_batches = []
         for ID in self.file_indices:
-            shuffler(self.file_indices[ID])
+            random.shuffle(self.file_indices[ID])
             batches = [{'path': self.file_path[ID], 'indices': sorted(self.file_indices[ID][i*self.batch_size:(i+1)*self.batch_size])} for i in range(self.n_batches[ID])]
 
             next_epoch_batches.extend(batches)
         
         self.batches = next_epoch_batches
-        shuffler(self.batches)
+        random.shuffle(self.batches)
 
         # * Free up some memory
         del batches
@@ -555,7 +550,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     val_frac = data_pars['val_frac'] # * how much data should be used for validation?
     test_frac = data_pars['test_frac'] # * how much data should be used for training
     file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
-    mask_dict = data_pars['mask']
+    mask_name = data_pars['mask']
 
     if 'LstmLoader' == data_pars['dataloader']:
         dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
@@ -575,7 +570,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
         if file_keys['transform'] == -1:
             prefix = 'raw/'
 
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_dict=mask_dict)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_name=mask_name)
 
     else:
         raise ValueError('Unknown data loader requested!')
@@ -596,7 +591,7 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
         val_frac = data_pars['val_frac'] # * how much data should be used for validation?
         test_frac = data_pars['test_frac'] # * how much data should be used for training
         file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
-        mask_dict = data_pars['mask']
+        mask_name = data_pars['mask']
         
         if use_whole_file:
             if keyword == 'train':
@@ -612,7 +607,7 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
                 val_frac = 0.0
                 test_frac = 1.0
 
-        return LstmPredictLoader(file, file_keys, targets, scalar_features, seq_features, 'val', train_frac, val_frac, test_frac, mask_dict=mask_dict)
+        return LstmPredictLoader(file, file_keys, targets, scalar_features, seq_features, 'val', train_frac, val_frac, test_frac, mask_name=mask_name)
     
     else:
         raise ValueError('An unknown prediction loader was requested!')

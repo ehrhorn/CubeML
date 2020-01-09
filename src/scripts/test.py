@@ -18,12 +18,13 @@ from src.modules.constants import *
 
 class test:
 
-    def __init__(self, direc, code):
+    def __init__(self, direc, code, mask_name):
         self.directory = direc
         self._particle_code = code
-        self._mask_dict = {}
+        self._mask = mask_name
 
         self.loop()
+    
     def loop(self):
         for file in Path(self.directory).iterdir():
                 
@@ -37,7 +38,7 @@ class test:
             if file.suffix == '.h5':
                 
                 # * First, extract indices of all events satisfying the mask
-                viable_events = apply_mask(file, **self._mask_dict)
+                viable_events = load_mask(file, self._mask)
                 with h5.File(file, 'r') as f:
                     
                     # * Now split into test, train and val
@@ -47,13 +48,22 @@ class test:
                     indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac, shuffle=True, file_name=file.stem, dataset_path=self.directory)
                     indices = viable_events[indices]
                     print(indices[0:10])
-                    
 
+
+        # print(f['indices/'+file_name])
+    # print(path, file_name)
 particle = 'muon_neutrino'
 code = get_particle_code(particle)
 dataset = get_project_root()+get_path_from_root('/CubeML/data/oscnext-genie-level5-v01-01-pass2')
-# test(dataset, code)
-print(PATH_MASKS)
+dataset = PATH_DATA+'oscnext-genie-level5-v01-01-pass2'
+mask_name = 'dom_interval_min32_max64.h5'
+# mask_name = 'all'
+test(dataset, code, mask_name)
+
+# for file in Path(PATH_DATA+dataset).iterdir():
+#     if file.suffix =='.h5':
+#         indices = load_mask(file, mask_name)
+#         print(indices.shape)
 # split_indices_all_files(dataset, particle=particle)
 # a, b, c = split_files_in_dataset(dataset, particle=particle)
 

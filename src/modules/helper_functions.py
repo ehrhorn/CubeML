@@ -1,6 +1,5 @@
 from time import localtime, strftime, time
 import random
-from pathlib import Path
 import pickle
 import joblib
 from matplotlib import pyplot as plt
@@ -15,7 +14,9 @@ import json
 from ignite.engine import Events
 
 import src.modules.loss_funcs
-ABCD = 1
+from src.modules.constants import *
+
+
 class lr_watcher:
 
     def __init__(self, start_lr, max_lr, min_lr, n_rise, n_fall, batch_size):
@@ -842,12 +843,15 @@ def get_path_from_root(path):
     '''Given a path, get_path_from_root strips the potential path to the root directory.
 
     Input
-    path: a string
+    path: a string or Path-object
     
     Output
     path_from_root: a string with the path from the root directory
     '''
-    split = path.split('/')
+    try:
+        split = path.split('/')
+    except AttributeError:
+        split = str(path).split('/')
 
     cond1 = split[0] == '' and split[1] == 'CubeML'
     cond2 = split[0] == 'CubeML'
@@ -868,20 +872,6 @@ def get_path_from_root(path):
             else:
                 i += 1
     return path_from_root
-
-def get_project_root():
-    """Finds absolute path to project root - useful for running code on different machines.
-    
-    Returns:
-        str -- path to project root
-    """    
-    
-    # * Find project root
-    current_dir_splitted = str(Path.cwd()).split('/')
-    i = 0
-    while current_dir_splitted[i] != 'CubeML':
-        i += 1
-    return '/'.join(current_dir_splitted[:i+1]) 
 
 def get_retro_crs_prefit_vertex_keys():
     """Simple function to retrieve Icecubes vertex reconstruction keys for vertex_reg
@@ -979,34 +969,36 @@ def inverse_transform(data, model_dir):
 
     return transformed
 
-# # TODO: delete inverse_transform_predictions and only use inverse_transform, predict() needs adjusting
-# def inverse_transform_predictions(preds, keys, model_dir):
-
-#     try:
-#         transformers = pickle.load( open(model_dir+'/transformers.pickle', "rb"))
-#     except FileNotFoundError:
-#         transformers = None
-#     transformed = {}
+def load_mask(file_path, mask_name):
+    """Loads 'allowed' indices in file_path from a mask-file induced by mask_name. If all data is allowed, the mask_name 'all' simply returns np.arange(len(file))
     
-#     if transformers == None:
-#         for key in keys:
-#             transformed[key] = preds[key]
+    Arguments:
+        file_path {str} -- Absolute path to a datafile
+        mask_name {str} -- Name of mask (options: 'all', 'dom_interval_min32_max64')
     
-#     else:
-#         for key in keys:
+    Returns:
+        array -- array for allowed indices
+    """    
+    
+    # * Treat 'all'-case in a special way, since no mask is needed.
+    if mask_name == 'all':
+        with h5.File(file_path, 'r') as f:
+            n_events = f['meta/events'][()]
+            indices = np.arange(n_events)
 
-#             if transformers[key] == None: 
-#                 transformed[key] = preds[key]
+    else:
+        # * Create path to mask-file
+        path = PATH_MASKS+'/'+get_dataset_name(file_path)+'/'+mask_name+'.h5'
+        try:
+            file_name = file_path.stem
+        except AttributeError:
+            file_name = Path(file_path).stem
 
-#             # * The reshape is required for scikit to function...
-#             else: 
-#                 # * Input might be given as a dictionary of lists
-#                 try: 
-#                     transformed[key] = transformers[key].inverse_transform(preds[key].reshape(-1, 1))
-#                 except AttributeError: 
-#                     transformed[key] = transformers[key].inverse_transform(np.array(preds[key]).reshape(-1, 1))
-
-#     return transformed
+        # * Read mask
+        with h5.File(path, 'r') as f:
+            indices = f['indices/'+file_name][:]
+    
+    return indices
 
 def load_model_pars(model_dir):
     """Loads and returns hyperparameters, datapatameters, architectureparameters and metaparameters from a model directory
