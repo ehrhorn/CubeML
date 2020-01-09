@@ -85,9 +85,45 @@ def split_indices_all_files(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.
     #             test_files.append(relative_file_path)
     
     # return train_files, val_files, test_files
+
+class test:
+
+    def __init__(self, direc, code):
+        self.directory = direc
+        self._particle_code = code
+        self._mask_dict = {}
+
+        self.loop()
+    def loop(self):
+        for file in Path(self.directory).iterdir():
+                
+            # * Only extract events from files with the proper particle type (necessary due to how Icecube-simfiles are named)
+            if not confirm_particle_type(self._particle_code, file):
+                continue
+            # * If enough datapoints have been prepared, stop loading more
+            # ! Actually dont! Instead extract all and change len(.) such that all statistic is used
+            # if n_events > self.n_events_wanted:
+            #     break
+            if file.suffix == '.h5':
+                
+                # * First, extract indices of all events satisfying the mask
+                viable_events = apply_mask(file, **self._mask_dict)
+                with h5.File(file, 'r') as f:
+                    
+                    # * Now split into test, train and val
+                    n_data_in_file = viable_events.shape[0]
+                    from_frac = 0.0
+                    to_frac = 0.8
+                    indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac, shuffle=True, file_name=file.stem, dataset_path=self.directory)
+                    indices = viable_events[indices]
+                    print(indices[0:10])
+                    
+
 particle = 'muon_neutrino'
+code = get_particle_code(particle)
 dataset = get_project_root()+get_path_from_root('/CubeML/data/oscnext-genie-level5-v01-01-pass2')
-split_indices_all_files(dataset, particle=particle)
+test(dataset, code)
+# split_indices_all_files(dataset, particle=particle)
 # a, b, c = split_files_in_dataset(dataset, particle=particle)
 
 # class VertexPerformance:

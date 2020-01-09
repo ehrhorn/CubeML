@@ -299,7 +299,7 @@ def predict(save_dir, wandb_ID=None):
 
             i_file += 1
             i_str = str(i_file)
-            print('Progress: %.0f %%. Predicting on %s'%(n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
+            print('Progress: %.0f %%. Predicting on %s'%(100*n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
             
             # * Extract validation data
             val_set = load_predictions(data_pars, meta_pars, 'val', file, use_whole_file=USE_WHOLE_FILE)
@@ -451,18 +451,18 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     hyper_pars_copy['batch_size'] = data_pars['val_batch_size']
     
     print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
-    # * Split data into train-, val.- and test-sets
-    train_paths, val_paths, test_paths = split_files_in_dataset(data_pars['data_dir'], train_frac=data_pars['train_frac'], val_frac=data_pars['val_frac'], test_frac=data_pars['test_frac'], particle=data_pars['particle'])
+    # # * Split data into train-, val.- and test-sets - NO! Atm, we split in each file (after its been shuffled..)
+    # train_paths, val_paths, test_paths = split_files_in_dataset(data_pars['data_dir'], train_frac=data_pars['train_frac'], val_frac=data_pars['val_frac'], test_frac=data_pars['test_frac'], particle=data_pars['particle'])
     
-    if log:
-        pickle.dump(train_paths, open(save_dir+'/train_files.pickle', 'wb'))
-        pickle.dump(val_paths, open(save_dir+'/val_files.pickle', 'wb'))
-        pickle.dump(test_paths, open(save_dir+'/test_files.pickle', 'wb'))
+    # if log:
+    #     pickle.dump(train_paths, open(save_dir+'/train_files.pickle', 'wb'))
+    #     pickle.dump(val_paths, open(save_dir+'/val_files.pickle', 'wb'))
+    #     pickle.dump(test_paths, open(save_dir+'/test_files.pickle', 'wb'))
     
     # * Now load data
-    train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train', file_list=train_paths)
-    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train', file_list=train_paths)
-    val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val', file_list=val_paths)
+    train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train')
+    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train')
+    val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val')
 
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)

@@ -131,11 +131,17 @@ class LstmPredictLoader(data.Dataset):
             # n_events = f['meta/events'][()]
             # * Get indices
             if set_type == 'train':
-                indices = get_indices_from_fraction(n_events, 0.0, train_frac)
+                from_frac = 0.0
+                to_frac = train_frac
+                indices = get_indices_from_fraction(n_events, from_frac, to_frac, shuffle=True, file_name=Path(file).stem, dataset_path=str(Path(file).parents[0]))
             elif set_type == 'val':
-                indices = get_indices_from_fraction(n_events, train_frac, train_frac+val_frac)
+                from_frac = train_frac
+                to_frac = train_frac+val_frac
+                indices = get_indices_from_fraction(n_events, from_frac, to_frac, shuffle=True, file_name=Path(file).stem, dataset_path=str(Path(file).parents[0]))
             else:
-                indices = get_indices_from_fraction(n_events, train_frac+val_frac, train_frac+val_frac+test_frac)
+                from_frac = train_frac+val_frac
+                to_frac = train_frac+val_frac+test_frac
+                indices = get_indices_from_fraction(n_events, from_frac, to_frac, shuffle=True, file_name=Path(file).stem, dataset_path=str(Path(file).parents[0]))
             
             indices = viable_events[indices]
             self.indices = indices
@@ -472,7 +478,7 @@ class FullBatchLoader(data.Dataset):
                     
                     # * Now split into test, train and val
                     n_data_in_file = viable_events.shape[0]
-                    indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac)
+                    indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac, shuffle=True, file_name=file.stem, dataset_path=self.directory)
                     indices = viable_events[indices]
                     file_ID = str(ID)
                    
@@ -530,13 +536,6 @@ class PadSequence:
         return (sequences_padded.float(), lengths, scalar_vars.float()), targets.float()
 
         # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
-
-class CnnCollater:
-    def __call__(self, batch):
-        sequences = torch.Tensor([x[0] for x in batch])
-        targets = torch.Tensor([x[1] for x in batch])
-        out_seq = (sequences.float(), )
-        return out_seq, targets.float()
 
 #* ======================================================================== 
 #* DATALOADER FUNCTIONS

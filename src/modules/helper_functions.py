@@ -355,8 +355,16 @@ def confirm_particle_type(particle_code, file):
     return checker
 
 def convert_id_to_int(file_path, id_str):
-    '''A very non-modular conversion of a file ID.. For each new dataset, a new converter must be added.
-    '''
+    """Conversion of a file ID to a unique integer.
+    
+    Arguments:
+        file_path {str} -- Absolute or relative path to dataset folder
+        id_str {str} -- Name of h5-datafile
+    
+    Returns:
+        int -- a unique integer
+    """    
+    
     dataset = get_dataset_name(file_path)
     if dataset == 'oscnext-genie-level5-v01-01-pass2':
         id_stripped = id_str.split('.')[-1]
@@ -579,19 +587,48 @@ def get_device(ID=0):
 
     return device
 
-def get_indices_from_fraction(n, from_frac, to_frac):
-    '''Converts the interval induced by from_frac and to_frac to a list of indices of a list of length n.
-    '''
-    frac = to_frac-from_frac
+def get_indices_from_fraction(n, from_frac, to_frac, shuffle=False, file_name='None', dataset_path='None', seed=2912):
+    """Converts the interval induced by n, from_frac, to_frac to a list of indices in ascending order. The option is given to get the indices of a SHUFFLED list instead.
+
+    Furthermore, if a file_name and a dataset_path is given, a seed induced by the file_name is used when shuffling such that the same indices always are returned - useful when a dataset has to be split into train-, val.- and test-sets and the same splitting is wanted for every experiment.
     
+    Arguments:
+        n {int} -- length of array/list the indices are to be used for
+        from_frac {float} -- number between 0 and 1.
+        to_frac {float} -- number between 0 and 1 - must be larger than from_frac
+    
+    Keyword Arguments:
+        shuffle {bool} -- Whether indices of a shuffled list should be returned (default: {False})
+        file_name {str} -- Name of datafile used to make a unique seed for the RNG (default: {'None'})
+        dataset_path {str} -- ABsolute or relative path to the dataset (default: {'None'})
+        seed {int} -- Seed used by RNG (default: {2912})
+    
+    Returns:
+        np.array -- array of indices in ascending order
+    """    
+    
+    # * Calculate from and to indices
+    
+    frac = to_frac-from_frac
     n_below = int(from_frac*n +0.5)
     leftover = n_below - from_frac*n
-
     n_wanted = int(frac*n - leftover + 0.5)
 
-    indices = list(range(n_below, n_below+n_wanted))
+    all_indices = np.arange(n)
+    if shuffle:
+        # * Use filename if given to generate seed such that it is shuffled the same way every time.
+        if file_name != 'None':
+            seed = convert_id_to_int(dataset_path, file_name)
+            random.seed(seed)
+        random.shuffle(all_indices)
+
+        # * Make RNG random again..
+        random.seed()
+        random.seed(time()*1e7)
+
+    indices = all_indices[n_below:n_below+n_wanted]
     
-    return indices
+    return sorted(indices)
 
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
