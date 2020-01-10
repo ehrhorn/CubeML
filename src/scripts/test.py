@@ -20,99 +20,36 @@ from src.modules.classes import *
 #* DEFINE SCRIPT OBJECTIVE
 #* ========================================================================
 
-# * data_dir = '/data/MuonGun_Level2_139008'
-data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
-pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
+loss_fn = lf.get_loss_func('angle_squared_loss')
+for t in np.linspace(0.01, 0.0, 1000):
+        
+    x = [1.0*np.cos(t), 1.0*np.sin(t), 0.0]
+    y = [1.0, 0.0, 0.0]
+    
+    y = torch.tensor(y, requires_grad=True)
+    x = torch.tensor(x, requires_grad=True)
+    print(loss_fn(x, y), t)
+# print(np.cos(3.14159))
+    # dot_prods = torch.sum(x*y, dim=-1)
+    # len_x = torch.sqrt(torch.sum(x*x, dim=-1))
+    # len_y = torch.sqrt(torch.sum(y*y, dim=-1))
+    # cos = dot_prods/(len_x*len_y + 1e-9)
+    # print('cos:', cos, type(cos))
+#     cos.register_hook(print)
+# t = 1.0/(1.0+1e-7)
+# cos = torch.tensor(t, requires_grad=True)
+# cos2 = torch.tensor(t, requires_grad=True)
+# loss = torch.acos(cos)
+# loss2 = torch.acos(cos2)**2
+# # loss.register_hook(print)
+# # loss = loss_fn(x.view(1, -1), y.view(1, -1))
+# # loss = loss_fn(x, y)
+# loss.backward()
+# loss2.backward()
+# print('acos(.):', cos.grad, 'acos(.)**2:', cos2.grad, t)
 
-# * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time'
-regression_type = 'vertex_reg'
+# print(loss.grad)
 
-# * Options: 'train_new', 'continue_training', 'explore_lr'
-objective = 'train_new'
-
-# * Options: 'angle_loss', 'L1', 'L2', 'Huber'
-error_func = 'L2'
-
-# * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
-particle = 'muon_neutrino'
-
-# * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-mask_name = 'dom_interval_min32_max64'
-
-# * Set project
-project = 'cubeml'
-
-dataset = data_dir.split('/')[-1]
-meta_pars = {'tags':                [regression_type, dataset, error_func, particle, mask_name],
-            'group':                regression_type,
-            'project':              project,
-            'objective':            objective,
-            'pretrained_path':      pretrained_path,
-            'log_every':            100000,
-            }
-
-hyper_pars = {'batch_size':        128,
-            'max_epochs':          12,
-            'early_stop_patience': 60,
-            'optimizer':           {'optimizer':      'Adam',
-                                    'lr':             1e-6,#0.00003,#0.001, 
-                                    'betas':          (0.9, 0.998),
-                                    'eps':            1.0e-9
-                                    },
-            'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
-                                    'max_lr':          5e-3,
-                                    'min_lr':          1e-6,
-                                    'frac_up':         0.01,
-                                    'frac_down':       1-0.01,
-                                    },
-                                    
-                }
-
-
-data_pars = {'data_dir':     data_dir,
-            'mask':          mask_name,
-            'particle':      particle,
-            'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
-            'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
-            'n_val_events_wanted':   20000,# np.inf,
-            'n_train_events_wanted': np.inf,
-            'n_predictions_wanted': np.inf,
-            'train_frac':  0.80,
-            'val_frac':    0.10,
-            'test_frac':   0.0,
-            'file_keys':             {'transform':   1},
-            'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
-            'collate_fn': 'PadSequence',
-            'val_batch_size':      512
-            }
-
-
-n_seq_feat = len(data_pars['seq_feat'])
-n_scalar_feat = len(data_pars['scalar_feat'])
-n_target = len(get_target_keys(data_pars, meta_pars))
-
-arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
-
-                    'loss_func':           error_func,#'L2_like_loss','dir_reg_L1_like_loss',
-
-                    'norm':                {'norm':      None, #'BatchNorm1D', 'None'
-                                            'momentum':  0.9 },
-
-                    'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
-                                                                    'LayerNorm':          True},},
-                                            # {'SelfAttention':   {'input_sizes':        [64, 64],
-                                            #                      'LayerNorm':          True,
-                                            #                      'Residual':           True,}},
-                                            {'LSTM':            {'input_sizes':        [64, 512],
-                                                                'dropout':             0.5,
-                                                                'bidirectional':       True}},
-                                            {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
-                                                                'norm_before_nonlin':  True}}]
-                        }
-                                                
-train_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'train')
-print(len(train_set))
-print(np.inf/128)
 # print(len(train_set))
 # for file in Path(PATH_DATA+dataset).iterdir():
 #     if file.suffix =='.h5':
