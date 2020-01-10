@@ -815,7 +815,41 @@ def get_performance_plot_dicts(model_dir, plot_dicts):
                     plot_dicts[1][key].append(polar_dict[key][0])
                 except AttributeError:
                     pass
+    
+    if meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
+        azipolar_path = get_project_root() + get_path_from_root(model_dir) + '/data/AziPolarPerformance.pickle'
+        azipolar_class = pickle.load( open( azipolar_path, "rb" ) )
+        
+        azi_dict = azipolar_class.get_azi_dict()
+        azi_dict['label'] = [Path(model_dir).stem]
 
+        polar_dict = azipolar_class.get_polar_dict()
+        polar_dict['label'] = [Path(model_dir).stem]
+
+        if len(plot_dicts) == 0:
+            azi_dict['title'] = 'Azimuthal Performance'
+            azi_dict['grid'] = True
+            plot_dicts.append(azi_dict)
+            
+            polar_dict['title'] = 'Polar Performance'
+            polar_dict['grid'] = True
+            plot_dicts.append(polar_dict)
+        
+        else:
+            
+            for key, item in plot_dicts[0].items():
+                # * Only add to the lists - labels remain the same - this is what the try/except catches
+                try:
+                    plot_dicts[0][key].append(azi_dict[key][0])
+                except AttributeError:
+                    pass
+
+            for key, item in plot_dicts[1].items():
+                # * Only add to the lists - labels remain the same - this is what the try/except catches
+                try:
+                    plot_dicts[1][key].append(polar_dict[key][0])
+                except AttributeError:
+                    pass
     return plot_dicts
         
 def log_operation_plots(model_dir, wandb_ID=None):
