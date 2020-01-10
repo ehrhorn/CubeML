@@ -41,19 +41,35 @@ class dir_reg_L1_like_loss(torch.nn.Module):
         return totloss
 
 class angle_loss(torch.nn.Module):
-    '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds 1e-8 to denominator to avoid division with zero.
+    '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds and multiplies denominator with 1e-7 and 1+1e-7 to avoid division with zero.
     '''
     def __init__(self):
         super(angle_loss,self).__init__()
         
     def forward(self, x, y):
-        dot_prods = torch.sum(x*y, dim=1)
-        len_x = torch.sqrt(torch.sum(x*x, dim=1))
-        len_y = torch.sqrt(torch.sum(y*y, dim=1))
-        err = dot_prods/(len_x*len_y + 1e-6)
+        dot_prods = torch.sum(x*y, dim=-1)
+        len_x = torch.sqrt(torch.sum(x*x, dim=-1))
+        len_y = torch.sqrt(torch.sum(y*y, dim=-1))
+        err = dot_prods/(len_x*len_y*(1+1e-7) + 1e-7)
         err = torch.acos(err)
         err = torch.mean(err)
         return err
+
+class angle_squared_loss(torch.nn.Module):
+    '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds and multiplies denominator with 1e-7 and 1+1e-7 to avoid division with zero.
+    '''    
+    def __init__(self):
+        super(angle_squared_loss, self).__init__()
+    
+    def forward(self, x, y, eps=1e-7):
+        dot_prods = torch.sum(x*y, dim=-1)
+        len_x = torch.sqrt(torch.sum(x*x, dim=-1))
+        len_y = torch.sqrt(torch.sum(y*y, dim=-1))
+        cos = dot_prods/(len_x*len_y*(1+eps) + eps)
+        loss = torch.acos(cos)**2
+        loss_mean = torch.mean(loss)
+
+        return loss_mean
 
 def get_loss_func(name):
     if name == 'L1': 
@@ -64,5 +80,7 @@ def get_loss_func(name):
         return torch.nn.SmoothL1Loss()
     elif name == 'L2':
         return torch.nn.MSELoss()
+    elif name == 'angle_squared_loss':
+        return angle_squared_loss()
     else:
         raise ValueError('Unknown loss function requested!')
