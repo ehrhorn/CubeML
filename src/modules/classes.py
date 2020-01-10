@@ -324,13 +324,18 @@ class FullBatchLoader(data.Dataset):
         self.file_indices = {}
         self.n_full_batches = {}
         self.file_order = []
-        self.batches = []
+        self.batches = [] # * Initiated - is filled later.
         self._file_list = file_list
-        self._len = None # * is calculated in _get_meta_information()
 
         self._get_meta_information()
         self.make_batches()
-       
+        
+        # * If enough datapoints have been prepared, stop loading more
+        # ! Actually dont! Instead extract all and change len(.) such that all statistic is used
+        n_batches = len(self.batches)
+        batches_wanted = np.inf if self.n_events_wanted == np.inf else ceil(self.n_events_wanted/self.batch_size)
+        self._len = n_batches if n_batches <= batches_wanted else batches_wanted
+
     def __getitem__(self, index):
         # * Find right file and get sorted indices to load
         fname = self.batches[index]['path']
@@ -403,7 +408,7 @@ class FullBatchLoader(data.Dataset):
         return 0
         n_batches = 0
         n_events = 0
-        ID = 1
+        file_id = 1
 
         for rel_path in self._file_list:
             # * If enough datapoints have been prepared, stop loading more
@@ -416,7 +421,7 @@ class FullBatchLoader(data.Dataset):
 
                 # n_data_in_file = f['meta/events'][()]
                 # indices = get_indices_from_fraction(n_data_in_file, 0, 1)
-                file_ID = str(ID)
+                file_ID = str(file_id)
                 
                 # * Ignore last batch if not a full batch
                 self.file_path[file_ID] = path
@@ -425,7 +430,7 @@ class FullBatchLoader(data.Dataset):
 
                 n_events += len(indices)
                 n_batches += len(indices)//self.batch_size
-                ID += 1
+                file_id += 1
         
         self._n_batches_total = n_batches
             
@@ -444,30 +449,18 @@ class FullBatchLoader(data.Dataset):
             self._split_in_files()
         else:
             self._extract_from_splitted_files()
-
-        self._len = self._n_batches_total if self.n_events_wanted == np.inf else self.n_events_wanted//self.batch_size
         
-        # * In case some weird n_events_wanted was chosen such that wanted/bs > n_batches
-        self._len = min(self._len, self._n_batches_total)
-
     def _split_in_files(self):
         '''Extracts filenames, calculates indices induced by train-, val.- and test-fracs. 
         '''
 
-        n_batches = 0
-        n_events = 0
         from_frac, to_frac = self._get_from_to()
-        ID = 1
+        file_id = 1
         for file in Path(self.directory).iterdir():
             
             # * Only extract events from files with the proper particle type (necessary due to how Icecube-simfiles are named)
             if not confirm_particle_type(self._particle_code, file):
                 continue
-            
-            # * If enough datapoints have been prepared, stop loading more
-            # ! Actually dont! Instead extract all and change len(.) such that all statistic is used
-            # if n_events > self.n_events_wanted:
-            #     break
             
             if file.suffix == '.h5':
                 
@@ -479,36 +472,33 @@ class FullBatchLoader(data.Dataset):
                     n_data_in_file = viable_events.shape[0]
                     indices = get_indices_from_fraction(n_data_in_file, from_frac, to_frac, shuffle=True, file_name=file.stem, dataset_path=self.directory)
                     indices = viable_events[indices]
-                    file_ID = str(ID)
+                    file_ID = str(file_id)
                    
                     # * Ignore last batch if not a full batch
                     self.file_path[file_ID] = str(file)
                     self.file_indices[file_ID] = indices
                     self.n_full_batches[file_ID] = len(indices)//self.batch_size
+                    file_id += 1
 
-                    n_events += len(indices)
-                    n_batches += ceil(len(indices)/self.batch_size)
-                    ID += 1
-        
-        self._n_batches_total = n_batches
-        
     def make_batches(self):
-        '''Shuffles the INDICES from each file, the Torch dataloader fetches a batch from. For each file, self.n_batches dictionaries are made as {ID: shuffled_indices_to_load}. They are then extended to a list, which will contain all such dictionaries for all files. The final list is shuffled aswell. 
+        '''Shuffles the INDICES from each file, the Torch dataloader fetches a batch from. For each file, self.n_batches dictionaries are made as {file_id: shuffled_indices_to_load}. They are then extended to a list, which will contain all such dictionaries for all files. The final list is shuffled aswell. 
         '''
 
         next_epoch_batches = []
-        for ID in self.file_indices:
-            random.shuffle(self.file_indices[ID])
-            batches = [{'path': self.file_path[ID], 'indices': sorted(self.file_indices[ID][i*self.batch_size:(i+1)*self.batch_size])} for i in range(self.n_full_batches[ID])]
+        for file_id in self.file_indices:
+            random.shuffle(self.file_indices[file_id])
+            batches = [{'path': self.file_path[file_id], 'indices': sorted(self.file_indices[file_id][i*self.batch_size:(i+1)*self.batch_size])} for i in range(self.n_full_batches[file_id])]
 
             # * Add remaining non-full batch
-            last_batch = {'path': self.file_path[ID], 'indices': sorted(self.file_indices[ID][self.n_full_batches[ID]*self.batch_size:-1])}
+            last_batch = {'path': self.file_path[file_id], 'indices': sorted(self.file_indices[file_id][self.n_full_batches[file_id]*self.batch_size:-1])}
             
             next_epoch_batches.extend(batches)
             if len(last_batch['indices'])>0: 
                 next_epoch_batches.append(last_batch)
 
         self.batches = next_epoch_batches
+        # print(len(self.batches[-1]['indices']), len(self.batches[-2]['indices']))
+
         random.shuffle(self.batches)
 
         # * Free up some memory
