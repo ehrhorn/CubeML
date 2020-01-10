@@ -31,7 +31,7 @@ if __name__ == '__main__':
     pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
 
     # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time'
-    regression_type = 'vertex_reg_no_time'
+    regression_type = 'vertex_reg'
 
     # * Options: 'train_new', 'continue_training', 'explore_lr'
     objective = 'train_new'
@@ -56,13 +56,13 @@ if __name__ == '__main__':
                 'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            100000,
+                'log_every':            200000,
                 'lr_scan':              args.scan_lr 
                 }
 
     hyper_pars = {'batch_size':        128,
                 'max_epochs':          12,
-                'early_stop_patience': 60,
+                'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
@@ -87,7 +87,7 @@ if __name__ == '__main__':
                 'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
                 'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
-                'n_val_events_wanted':   20000,# np.inf,
+                'n_val_events_wanted':   50000,# np.inf,
                 'n_train_events_wanted': np.inf,
                 'n_predictions_wanted': np.inf,
                 'train_frac':  0.80,
