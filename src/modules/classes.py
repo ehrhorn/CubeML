@@ -301,7 +301,7 @@ class FullBatchLoader(data.Dataset):
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and batch_size.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None, mask_name='all'):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None, mask_name='all', drop_last=False):
 
         self.directory = get_project_root() + directory
         self.scalar_features = scalar_features
@@ -319,6 +319,7 @@ class FullBatchLoader(data.Dataset):
         self.batch_size = batch_size
         self.prefix = prefix
         self._mask = mask_name
+        self._drop_last = drop_last
 
         self.file_path = {}
         self.file_indices = {}
@@ -489,12 +490,13 @@ class FullBatchLoader(data.Dataset):
             random.shuffle(self.file_indices[file_id])
             batches = [{'path': self.file_path[file_id], 'indices': sorted(self.file_indices[file_id][i*self.batch_size:(i+1)*self.batch_size])} for i in range(self.n_full_batches[file_id])]
 
-            # * Add remaining non-full batch
-            last_batch = {'path': self.file_path[file_id], 'indices': sorted(self.file_indices[file_id][self.n_full_batches[file_id]*self.batch_size:-1])}
-            
             next_epoch_batches.extend(batches)
-            if len(last_batch['indices'])>0: 
-                next_epoch_batches.append(last_batch)
+
+            # * Add remaining non-full batch
+            if not self._drop_last:
+                last_batch = {'path': self.file_path[file_id], 'indices': sorted(self.file_indices[file_id][self.n_full_batches[file_id]*self.batch_size:-1])}
+                if len(last_batch['indices'])>0 : 
+                    next_epoch_batches.append(last_batch)
 
         self.batches = next_epoch_batches
         # print(len(self.batches[-1]['indices']), len(self.batches[-2]['indices']))
@@ -535,7 +537,7 @@ class PadSequence:
 #* DATALOADER FUNCTIONS
 #* ========================================================================
 
-def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None):
+def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None, drop_last=False):
 
     data_dir = data_pars['data_dir'] # * WHere to load data from
     seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
@@ -547,6 +549,9 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     test_frac = data_pars['test_frac'] # * how much data should be used for training
     file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
     mask_name = data_pars['mask']
+    
+    if keyword == 'train':
+        drop_last = True
 
     if 'LstmLoader' == data_pars['dataloader']:
         dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
@@ -566,7 +571,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
         if file_keys['transform'] == -1:
             prefix = 'raw/'
 
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_name=mask_name)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_name=mask_name, drop_last=drop_last)
 
     else:
         raise ValueError('Unknown data loader requested!')

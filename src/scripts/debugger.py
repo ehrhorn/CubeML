@@ -32,21 +32,21 @@ if __name__ == '__main__':
     pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
 
     # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time'
-    regression_type = 'vertex_reg_no_time'
+    regression_type = 'direction_reg'
 
     # * Options: 'train_new', 'continue_training', 'explore_lr'
     objective = 'train_new'
     if args.explore_lr:
         objective = 'explore_lr'
 
-    # * Options: 'angle_loss', 'L1', 'L2', 'Huber'
-    error_func = 'L2'
+    # * Options: 'angle_loss', 'L1', 'L2', 'Huber', 'angle_squared_loss'
+    error_func = 'angle_squared_loss'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'dom_interval_min32_max64'
+    mask_name = 'all'
 
     # * Set project
     project = 'cubeml_test'
@@ -87,7 +87,7 @@ if __name__ == '__main__':
                 'particle':      particle,
                 'mask':          mask_name,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
-                'scalar_feat': ['dom_timelength_fwhm'], #['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
+                'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'], #['dom_timelength_fwhm'], #
                 'n_val_events_wanted':   110,# np.inf,
                 'n_train_events_wanted': 110,# np.inf,
                 'n_predictions_wanted': 100,
