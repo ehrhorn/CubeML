@@ -109,18 +109,18 @@ if __name__ == '__main__':
 
                         'loss_func':           error_func,#'L2_like_loss','dir_reg_L1_like_loss',
 
-                        'norm':                {'norm':      None, #'BatchNorm1D', 'None'
+                        'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
+                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64, 128],
                                                                      'LayerNorm':          True},},
                                                 # {'SelfAttention':   {'input_sizes':        [64, 64],
                                                 #                      'LayerNorm':          True,
                                                 #                      'Residual':           True,}},
-                                                {'LSTM':            {'input_sizes':        [64, 128],
+                                                {'LSTM':            {'input_sizes':        [128, 128],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [128+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [128+n_scalar_feat, 64, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

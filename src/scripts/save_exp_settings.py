@@ -45,7 +45,7 @@ if __name__ == '__main__':
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'dom_interval_min32_max64'
+    mask_name = 'all'
 
     # * Set project
     project = 'cubeml'
@@ -61,7 +61,7 @@ if __name__ == '__main__':
                 }
 
     hyper_pars = {'batch_size':        128,
-                'max_epochs':          12,
+                'max_epochs':          15,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
@@ -108,18 +108,18 @@ if __name__ == '__main__':
 
                         'loss_func':           error_func,#'L2_like_loss','dir_reg_L1_like_loss',
 
-                        'norm':                {'norm':      None, #'BatchNorm1D', 'None'
+                        'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
+                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64, 128],
                                                                      'LayerNorm':          True},},
                                                 # {'SelfAttention':   {'input_sizes':        [64, 64],
                                                 #                      'LayerNorm':          True,
                                                 #                      'Residual':           True,}},
-                                                {'LSTM':            {'input_sizes':        [64, 512],
+                                                {'LSTM':            {'input_sizes':        [128, 512],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       True}},
-                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, 256, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
