@@ -2,9 +2,11 @@ import src.modules.helper_functions as hf
 import src.modules.reporting as rpt
 import argparse
 import pickle
+from src.modules.constants import *
 from pathlib import Path
+import numpy as np
 
-def t_plot(models, perf_classes):
+def t_plot(models, perf_classes, title=None, savefig=None):
     # * t plot
     edges, y, yerr, label = [], [], [], []
     data, bins, weights, histtype, log = [], [], [], [], []
@@ -31,18 +33,22 @@ def t_plot(models, perf_classes):
     pd['y'] = y
     pd['yerr'] = yerr
     pd['label'] = label
-
     pd_h['data'] = data
     pd_h['bins'] = bins
     pd_h['weights'] = weights
     pd_h['histtype'] = histtype
     pd_h['log'] = log
 
+    if savefig:
+        pd_h['savefig'] = savefig
+    if title:
+        pd_h['title'] = title
+
     fig = rpt.make_plot(pd)
     fig = rpt.make_plot(pd_h, h_figure=fig, axes_index=0)
     return fig
 
-def x_plot(models, perf_classes):
+def x_plot(models, perf_classes, title=None, savefig=None):
     # * t plot
     edges, y, yerr, label = [], [], [], []
     data, bins, weights, histtype, log = [], [], [], [], []
@@ -76,11 +82,17 @@ def x_plot(models, perf_classes):
     pd_h['histtype'] = histtype
     pd_h['log'] = log
 
+    if savefig:
+        pd_h['savefig'] = savefig
+    if title:
+        pd_h['title'] = title
+    
     fig = rpt.make_plot(pd)
     fig = rpt.make_plot(pd_h, h_figure=fig, axes_index=0)
+    
     return fig
 
-def y_plot(models, perf_classes):
+def y_plot(models, perf_classes, title=None, savefig=None):
     # * t plot
     edges, y, yerr, label = [], [], [], []
     data, bins, weights, histtype, log = [], [], [], [], []
@@ -113,12 +125,15 @@ def y_plot(models, perf_classes):
     pd_h['weights'] = weights
     pd_h['histtype'] = histtype
     pd_h['log'] = log
-
+    if savefig:
+        pd_h['savefig'] = savefig
+    if title:
+        pd_h['title'] = title
     fig = rpt.make_plot(pd)
     fig = rpt.make_plot(pd_h, h_figure=fig, axes_index=0)
     return fig
 
-def z_plot(models, perf_classes):
+def z_plot(models, perf_classes, title=None, savefig=None):
     # * t plot
     edges, y, yerr, label = [], [], [], []
     data, bins, weights, histtype, log = [], [], [], [], []
@@ -151,12 +166,21 @@ def z_plot(models, perf_classes):
     pd_h['weights'] = weights
     pd_h['histtype'] = histtype
     pd_h['log'] = log
-
+    if savefig:
+        pd_h['savefig'] = savefig
+    if title:
+        pd_h['title'] = title
     fig = rpt.make_plot(pd)
     fig = rpt.make_plot(pd_h, h_figure=fig, axes_index=0)
+
+    # mod = pd['y'][0]
+    # ice = pd['y'][2]
+    # print(-(np.array(mod)-np.array(ice))/np.array(ice))
     return fig
 
-models = ['2020-01-08-21.01.31', '2020-01-08-13.54.40']
+# * VERTEX REG WITH OR WITHOUT MASK? BEST MODELS 
+# * 16.57.20 IS WITH MASK, 21.01.31 IS WITHOUT
+models = ['2020-01-08-13.54.40', '2020-01-08-21.01.31']
 # models = ['2020-01-08-13.54.40', ]
 
 perf_classes = []
@@ -172,4 +196,7 @@ for model in models:
     perf_class = pickle.load( open( perf_class_path, "rb" ) )
     perf_classes.append(perf_class)
 
-fig = y_plot(models, perf_classes)
+path = get_project_root() + '/plots/vertex_reg_z_with_without_t.png'
+title = 'vertex z: Without t (blue) and with t (orange)'
+
+fig = z_plot(models, perf_classes)#, title=title, savefig=path)
