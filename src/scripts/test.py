@@ -20,15 +20,32 @@ from src.modules.classes import *
 #* DEFINE SCRIPT OBJECTIVE
 #* ========================================================================
 
-loss_fn = lf.get_loss_func('angle_squared_loss')
-for t in np.linspace(0.01, 0.0, 1000):
+loss_fn = lf.get_loss_func('angle_squared_loss_with_L2')
+# for t in np.linspace(0.01, 0.0, 1000):
         
-    x = [1.0*np.cos(t), 1.0*np.sin(t), 0.0]
-    y = [1.0, 0.0, 0.0]
-    
-    y = torch.tensor(y, requires_grad=True)
-    x = torch.tensor(x, requires_grad=True)
-    print(loss_fn(x, y), t)
+#     x = [0.1*np.cos(t), 0.000000*np.sin(t), 0.0]
+#     y = [1.0, 0.0, 0.0]
+#     if x[0] == 0.0:
+#         x[0]+=1
+#     y = torch.tensor(y, requires_grad=True)
+#     x = torch.tensor(x, requires_grad=True)
+#     a = loss_fn(x, y)
+#     a.backward()
+#     print(x, x.grad)
+x = [[0.1, 0.00, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 2.0], [1.0, 1.0, 0.0], [0.1, 0.0, 0.0], ]
+y = [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]]
+
+x = [[0.1, 0.00, 0.0], [0.0, 0.0, 0.0]]
+y = [[1.0, 0, 0], [1.0, 0, 0]]
+# if x[0] == 0.0:
+#     x[0]+=1
+y = torch.tensor(y, requires_grad=True)
+x = torch.tensor(x, requires_grad=True)
+# print(x.shape)
+a = loss_fn(x, y)
+a.backward()
+print(x.grad)
+# print(torch.where(x == torch.tensor([0.0, 0.0, 0.0])))
 # print(np.cos(3.14159))
     # dot_prods = torch.sum(x*y, dim=-1)
     # len_x = torch.sqrt(torch.sum(x*x, dim=-1))

@@ -39,14 +39,14 @@ if __name__ == '__main__':
     if args.explore_lr:
         objective = 'explore_lr'
 
-    # * Options: 'angle_loss', 'L1', 'L2', 'Huber', 'angle_squared_loss'
-    error_func = 'angle_squared_loss'
+    # * Options: 'angle_loss', 'L1', 'L2', 'Huber', 'angle_squared_loss', 'angle_squared_loss_with_L2', 
+    error_func = 'angle_squared_loss_with_L2'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'dom_interval_min0_max200'
+    mask_name = 'dom_interval_min32_max64'
 
     # * Set project
     project = 'cubeml_test'
