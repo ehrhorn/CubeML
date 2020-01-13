@@ -163,9 +163,9 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     # * Initialize model and log it - use GPU if available
     model, optimizer, device = initiate_model_and_optimizer(None, hyper_pars, data_pars, architecture_pars, meta_pars)
 
-    # * Get type of scheduler, since different schedulers need different kinds of updating
-    lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, BATCH_SIZE, N_TRAIN)
-    type_lr_scheduler = type(lr_scheduler)
+    # # * Get type of scheduler, since different schedulers need different kinds of updating
+    # lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, BATCH_SIZE, N_TRAIN)
+    # type_lr_scheduler = type(lr_scheduler)
     loss = get_loss_func(architecture_pars['loss_func'])
 
     # * Setup generators - make a generator for training, validation on trainset and validation on test set
@@ -299,7 +299,8 @@ def predict(save_dir, wandb_ID=None):
 
             i_file += 1
             i_str = str(i_file)
-            print('Progress: %.0f %%. Predicting on %s'%(100*n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
+             # TODO: Is always 0.00, since n_predicitons_wanted is np.inf.. It should be changed to len(val_set)
+            print('Progress: %.2f %%. Predicting on %s'%(100*n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
             
             # * Extract validation data
             val_set = load_predictions(data_pars, meta_pars, 'val', file, use_whole_file=USE_WHOLE_FILE)

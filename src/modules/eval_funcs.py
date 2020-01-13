@@ -22,6 +22,8 @@ def azi_error(pred, truth, units = 'degrees'):
         x_key, y_key, z_key = 'true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'
     elif 'true_neutrino_direction_x' in pred and 'true_neutrino_direction_y' in pred and 'true_neutrino_direction_z' in pred:
         x_key, y_key, z_key = 'true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z'
+    elif 'true_primary_direction_x' in pred and 'true_primary_direction_y' in pred and 'true_primary_direction_z' in pred:
+        x_key, y_key, z_key = 'true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z'
     else:
         raise KeyError('Unknown predictions given to directional_error.')
     
@@ -52,6 +54,8 @@ def polar_error(pred, truth, units = 'degrees'):
         x_key, y_key, z_key = 'true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'
     elif 'true_neutrino_direction_x' in pred and 'true_neutrino_direction_y' in pred and 'true_neutrino_direction_z' in pred:
         x_key, y_key, z_key = 'true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z'
+    elif 'true_primary_direction_x' in pred and 'true_primary_direction_y' in pred and 'true_primary_direction_z' in pred:
+        x_key, y_key, z_key = 'true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z'
     else:
         raise KeyError('Unknown predictions given to directional_error.')
         
@@ -74,13 +78,15 @@ def polar_error(pred, truth, units = 'degrees'):
     
     return diff
 
-def directional_error(pred, truth, units = 'degrees'):
+def directional_error(pred, truth, units='degrees'):
     
     #* ensure cartesian coordinates are used
     if 'true_muon_direction_x' in pred and 'true_muon_direction_y' in pred and 'true_muon_direction_z' in pred:
         x_key, y_key, z_key = 'true_muon_direction_x', 'true_muon_direction_y', 'true_muon_direction_z'
     elif 'true_neutrino_direction_x' in pred and 'true_neutrino_direction_y' in pred and 'true_neutrino_direction_z' in pred:
         x_key, y_key, z_key = 'true_neutrino_direction_x', 'true_neutrino_direction_y', 'true_neutrino_direction_z'
+    elif 'true_primary_direction_x' in pred and 'true_primary_direction_y' in pred and 'true_primary_direction_z' in pred:
+        x_key, y_key, z_key = 'true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z'
     else:
         raise KeyError('Unknown predictions given to directional_error.')
         
@@ -214,36 +220,36 @@ def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
     
     return diff
 
-def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
-    """Calculates the difference in polar angle between retro_crs_prefit and true values.
+# def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
+#     """Calculates the difference in polar angle between retro_crs_prefit and true values.
     
-    Arguments:
-        retro_dict {dictionary} -- predictions from retro_crs_prefit with keys as in h5-files. Expects key 'zen'
-        true_dict {dictionary} -- true values as unit vectors with keys 'x', 'y', 'z'
+#     Arguments:
+#         retro_dict {dictionary} -- predictions from retro_crs_prefit with keys as in h5-files. Expects key 'zen'
+#         true_dict {dictionary} -- true values as unit vectors with keys 'x', 'y', 'z'
     
-    Keyword Arguments:
-        units {str} -- 'degrees' or 'radians' (default: {'degrees'})
+#     Keyword Arguments:
+#         units {str} -- 'degrees' or 'radians' (default: {'degrees'})
     
-    Returns:
-        torch.tensor -- difference in polar angle between retro and truth
-    """     
+#     Returns:
+#         torch.tensor -- difference in polar angle between retro and truth
+#     """     
     
-    pi = 3.14159265359
+#     pi = 3.14159265359
 
-    x_pred, y_pred, z_pred = retro_dict['x'], retro_dict['y'], retro_dict['z']
-    x_true, y_true, z_true = true_dict['x'], true_dict['y'], true_dict['z']
-    dir_truth = torch.tensor([x_true, y_true, z_true])
-    length_truth = torch.sum(dir_truth*dir_truth, dim=0)**0.5
-    polar_truth = torch.acos(dir_truth[2, :]/length_truth)
+#     x_pred, y_pred, z_pred = retro_dict['x'], retro_dict['y'], retro_dict['z']
+#     x_true, y_true, z_true = true_dict['x'], true_dict['y'], true_dict['z']
+#     dir_truth = torch.tensor([x_true, y_true, z_true])
+#     length_truth = torch.sum(dir_truth*dir_truth, dim=0)**0.5
+#     polar_truth = torch.acos(dir_truth[2, :]/length_truth)
 
-    #? retro_crs seems to predit the direction the neutrino came from and not the neutrinos direction - therefore do a parity.
-    polar_preds = pi-torch.tensor(retro_dict['zen'], dtype=polar_truth.dtype)
-    if units == 'radians':
-        diff = polar_preds-polar_truth
-    elif units == 'degrees':
-        diff = (180/pi)*(polar_preds-polar_truth)
+#     #? retro_crs seems to predit the direction the neutrino came from and not the neutrinos direction - therefore do a parity.
+#     polar_preds = pi-torch.tensor(retro_dict['zen'], dtype=polar_truth.dtype)
+#     if units == 'radians':
+#         diff = polar_preds-polar_truth
+#     elif units == 'degrees':
+#         diff = (180/pi)*(polar_preds-polar_truth)
     
-    return diff
+#     return diff
 
 def vertex_t_error(pred, truth):
     """Calculates the error on the t-coordinate prediction of the neutrino interaction vertex.
