@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     # * data_dir = '/data/MuonGun_Level2_139008'
     data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
-    pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
+    pretrained_path = '/models/oscnext-genie-level5-v01-01-pass2/regression/direction_reg/2020-01-13-13.58.14' 
 
     # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time'
     regression_type = 'direction_reg'
@@ -39,7 +39,7 @@ if __name__ == '__main__':
         objective = 'explore_lr'
 
     # * Options: 'angle_loss', 'L1', 'L2', 'Huber', 'angle_squared_loss'
-    error_func = 'angle_squared_loss'
+    error_func = 'angle_squared_loss_with_L2'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
@@ -68,7 +68,7 @@ if __name__ == '__main__':
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
-                'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
+                'lr_schedule':          {'lr_scheduler':   None,
                                         'max_lr':          2e-3,
                                         'min_lr':          5e-5,
                                         'frac_up':         0.02,
