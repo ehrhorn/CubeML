@@ -1547,6 +1547,6 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
     for key, item in new_data_pars.items():
         data_pars[key] = item
 
-    return hyper_pars, data_pars, arch_pars
+    return model_dir, hyper_pars, data_pars, arch_pars
     
     

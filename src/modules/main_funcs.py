@@ -559,7 +559,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
             pickle.dump(pretrain_lr, open(save_dir+'/pretrain_lr.pickle', 'wb'))
             pickle.dump(pretrain_losses, open(save_dir+'/pretrain_loss_vals.pickle', 'wb'))
             im = PIL.Image.open(img_address)
-            wandb.log({'Pretrain LR-scan': wandb.Image(im, caption='Pretrain LR-scan')}, commit = False)
+            wandb.log({'Pretrain LR-scan': wandb.Image(im, caption='Pretrain LR-scan')}, commit=False)
 
     #* ======================================================================== #
     #* SETUP LOGGING
@@ -653,7 +653,6 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     #* ======================================================================== #
     #* SETUP LEARNING RATE SCHEDULER
     #* ======================================================================== #
-
     if type_lr_scheduler == torch.optim.lr_scheduler.CyclicLR:
         
         def update_lr(engine, lr_scheduler):
@@ -690,7 +689,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     trainer.run(train_generator, max_epochs=MAX_EPOCHS)
     print('\nTraining finished!')
 
-def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = False, log=True):
+def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train=False, log=True):
     
     #* ======================================================================== 
     #* SETUP AND LOAD DATA
@@ -703,17 +702,19 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     project = meta_pars['project']
     particle = data_pars.get('particle', 'any')
 
-    if log:
-        save_dir = make_model_dir(group, data_dir, file_keys, project, particle=particle)
-        wandb_ID = save_dir.split('/')[-1]
-        print('Model saved at', save_dir)
-    else:
-        save_dir = None
-        wandb_ID = None
-    
-    # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
+
+# * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
     if meta_pars['objective'] == 'continue_training':
-        hyper_pars, data_pars, architecture_pars = update_model_pars(hyper_pars, data_pars, meta_pars)
+        save_dir, hyper_pars, data_pars, architecture_pars = update_model_pars(hyper_pars, data_pars, meta_pars)
+        wandb_ID = save_dir.split('/')[-1]
+    else:
+        if log:
+            save_dir = make_model_dir(group, data_dir, file_keys, project, particle=particle)
+            wandb_ID = save_dir.split('/')[-1]
+            print('Model saved at', save_dir)
+        else:
+            save_dir = None
+            wandb_ID = None
     
     # * Save model parameters on W&B AND LOCALLY!
     # * Shut down W&B first, if it is already running
