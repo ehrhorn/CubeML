@@ -70,6 +70,38 @@ class angle_squared_loss(torch.nn.Module):
         loss_mean = torch.mean(loss)
 
         return loss_mean
+    
+class angle_squared_loss_with_L2(torch.nn.Module):
+    '''takes two tensors with shapes (B, 3) as input and calculates the angular error plus a bit of L2. Adds 1e-7 to squareroots to avoid inf gradients and multiplies denominator with 1+1e-7 to avoid division with zero. The L2 is useful to force unit vector predictions.
+
+    Furthermore, each batch is checked for zero-vectors - these produce nan's. If any are found, they are set to equal y --> makes them not count.
+    '''    
+    def __init__(self):
+        super(angle_squared_loss_with_L2, self).__init__()
+    
+    def forward(self, x, y, eps=1e-7, alpha=0.1):
+        batch_size = x.shape[0]
+        zeros, ones = torch.zeros(batch_size), torch.ones(batch_size)
+        
+        # * Check for zero-length vectors --> neutralize them by adding the target. Makes gradient 0 (which is what matters) and make other entries in batch count more. 
+        len_x_checker = torch.sqrt(torch.sum(x*x, dim=-1))
+        zero_vectors = torch.where(len_x_checker == 0.0, ones, zeros)
+        n_zeros = torch.sum(zero_vectors)
+        mult_factor = batch_size/(batch_size-n_zeros)
+        x = x + zero_vectors.unsqueeze(1)*y
+        
+        # * Add eps to avoid infinite gradient.
+        len_x = torch.sqrt(eps+torch.sum(x*x, dim=-1)) + zero_vectors
+        len_y = torch.sqrt(torch.sum(y*y, dim=-1))
+        dot_prods = torch.sum(x*y, dim=-1)
+        cos = dot_prods/(len_x*len_y*(1+eps))
+        loss = torch.acos(cos)**2
+        loss_mean = torch.mean(loss)
+
+        L2 = torch.mean((x-y)**2, dim=-1)
+        L2_mean = torch.mean(L2)
+
+        return mult_factor*(loss_mean + alpha*L2_mean)    
 
 def get_loss_func(name):
     if name == 'L1': 
@@ -82,5 +114,7 @@ def get_loss_func(name):
         return torch.nn.MSELoss()
     elif name == 'angle_squared_loss':
         return angle_squared_loss()
+    elif name == 'angle_squared_loss_with_L2':
+        return angle_squared_loss_with_L2()
     else:
         raise ValueError('Unknown loss function requested!')
