@@ -80,8 +80,9 @@ class angle_squared_loss_with_L2(torch.nn.Module):
         super(angle_squared_loss_with_L2, self).__init__()
     
     def forward(self, x, y, eps=1e-7, alpha=0.1):
+        device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
         batch_size = x.shape[0]
-        zeros, ones = torch.zeros(batch_size), torch.ones(batch_size)
+        zeros, ones = torch.zeros(batch_size, device=device), torch.ones(batch_size, device=device)
         
         # * Check for zero-length vectors --> neutralize them by adding the target. Makes gradient 0 (which is what matters) and make other entries in batch count more. 
         len_x_checker = torch.sqrt(torch.sum(x*x, dim=-1))
