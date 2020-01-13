@@ -45,7 +45,7 @@ if __name__ == '__main__':
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'all'
+    mask_name = 'dom_interval_min0_max200'
 
     # * Set project
     project = 'cubeml'
@@ -61,18 +61,18 @@ if __name__ == '__main__':
                 }
 
     hyper_pars = {'batch_size':        128,
-                'max_epochs':          15,
-                'early_stop_patience': 30,
+                'max_epochs':          14,
+                'early_stop_patience': 40,
                 'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-6,#0.00003,#0.001, 
+                                        'lr':             1e-5,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
                                         'max_lr':          5e-3,
-                                        'min_lr':          1e-6,
-                                        'frac_up':         0.01,
-                                        'frac_down':       1-0.01,
+                                        'min_lr':          5e-5,
+                                        'frac_up':         0.03,
+                                        'frac_down':       1-0.03,
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
@@ -111,15 +111,15 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64, 128],
+                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 128],
                                                                      'LayerNorm':          True},},
-                                                # {'SelfAttention':   {'input_sizes':        [64, 64],
-                                                #                      'LayerNorm':          True,
-                                                #                      'Residual':           True,}},
+                                                {'SelfAttention':   {'input_sizes':        [128, 128, 128, 128, 128],
+                                                                     'LayerNorm':          True,
+                                                                     'Residual':           True,}},
                                                 {'LSTM':            {'input_sizes':        [128, 512],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       True}},
-                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, 256, n_target],
+                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

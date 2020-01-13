@@ -21,16 +21,17 @@ class AziPolarHists:
         _, data_pars, _, meta_pars = load_model_pars(model_dir)
 
         self.model_dir = get_path_from_root(model_dir)
+        self.data_pars = data_pars
         self.data_dir = data_pars['data_dir']
         self.wandb_ID = wandb_ID
         self.meta_pars = meta_pars
-        self.data_dict = self._get_data_dict()
+        self.pred_dict, self.true_dict = self._get_data_dict()
 
     def _get_data_dict(self):
         full_pred_address = self._get_pred_path()
         keys = self._get_keys()
-        data_dict = read_predicted_h5_data(full_pred_address, keys)
-        return data_dict
+        pred_dict, true_dict = read_predicted_h5_data(full_pred_address, keys, self.data_pars, [])
+        return pred_dict, true_dict
     
     def _get_pred_path(self):
         path_to_data = get_project_root() + self.model_dir + '/data'
@@ -52,13 +53,13 @@ class AziPolarHists:
         azi_max_dev = 15
         polar_max_dev = 15
         
-        # exclude errors outside of first interval
-        azi_sorted, polar_sorted = sort_pairs(self.data_dict['azi_error'], self.data_dict['polar_error'])
+        # * exclude errors outside of first interval
+        azi_sorted, polar_sorted = sort_pairs(self.pred_dict['azi_error'], self.pred_dict['polar_error'])
         i_azi = np.searchsorted(azi_sorted, [-azi_max_dev, azi_max_dev])
         azi_sorted = azi_sorted[i_azi[0]:i_azi[1]]
         polar_sorted = polar_sorted[i_azi[0]:i_azi[1]]
 
-        # exclude errors outside of second interval
+        # * exclude errors outside of second interval
         polar_sorted, azi_sorted = sort_pairs(polar_sorted, azi_sorted)
         i_polar = np.searchsorted(polar_sorted, [-polar_max_dev, polar_max_dev])
         azi_sorted = azi_sorted[i_polar[0]:i_polar[1]]
@@ -68,8 +69,8 @@ class AziPolarHists:
 
     def save(self):
         
-        # Save standard histograms first
-        for key, pred in self.data_dict.items():
+        # * Save standard histograms first
+        for key, pred in self.pred_dict.items():
             img_address = get_project_root() + self.model_dir+'/figures/'+str(key)+'.png'
             figure = make_plot({'data': [pred], 'xlabel': str(key), 'savefig': img_address})
 
@@ -78,7 +79,7 @@ class AziPolarHists:
                 im = PIL.Image.open(img_address)
                 wandb.log({str(key): wandb.Image(im, caption=key)}, commit = False)
         
-        # Save 2D-histogram
+        # * Save 2D-histogram
         img_address = get_project_root() + self.model_dir+'/figures/azi_vs_polar.png'
         azi, polar = self._exclude_azi_polar()
 
@@ -94,7 +95,7 @@ class AziPolarHists:
                 wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit = False)
 
 class AziPolarPerformance:
-    """A class to create and save performance plots for azimuthal and polar predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell     
+    """A class to create and save performance plots for azimuthal and polar predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. Furthermore, the median of the directional error is logged as a one-number performance measure.  
     
     Raises:
         KeyError: If an unknown dataset is encountered.
@@ -114,33 +115,36 @@ class AziPolarPerformance:
         self.data_pars = data_pars
         self.meta_pars = meta_pars
         self.prefix = prefix
-        self._get_energy_key()
-        self._get_reco_keys()
+        self._energy_key = self._get_energy_key()
+        self._reco_keys, self._true_xyz = self._get_reco_keys()
+        self._pred_keys = self._get_pred_keys()
 
         self.from_frac = from_frac
         self.to_frac = to_frac
         self.wandb_ID = wandb_ID
 
-        self.data_dict = self._get_data_dict()
-        self.calculate()
+        pred_dict, true_dict = self._get_data_dicts()
+        self._calculate(pred_dict, true_dict)
+        self._save_onenum_perf(pred_dict)
 
-    def _get_data_dict(self):
+    def _get_data_dicts(self):
         full_pred_address = self._get_pred_path()
-        keys = self._get_keys()
-        data_dict = read_predicted_h5_data(full_pred_address, keys)
-        return data_dict
+        true_keys = self._energy_key + self._reco_keys + self._true_xyz
+        pred_dict, true_dict = read_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
+        return pred_dict, true_dict
 
     def _get_energy_key(self):
         dataset_name = get_dataset_name(self.data_dir)
 
         if dataset_name == 'MuonGun_Level2_139008':
-            self.energy_key = ['true_muon_energy']
+            energy_key = ['true_muon_energy']
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            self.energy_key = ['true_neutrino_energy']
+            energy_key = ['true_primary_energy']
         else:
             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
         
-
+        return energy_key
+        
     def _get_pred_path(self):
         path_to_data = get_project_root() + self.model_dir + '/data'
         for file in Path(path_to_data).iterdir():
@@ -148,7 +152,7 @@ class AziPolarPerformance:
                 path = str(file)
         return path
     
-    def _get_keys(self):
+    def _get_pred_keys(self):
         funcs = get_eval_functions(self.meta_pars)
         keys = []
 
@@ -160,47 +164,49 @@ class AziPolarPerformance:
         dataset_name = get_dataset_name(self.data_dir)
 
         if dataset_name == 'MuonGun_Level2_139008':
-            self._reco_keys = None
+            reco_keys = None
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            self._reco_keys = ['retro_crs_prefit_azi', 'retro_crs_prefit_zen']
-            self._true_xyz = ['true_neutrino_direction_x', 'true_neutrino_direction_y',  'true_neutrino_direction_z']
+            reco_keys = ['retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
+            true_xyz = ['true_primary_direction_x', 'true_primary_direction_y',  'true_primary_direction_z']
         else:
             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
+        
+        return reco_keys, true_xyz
 
-
-    def calculate(self):
-        energy = read_h5_directory(self.data_dir, self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf))
+    def _calculate(self, pred_dict, true_dict):
+        # energy = read_h5_directory(self.data_dir, self.energy_key, self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf))
 
         #* Transform back and extract values into list
         # * Our predictions have already been converted in predict()
-        energy = inverse_transform(energy, get_project_root() + self.model_dir)
-        energy = [y for _, y in energy.items()]
-        energy = [x[0] for x in energy[0]]
+        true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
+        energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
+        # energy = [y for _, y in energy.items()]
+        # energy = [x[0] for x in energy[0]]
         self.counts, self.bin_edges = np.histogram(energy, bins=12)
         
-        polar_error = self.data_dict['polar_error']
+        polar_error = pred_dict['polar_error']
         print('\nCalculating polar performance...')
         self.polar_sigmas, self.polar_errors = calc_perf2_as_fn_of_energy(energy, polar_error, self.bin_edges)
         print('Calculation finished!')
 
-        azi_error = self.data_dict['azi_error']
+        azi_error = pred_dict['azi_error']
         print('\nCalculating azimuthal performance...')
         self.azi_sigmas, self.azi_errors = calc_perf2_as_fn_of_energy(energy, azi_error, self.bin_edges)
         print('Calculation finished!')
 
         # * If an I3-reconstruction exists, get it
         if self._reco_keys:
-            azi_crs = read_h5_directory(self.data_dir, self._reco_keys, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf))
-            true = read_h5_directory(self.data_dir, self._true_xyz, prefix=self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf))
-
             # * Ensure keys are proper so the angle calculations work
             # * Our predictions have already been converted in predict()
-            true = inverse_transform(true, get_project_root() + model_dir)
-            azi_crs = convert_keys(azi_crs, [key for key in azi_crs], ['azi', 'zen'])
+            pred_crs = {key: true_transformed[key] for key in self._reco_keys}
+            pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['azi', 'zen'])
+            
+            true = {key: true_transformed[key] for key in self._true_xyz}
             true = convert_keys(true, [key for key in true], ['x', 'y', 'z'])
 
-            azi_crs_error = get_retro_crs_prefit_azi_error(azi_crs, true)
-            polar_crs_error = get_retro_crs_prefit_polar_error(azi_crs, true)
+            azi_crs_error = get_retro_crs_prefit_azi_error(pred_crs, true)
+            # print(true)
+            polar_crs_error = get_retro_crs_prefit_polar_error(pred_crs, true)
 
             print('\nCalculating crs polar performance...')
             self.polar_crs_sigmas, self.polar_crs_errors = calc_perf2_as_fn_of_energy(energy, polar_crs_error, self.bin_edges)
@@ -220,6 +226,10 @@ class AziPolarPerformance:
             self.polar_sigma_improvements = None
             self.azi_relative_improvements = None
             self.azi_sigma_improvements = None
+
+    def _save_onenum_perf(self, pred_dict):
+
+        self.median_direrr = np.nanpercentile(pred_dict['directional_error'], 50)
 
     def get_azi_dict(self):
         return {'edges': [self.bin_edges], 'y': [self.azi_sigmas], 'yerr': [self.azi_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [Deg]', 'grid': False}
@@ -915,9 +925,10 @@ def log_performance_plots(model_dir, wandb_ID=None):
         azi_polar_perf = AziPolarPerformance(model_dir, wandb_ID=wandb_ID)
         azi_polar_perf.save()
 
-        #* Plot and save directional error performance
-        perf = DirErrorPerformance(model_dir, wandb_ID=wandb_ID)
-        perf.save()
+        # #* Plot and save directional error performance
+        # # * Nah, deprecated?
+        # perf = DirErrorPerformance(model_dir, wandb_ID=wandb_ID)
+        # perf.save()
 
     elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
         vertex_perf = VertexPerformance(model_dir, wandb_ID=wandb_ID)
@@ -1160,10 +1171,10 @@ def summarize_model_performance(model_dir, wandb_ID=None):
     _, _, _, meta_pars = load_model_pars(model_dir)
 
     if meta_pars['group'] == 'direction_reg':
-        direrr_path = model_dir + '/data/DirErrorPerformance.pickle'
+        direrr_path = model_dir + '/data/AziPolarPerformance.pickle'
         direrrperf_class = pickle.load( open( direrr_path, "rb" ) )
 
-        onenum_performance = direrrperf_class.median
+        onenum_performance = direrrperf_class.median_direrr
     
     elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
         vertex_err_path = model_dir + '/data/VertexPerformance.pickle'

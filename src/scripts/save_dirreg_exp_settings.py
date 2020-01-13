@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 import argparse
 
-# from src import modules
 from src.modules.classes import *
 from src.modules.loss_funcs import *
 from src.modules.helper_functions import *
@@ -49,7 +48,7 @@ if __name__ == '__main__':
     mask_name = 'dom_interval_min0_max200'
 
     # * Set project
-    project = 'cubeml_test'
+    project = 'cubeml'
 
     dataset = data_dir.split('/')[-1]
     meta_pars = {'tags':                [regression_type, dataset, error_func, particle, mask_name],
@@ -57,23 +56,23 @@ if __name__ == '__main__':
                 'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            45,
+                'log_every':            200000,
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        21,
-                'max_epochs':          1,
-                'early_stop_patience': 100,
+    hyper_pars = {'batch_size':        128,
+                'max_epochs':          10,
+                'early_stop_patience': 40,
                 'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-6,#0.00003,#0.001, 
+                                        'lr':             1e-5,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
-                                        'max_lr':          1e-3,
-                                        'min_lr':          1e-6,
-                                        'frac_up':         0.2,
-                                        'frac_down':       0.8,
+                                        'max_lr':          2e-3,
+                                        'min_lr':          5e-5,
+                                        'frac_up':         0.02,
+                                        'frac_down':       1-0.02,
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
@@ -84,20 +83,20 @@ if __name__ == '__main__':
 
 
     data_pars = {'data_dir':     data_dir,
-                'particle':      particle,
                 'mask':          mask_name,
+                'particle':      particle,
                 'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
-                'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'], #['dom_timelength_fwhm'], #
-                'n_val_events_wanted':   110,# np.inf,
-                'n_train_events_wanted': 110,# np.inf,
-                'n_predictions_wanted': 100,
-                'train_frac':  0.1,
-                'val_frac':    0.1,
+                'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'],
+                'n_val_events_wanted':   50000,# np.inf,
+                'n_train_events_wanted': np.inf,
+                'n_predictions_wanted': np.inf,
+                'train_frac':  0.80,
+                'val_frac':    0.10,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      21
+                'val_batch_size':      512
                 }
 
 
@@ -112,15 +111,15 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 128],
+                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                                      'LayerNorm':          True},},
-                                                # {'SelfAttention':   {'input_sizes':        [128, 128],
+                                                # {'SelfAttention':   {'input_sizes':        [128, 128, 128, 128, 128],
                                                 #                      'LayerNorm':          True,
                                                 #                      'Residual':           True,}},
-                                                {'LSTM':            {'input_sizes':        [128, 128],
+                                                {'LSTM':            {'input_sizes':        [64, 128],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [128+n_scalar_feat, 64, n_target],
+                                                {'Linear':          {'input_sizes':        [128+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

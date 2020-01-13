@@ -42,6 +42,6 @@ def make_dom_interval_mask(data_path, own_path, min_doms, max_doms):
     
 if __name__ == '__main__':
     data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
-    mask_name, minimum, maximum = 'dom_interval', 32, 64
+    mask_name, minimum, maximum = 'dom_interval', 0, 200
     mask_dict = {'mask_name': mask_name, 'min_doms': minimum, 'max_doms': maximum}
     make_mask(data_dir, **mask_dict)
