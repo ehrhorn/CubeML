@@ -69,11 +69,12 @@ if __name__ == '__main__':
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
-                'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
+                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',
                                         'max_lr':          1e-3,
                                         'min_lr':          1e-6,
                                         'frac_up':         0.2,
                                         'frac_down':       0.8,
+                                        'schedule':        'inverse',
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,

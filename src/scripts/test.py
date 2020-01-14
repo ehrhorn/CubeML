@@ -20,31 +20,83 @@ from src.modules.classes import *
 #* DEFINE SCRIPT OBJECTIVE
 #* ========================================================================
 
-loss_fn = lf.get_loss_func('angle_squared_loss_with_L2')
-# for t in np.linspace(0.01, 0.0, 1000):
-        
-#     x = [0.1*np.cos(t), 0.000000*np.sin(t), 0.0]
-#     y = [1.0, 0.0, 0.0]
-#     if x[0] == 0.0:
-#         x[0]+=1
-#     y = torch.tensor(y, requires_grad=True)
-#     x = torch.tensor(x, requires_grad=True)
-#     a = loss_fn(x, y)
-#     a.backward()
-#     print(x, x.grad)
-x = [[0.1, 0.00, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 2.0], [1.0, 1.0, 0.0], [0.1, 0.0, 0.0], ]
-y = [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]]
 
-x = [[0.1, 0.00, 0.0], [0.0, 0.0, 0.0]]
-y = [[1.0, 0, 0], [1.0, 0, 0]]
-# if x[0] == 0.0:
-#     x[0]+=1
-y = torch.tensor(y, requires_grad=True)
-x = torch.tensor(x, requires_grad=True)
-# print(x.shape)
-a = loss_fn(x, y)
-a.backward()
-print(x.grad)
+def f1(x):
+    steps = 100
+    frac = 0.05
+    steps = 1000*frac/(1-frac)
+    return steps/(steps+x)
+def f2(x):
+    c = 0.01*np.log(2)
+    return np.exp(-c*x)
+
+class lr_watcher:
+
+    def __init__(self, start_lr, max_lr, min_lr, n_rise, n_fall, batch_size, schedule='exp', n_stay=0):
+        """Calculates the factor the initial learning rate should be multiplied with to get desired learning rate. Options: 'inverse', 'exp'
+        
+        Arguments:
+            start_lr {float} -- initial learning rate
+            max_lr {float} -- maximal learning rate during training
+            min_lr {float} -- minimal/end learning rate during training
+            n_rise {int} -- steps up from initial learning rate
+            n_fall {int} -- steps down from max learning rate
+            batch_size {int} -- used batch size
+        
+        Keyword Arguments:
+            schedule {str} -- Keyword for factor calculation (default: {'exp'})
+        """        
+
+        self._steps_up = n_rise//batch_size
+        self._steps_stay = n_stay//batch_size
+        self._steps_down = n_fall//batch_size
+        self.gamma_up = (max_lr/start_lr)**(1/self._steps_up)
+        self.gamma_down = (min_lr/max_lr)**(1/self._steps_down)
+
+        self._start_lr = start_lr
+        self._max_lr = max_lr
+        self.schedule = schedule
+        self.step = 1
+
+        if schedule == 'inverse':
+            # * 1/t decay
+            frac = min_lr/max_lr
+            self.s = self._steps_down*frac/(1-frac)
+
+    def get_factor(self):
+
+        if self.schedule == 'exp':
+            if self.step < self._steps_up:
+                factor = self.gamma_up**self.step
+            else:
+                factor = (self._max_lr/self._start_lr) * self.gamma_down**(self.step-self._steps_up)
+            
+            self.step += 1
+        
+        elif self.schedule == 'inverse':
+            if self.step < self._steps_up:
+                factor = self.gamma_up**self.step
+                # print(self.gamma_up)
+            elif self.step < self._steps_up + self._steps_stay:
+                factor = (self._max_lr/self._start_lr)
+            else:
+                factor = (self._max_lr/self._start_lr) * self.s/(self.s+(self.step-self._steps_up-self._steps_stay))
+            
+            self.step += 1
+        else:
+            raise ValueError('lr_watcher: Unknown (%s) schedule given!'%(self.schedule))
+
+        return factor
+    
+x = np.linspace(0, 2000, 2000)
+y1 = f1(x)
+y2 = f2(x)
+begin = 0.1
+watcher = lr_watcher(begin, 1.0, 0.1, 200, 1600, 1, schedule='inverse')
+y3 = [begin*watcher.get_factor() for entry in x]
+d = {'x': [x, x], 'y': [y1, y3]}
+f = rpt.make_plot(d)
+
 # print(torch.where(x == torch.tensor([0.0, 0.0, 0.0])))
 # print(np.cos(3.14159))
     # dot_prods = torch.sum(x*y, dim=-1)

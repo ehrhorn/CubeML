@@ -127,6 +127,9 @@ def evaluate_model(model_dir, wandb_ID=None):
         WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
         subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
 
+    # * Close all open figures
+    plt.close('all')
+
 def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     """Calculates loss as a funciton of learning rate in a given interval and saves the graph and the dictionaries used to generate the plot. Used to choose lr-schedule.
     
