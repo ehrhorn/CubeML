@@ -1,7 +1,7 @@
 import h5py as h5
 import torch
 from torch.utils import data
-from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
+from ignite.engine import Events, create_supervised_evaluator, create_supervised_trainer 
 from ignite.metrics import Accuracy, Loss
 from ignite.handlers import EarlyStopping, ModelCheckpoint, Timer, TerminateOnNan
 import pickle
@@ -19,7 +19,6 @@ from src.modules.loss_funcs import *
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 from src.modules.reporting import *
-
 
 def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=1, start_lr=0.000001, end_lr=0.1):
     '''Performs a scan over a learning rate-interval of interest with an exponentially increasing learning rate.

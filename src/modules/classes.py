@@ -735,14 +735,15 @@ class MakeModel(nn.Module):
                 # * Send through layers!
                 x = entry(x)
             
-            elif layer_name == 'Conv1d':
-                x = entry(x)
-            
             elif layer_name == 'Linear_embedder':
                 seq = entry(seq)
             
             elif layer_name == 'SelfAttention':
                 seq = entry(seq, lengths)
+            
+            # * The MaxPool-layer is used after sequences have been treated -> prepare for linear decoding.
+            elif layer_name == 'MaxPool':
+                x = entry(seq, lengths)
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -843,40 +844,33 @@ class SelfAttention(nn.Module):
             mask = mask.unsqueeze(1)
         return mask
 
+class MaxPool(nn.Module):
+    def __init__(self):
+                
+        super(MaxPool, self).__init__()
+        self.device = get_device()
+
+    def forward(self, seq, lengths):
+        # * A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
+        # * Maxpooling is done over the second index
+        mask = self._get_mask(lengths, batch_first=True)
+        # * By masking with -inf, it is ensured that DOMs that are actually not there do not have an influence on the max pooling.
+        seq = seq.masked_fill(~mask, float('-inf'))
+        seq, _ = torch.max(seq, dim=1)
+        return seq
+
+    def _get_mask(self, lengths, batch_first=False):
+        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        maxlen = lengths[0]
+        if batch_first:
+            # * The 'None' is a placeholder so dimensions are matched.
+            mask = torch.arange(maxlen, device=self.device)[None, :] < lengths[:, None]
+            mask = mask.unsqueeze(2)
+        return mask
+
 #* ======================================================================== 
 #* MODEL FUNCTIONS
 #* ========================================================================
-
-def add_conv1d(arch_dict, layer_dict):
-    n_layers = len(layer_dict['input_sizes']) - 1
-    layers = []
-    for i_layer in range(n_layers):
-        in_channels = layer_dict['input_sizes'][i_layer]
-        out_channels = layer_dict['input_sizes'][i_layer + 1]
-        layers.append(
-            nn.Conv1d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=layer_dict['kernel_sizes'][i_layer],
-                stride=layer_dict['strides'][i_layer],
-                padding=layer_dict['paddings'][i_layer],
-                dilation=layer_dict['dilations'][i_layer]
-            )
-        )
-        # * init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
-        layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
-        layers.append(add_norm(arch_dict, arch_dict['norm'], in_channels))
-        if 'pool' in layer_dict:
-            if layer_dict['pool']['on'][i_layer]:
-                layers.append(
-                    nn.MaxPool1d(
-                        kernel_size=layer_dict['pool']['kernel_sizes'][i_layer],
-                        stride=layer_dict['pool']['strides'][i_layer],
-                        padding=layer_dict['pool']['paddings'][i_layer],
-                        dilation=layer_dict['pool']['dilations'][i_layer]
-                    )
-                )
-    return nn.Sequential(*layers)
 
 def add_LSTM_module(arch_dict, layer_dict, modules):
     n_neurons = len(layer_dict['input_sizes'])-1
@@ -1012,6 +1006,8 @@ def make_model_architecture(arch_dict):
                 modules.append(add_linear_embedder(arch_dict, layer_dict))
             elif key == 'SelfAttention':
                 modules = add_SelfAttention_modules(arch_dict, layer_dict, modules)
+            elif key == 'MaxPool':
+                modules.append(MaxPool())
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 
