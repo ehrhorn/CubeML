@@ -68,7 +68,7 @@ if __name__ == '__main__':
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
-                'lr_schedule':          {'lr_scheduler':   None,
+                'lr_schedule':          {'lr_scheduler':   'ExpOneCycleLR',
                                         'max_lr':          2e-3,
                                         'min_lr':          5e-5,
                                         'frac_up':         0.02,
@@ -113,9 +113,9 @@ if __name__ == '__main__':
 
                         'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                                      'LayerNorm':          True},},
-                                                # {'SelfAttention':   {'input_sizes':        [128, 128, 128, 128, 128],
-                                                #                      'LayerNorm':          True,
-                                                #                      'Residual':           True,}},
+                                                {'SelfAttention':   {'input_sizes':        [64, 64],
+                                                                     'LayerNorm':          True,
+                                                                     'Residual':           True,}},
                                                 {'LSTM':            {'input_sizes':        [64, 128],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       False}},
