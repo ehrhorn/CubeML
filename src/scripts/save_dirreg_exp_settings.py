@@ -39,7 +39,7 @@ if __name__ == '__main__':
         objective = 'explore_lr'
 
     # * Options: 'angle_loss', 'L1', 'L2', 'Huber', 'angle_squared_loss'
-    error_func = 'L2'#'angle_squared_loss_with_L2'
+    error_func = 'angle_squared_loss_with_L2'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
@@ -62,7 +62,7 @@ if __name__ == '__main__':
 
     hyper_pars = {'batch_size':        128,
                 'max_epochs':          15,
-                'early_stop_patience': 40,
+                'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-5,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
@@ -117,10 +117,10 @@ if __name__ == '__main__':
                                                 #{'SelfAttention':   {'input_sizes':        [64, 64],
                                                 #                     'LayerNorm':          True,
                                                 #                     'Residual':           True,}},
-                                                {'LSTM':            {'input_sizes':        [64, 256],
+                                                {'LSTM':            {'input_sizes':        [64, 1024],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [1024+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
