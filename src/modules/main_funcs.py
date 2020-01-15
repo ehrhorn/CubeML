@@ -218,6 +218,21 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
     device = get_device()
     model = MakeModel(architecture_pars, device)
 
+    # * If several GPU's are available, use them all!
+    print('')
+    n_devices = torch.cuda.device_count()
+    if n_devices > 1:
+        model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
+        print('Used devices:')
+        for device_id in range(n_devices):
+            name = torch.cuda.get_device_name(device=get_device(device_id))
+            print(name)
+    else:
+        print('Used device:')
+        name = torch.cuda.get_device_name(device=get_device())
+        print(name)
+        
+
     # * Makes model parameters to float precision
     model = model.float()
 
@@ -246,9 +261,8 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
         optimizer = get_optimizer(model.parameters(), hyper_pars['optimizer'])
     else:
         raise ValueError('Unknown objective set!')
-        
-    print('')
-    print('Used device:', device)
+
+    print('')   
     print('Model being trained:')
     print(model)
     print('')
@@ -367,7 +381,7 @@ def predict(save_dir, wandb_ID=None):
                 
         print(strftime("%d/%m %H:%M", localtime()), ': Predictions finished!')
 
-def run_experiment(file, log=True):
+def run_experiment(file, log=True, debug_mode=False):
     """Runs the experiment defined by file and deletes file.
     
     Arguments:
@@ -392,7 +406,7 @@ def run_experiment(file, log=True):
     if meta_pars['objective'] == 'explore_lr':
         explore_lr(hyper_pars, data_pars, arch_pars, meta_pars)
     else:
-        model_dir, wandb_ID = train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=scan, log=log)
+        model_dir, wandb_ID = train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=scan, log=log, debug_mode=debug_mode)
         if log:
             evaluate_model(model_dir, wandb_ID=wandb_ID)
 
@@ -416,7 +430,7 @@ def run_experiments(log=True):
         exps = Path(exp_dir).glob('*.json')
         n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
 
-def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True):
+def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True, debug_mode=False):
     """Main training script. Takes experiment-defining dictionaries as input and trains the model induced by them.
     
     Arguments:
@@ -456,9 +470,9 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
     # * We split in each file (after its been shuffled..)
     # * Now load data
-    train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train')
-    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train')
-    val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val')
+    train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train', debug_mode=debug_mode)
+    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train', debug_mode=debug_mode)
+    val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val', debug_mode=debug_mode)
 
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)
@@ -692,7 +706,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     trainer.run(train_generator, max_epochs=MAX_EPOCHS)
     print('\nTraining finished!')
 
-def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train=False, log=True):
+def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train=False, log=True, debug_mode=False):
     
     #* ======================================================================== 
     #* SETUP AND LOAD DATA
@@ -757,7 +771,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     else:
         print('Logging turned off.')
 
-    train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = scan_lr_before_train, wandb_ID=wandb_ID, log=log)
+    train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = scan_lr_before_train, wandb_ID=wandb_ID, log=log, debug_mode=debug_mode)
     
     # * Update the meta_pars-file and add .dvc-files to track the model in the wandb-dir and the models-dir
     if log:

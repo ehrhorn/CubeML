@@ -118,11 +118,11 @@ if __name__ == '__main__':
                                                 {'SelfAttention':   {'input_sizes':        [16, 16],
                                                                      'LayerNorm':          True,
                                                                      'Residual':           True,}},
-                                                {'MaxPool':         {}},
+                                                # {'MaxPool':         {}},
 
-                                            # {'LSTM':            {'input_sizes':        [128, 128],
-                                                                #    'dropout':             0.5,
-                                                #                    'bidirectional':       False}},
+                                                {'LSTM':            {'input_sizes':        [16, 16],
+                                                                     'dropout':             0.5,
+                                                                     'bidirectional':       False}},
                                                 {'Linear':          {'input_sizes':        [16+n_scalar_feat, 64, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
@@ -143,7 +143,7 @@ if __name__ == '__main__':
     
     if args.run:
         if args.test:
-            run_experiment(exp_name, log=False)
+            run_experiment(exp_name, log=False, debug_mode=True)
         else:
             run_experiment(exp_name)
 
