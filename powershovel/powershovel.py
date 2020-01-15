@@ -8,20 +8,21 @@ Created by Mads Ehrhorn 19/10/2019.
 """
 import streamlit as st
 import pandas as pd
-from tables import *
+import h5py as h5
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.figure_factory as ff
 from pathlib import Path
 import numpy as np
 from operator import itemgetter
 
-# Columns to drop from geom frame
-drop_cols = ['pmt', 'om', 'string', 'area', 'omtype', 'ux', 'uy', 'uz']
+
+def get_project_root() -> Path:
+    """Returns project root folder."""""
+    return Path(__file__).parent.parent
 
 
 # @st.cache
-def read_geom_file(geom_file, drop_cols):
+def read_geom_file(geom_file):
     """Read the geometry file, output as dictionary of DataFrames.
 
     Function also deletes columns that aren't used.
@@ -33,20 +34,15 @@ def read_geom_file(geom_file, drop_cols):
         geom (pandas.DataFrame): Dictionary containing geometry info.
 
     """
-    with File(geom_file, 'r') as f:
-        out = {}
-        pmt_geom = f.root.pmt_geom
-        col_names = pmt_geom.colnames
-        for col_name in col_names:
-            out[col_name] = pmt_geom.col(col_name)
-        geom = pd.DataFrame.from_dict(out)
+    drop_cols = ['pmt', 'om', 'string', 'area', 'omtype', 'ux', 'uy', 'uz']
+    geom = pd.read_hdf(geom_file, key='pmt_geom')
     geom_clean = geom.loc[geom.omtype == 20].copy()
     geom_clean.drop(drop_cols, axis=1, inplace=True)
     return geom_clean
 
 
 # @st.cache
-def meta_data(events_file, group):
+def meta_data(events_file):
     """Calculate meta data from event file.
 
     Args:
@@ -59,9 +55,8 @@ def meta_data(events_file, group):
         integrated_charge (list): Total charge involved in each event.
 
     """
-    with File(events_file, 'r') as f:
-        data = f.root.__getattr__(group)
-        all_integrated_charge = data.dom_charge.read()
+    with h5.File(events_file, 'r') as f:
+        all_integrated_charge = f['raw/dom_charge'][:]
         integrated_charge = list(
             map(
                 sum,
@@ -70,12 +65,9 @@ def meta_data(events_file, group):
         )
         max_charge = max(np.concatenate(all_integrated_charge).ravel())
         min_charge = min(np.concatenate(all_integrated_charge).ravel())
-        no_of_doms = data.no_of_doms.read()
-        try:
-            all_energy = f.root.raw.true_muon_energy.read()
-        except:
-            all_energy = f.root.raw.true_primary_energy.read()
-        toi_eval_ratios = f.root.raw.toi_evalratio.read()
+        no_of_doms = [len(x) for x in all_integrated_charge]
+        all_energy = f['raw/true_primary_energy'][:]
+        toi_eval_ratios = f['raw/toi_evalratio'][:]
         toi_ratios = pd.Series(toi_eval_ratios)
         energy = pd.Series(all_energy)
         out = pd.DataFrame(
@@ -90,7 +82,7 @@ def meta_data(events_file, group):
     return out
 
 
-def read_event(events_file, event_no, group):
+def read_event(events_file, event_no, clean_mask):
     """Read an hdf5 file and output activations and truth as DataFrame.
 
     Args:
@@ -103,61 +95,21 @@ def read_event(events_file, event_no, group):
         truth (pandas.Series): Series containing truth variables.
 
     """
-    with File(events_file, 'r') as f:
-        event = {}
-        vlen_dict = {}
-        scalar_dict = {}
-        data = f.root.__getattr__(group)
-        all_integrated_charge = data.dom_charge.read()
-        integrated_charge = list(
-            map(
-                sum,
-                all_integrated_charge
-            )
-        )
-        max_charge = max(np.concatenate(all_integrated_charge).ravel())
-        min_charge = min(np.concatenate(all_integrated_charge).ravel())
-        for array in data.__iter__():
-            event[array.name] = array.read(
-                start=event_no,
-                stop=event_no + 1
-            )
-        for array in f.root.raw.__iter__():
-            if array.name not in event:
-                scalar_dict[array.name] = array.read(
-                    start=event_no,
-                    stop=event_no + 1
-                )
-        for key in event:
-            if key == 'no_of_doms':
-                scalar_dict[key] = event[key]
-            elif type(event[key][0]) == np.ndarray:
-                vlen_dict[key] = event[key][0]
+    with h5.File(events_file, 'r') as f:
+        activations = {}
+        truth = {}
+        mask = f['masks/' + clean_mask][event_no]
+        for array in f['raw'].__iter__():
+            data = f['raw/' + array][event_no]
+            if array == 'dom_time':
+                activations[array] = f['transform1/' + array][event_no][mask]
+            elif type(data) == np.ndarray:
+                activations[array] = f['raw/' + array][event_no][mask]
             else:
-                scalar_dict[key] = event[key]
-        activations = pd.DataFrame.from_dict(vlen_dict)
-        temp_charge = np.array(f.root.raw.dom_charge.read(
-            start=event_no,
-            stop=event_no + 1
-        ))
-        activations.dom_charge.loc[activations.dom_charge > 20] = 20
-        activations.dom_charge = (
-            (
-                activations.dom_charge - min_charge
-            )
-            / (
-                max_charge - min_charge
-            )
-        )
-        activations.dom_time = (
-            (
-                activations.dom_time - activations.dom_time.min()
-            )
-            / (
-                activations.dom_time.max() - activations.dom_time.min()
-            )
-        )
-        truth = pd.DataFrame.from_dict(scalar_dict)
+                truth[array] = []
+                truth[array].append(f['raw/' + array][event_no])
+        activations = pd.DataFrame.from_dict(activations)
+        truth = pd.DataFrame.from_dict(truth)
     return activations, truth
 
 
@@ -283,7 +235,7 @@ def create_static(
         x='dom_x',
         y='dom_y',
         z='dom_z',
-        size='dom_charge',       
+        size='dom_charge',
         color='dom_time',
         template=template,
         range_x=[-axis_lims, axis_lims],
@@ -293,7 +245,6 @@ def create_static(
         range_color=time_range,
         size_max=20
     )
-    st.write(truth)
     # Add DOM geometry
     fig.add_scatter3d(
         x=geom.x,
@@ -327,7 +278,8 @@ def create_static(
                 z=[vectors['entry'][2]],
                 u=100 * truth.true_primary_direction_x,
                 v=100 * truth.true_primary_direction_y,
-                w=100 * truth.true_primary_direction_z
+                w=100 * truth.true_primary_direction_z,
+                showscale=False
             )
         )
 
@@ -414,22 +366,12 @@ def create_template():
     return icecube_template
 
 
-def hist_maker(events_file, group, key):
-    with open_file(events_file, 'r') as f:
-        raw = f.root.histograms.raw
-        group = f.root.histograms._f_get_child(group)
-        if group.__contains__(key):
-            array = group._f_get_child(key).read()
-        else:
-            array = raw._f_get_child(key).read()
-    return array
-
-
-def file_finder(data_set, index=None):
+def file_finder(data_set, particle_type, index=None):
     events_path = files_path.joinpath(data_set)
     events_path = events_path.absolute()
     data_set_files = sorted(
-        [f for f in events_path.iterdir() if f.is_file() and f.suffix == '.h5']
+        [f for f in events_path.glob('*' + particle_type + '*.h5')
+        if f.is_file() and f.suffix == '.h5']
     )
     if index == None:
         return data_set_files
@@ -437,58 +379,28 @@ def file_finder(data_set, index=None):
         return data_set_files[index]
 
 
-def key_finder(data_set):
-    events_file = file_finder(data_set, index=0)
-    key_df = pd.DataFrame()
-    with File(events_file, 'r') as f:
-        array_iter = f.root.histograms.raw.__iter__()
-        for array in array_iter:
-            temp_df = pd.DataFrame(
-                {
-                    'key': array.name,
-                    'length': array.nrows
-                },
-                index=[0]
-            )
-            key_df = key_df.append(temp_df)
-    return key_df
-
-
-def group_finder(data_set):
-    groups = []
-    events_file = file_finder(data_set, index=0)
-    with File(events_file, 'r') as f:
-        group_iter = f.root.histograms.__iter__()
-        for group in group_iter:
-            groups.append(group._v_name)
+def h5_groups_reader(data_file, group):
+    with h5.File(data_file, 'r') as f:
+        groups = list(f[group].keys())
     return groups
 
 
-def valid_predict_files_finder(predict_run_file):
-    with File(predict_run_file, 'r') as f:
-        valid_predict_files = list(f.root._v_children.keys())
-    return valid_predict_files
+def h5_data_reader(data_file, group, idx):
+    with h5.File(data_file, 'r') as f:
+        if idx == 'all':
+            data = f[group][:]
+        else:
+            data = f[group][idx]
+    return data
 
 
-def predictions(predict_file, file):
-    predict_dict = {}
-    with File(predict_file, 'r') as f:
-        predict_group_iter = f.root._f_get_child(file).__iter__()
-        for predict_group in predict_group_iter:
-            predict_dict[predict_group.name] = predict_group.read()
-    return predict_dict
-
-
-particle_type_dict = {
-    'oscnext-genie-level5-v01-01-pass2': 'neutrino',
-    'MuonGun_Level2_139008': 'muon'
-}
-
+root = get_project_root()
 # Path to HDF5 event file
-files_path = Path('../data/')
+files_path = root.joinpath('data/')
+histograms_path = root.joinpath('powershovel/histograms')
 
 # Path to HDF5 geometry file
-geom_file = './geom.h5'
+geom_file = root.joinpath('powershovel/geom.h5')
 
 # Sidebar title
 st.sidebar.markdown('# *Powershovel^{TM}*')
@@ -500,134 +412,44 @@ show_dists = st.sidebar.selectbox(
     index=0
 )
 
-data_sets = [d.name for d in files_path.iterdir() if d.is_dir()]
-data_set = st.sidebar.selectbox(
-    'Select dataset',
-    options=data_sets,
-    index=0
-)
-
-# Columns containing truth
-truth_cols = [
-    'toi_point_on_line_x',
-    'toi_point_on_line_y',
-    'toi_point_on_line_z',
-    'true_primary_direction_x',
-    'true_primary_direction_y',
-    'true_primary_direction_z',
-    'true_primary_energy',
-    'true_primary_position_x',
-    'true_primary_position_y',
-    'true_primary_position_z',
-    'toi_direction_x',
-    'toi_direction_y',
-    'toi_direction_z',
-    'toi_evalratio'
-]
-
-transformed_cols = [
-    'charge',
-    'dom_x',
-    'dom_y',
-    'dom_z',
-    'time',
-    'toi_point_on_line_x',
-    'toi_point_on_line_y',
-    'toi_point_on_line_z',
-    'true_primary_energy',
-    'true_primary_position_x',
-    'true_primary_position_y',
-    'true_primary_position_z'
-]
-
-groups = group_finder(data_set)
-group = st.sidebar.selectbox(
-    'Select key',
-    options=groups
-)
-
 if show_dists == 'Events':
-    predict_path = Path('../models').joinpath(data_set).joinpath('regression').joinpath('volapyk')
-    if predict_path.exists():
-        predict_types = [d for d in predict_path.iterdir() if d.is_dir()]
-        predict_type = st.sidebar.selectbox(
-            'Select prediction type',
-            options=predict_types,
-            format_func=lambda x: x.name,
-            index=0
-        )
+    data_sets = [d.name for d in files_path.iterdir() if d.is_dir()]
+    print(data_sets)
+    data_set = st.sidebar.selectbox(
+        'Select dataset',
+        options=data_sets,
+        index=0
+    )
 
-        predict_runs = sorted(
-            [
-                d for d in predict_type.iterdir() if d.is_dir()
-                and d.joinpath('data').exists()
-            ]
-        )
-        st.write(str(predict_runs[0]))
+    particle_types = ['120000', '140000', '160000']
+    particle_type = st.sidebar.selectbox(
+        'Select particle type',
+        options=particle_types,
+        index=0
+    )
 
-        predict_run = st.sidebar.selectbox(
-            'Select prediction run',
-            options=predict_runs,
-            format_func=lambda x: x.name,
-            index=0
-        )
-        prediction_file = predict_run.joinpath('data/')
-        prediction_file = [
-            f for f in prediction_file.iterdir() if f.is_file() and f.suffix == '.h5'
-        ]
-        st.write(prediction_file)
-        events_files = file_finder(data_set)
-        events_names = [f.stem for f in events_files]
-        valid_predict_files = valid_predict_files_finder(prediction_file[0])
-        events_intersection = sorted(
-            list(set(events_names) & set(valid_predict_files))
-        )
-        events_file = st.sidebar.selectbox(
-            'Select file',
-            options=events_intersection,
-            index=0
-        )
-        events_file = files_path.joinpath(data_set).joinpath(events_file + '.h5')
-        meta = meta_data(str(events_file), group)
-        predict_dict = predictions(prediction_file[0], events_file.stem)
-        predict_df = pd.DataFrame().from_dict(predict_dict)
-        predict_df.drop(
-            [
-                'azi_error',
-                'directional_error',
-                'polar_error'
-            ],
-            axis=1,
-            inplace=True
-        )
-    else:
-        events_files = file_finder(data_set)
-        events_file = st.sidebar.selectbox(
-            'Select file',
-            options=events_files,
-            format_func=lambda x: x.stem,
-            index=0
-        )
-        meta = meta_data(str(events_file), group)
+    events_files = file_finder(data_set, particle_type)
 
-# TODO block that only runs when user wants to see predictions
+    clean_masks = h5_groups_reader(events_files[0], 'masks')
+    clean_mask = st.sidebar.selectbox(
+        'Select cleaning mask',
+        options=clean_masks,
+        index=1
+    )
 
-# TODO restrict file choices to only those that have prediction available
+    events_file = st.sidebar.selectbox(
+        'Select file',
+        options=events_files,
+        format_func=lambda x: x.stem.split('.')[-1].split('__')[0],
+        index=0
+    )
+    meta = meta_data(str(events_file))
 
-# TODO restrict event choices to only those that have prediction available
+    # Read HDF5 geometry file
+    geom = read_geom_file(geom_file)
+    axis_lims = geom.x.max() + 0.4 * geom.x.max()
+    template = create_template()
 
-# TODO only show prediction options when predictions contain directions
-
-# TODO histogram comparisons
-
-# TODO bayesian blocks in hists
-
-# Read HDF5 geometry file
-geom = read_geom_file(geom_file, drop_cols)
-axis_lims = geom.x.max() + 0.4 * geom.x.max()
-template = create_template()
-
-if show_dists == 'Events':
     manual = st.sidebar.radio(
         'Input event or browse?',
         options=['Input', 'Browse'],
@@ -660,19 +482,16 @@ if show_dists == 'Events':
             meta = meta.sort_values(browse_type, ascending=False)
         elif sort == 'Low':
             meta = meta.sort_values(browse_type, ascending=True)
+        meta.energy = meta.energy.apply(lambda x: 10**x)
         select_meta = meta[browse_type].iloc[0:100]
         event_no = st.sidebar.selectbox(
             'Select {} value of event'.format(browse_type),
             options=select_meta.index,
-            format_func=selection_func
+            format_func=lambda x: round(select_meta[select_meta.index == x].values[0], 2)
         )
 
     # Get activations and truth from selected event number
-    activations, truth = read_event(
-        str(events_file),
-        event_no,
-        group,
-    )
+    activations, truth = read_event(str(events_file), event_no, clean_mask)
     true_muon_entry_pos = truth[
         [
             'true_primary_position_x',
@@ -680,22 +499,12 @@ if show_dists == 'Events':
             'true_primary_position_z',
         ]
     ]
-    if predict_path.exists():
-        true_muon_direction = predict_df.loc[predict_df.index == event_no]
-        true_muon_direction.drop(['index'], axis=1, inplace=True)
-        true_muon_direction.reset_index(inplace=True)
-        event_prediction_df = pd.concat(
-            [
-                true_muon_direction,
-                true_muon_entry_pos
-            ],
-            axis=1
-        )
-        event_prediction_df.drop(['index'], axis=1, inplace=True)
-        event_prediction_vector = direction_vectors2(event_prediction_df, 1000)
 
     activations = activations.sort_values('dom_time')
-    time_range = [0, 1]
+    hist_file = root.joinpath('powershovel/histograms/' + data_set + '/files/')
+    hist_file = hist_file.joinpath(particle_type + '.h5')
+    time = h5_data_reader(hist_file, 'histograms/transform1/edges/dom_time', 'all')
+    time_range = [min(time), max(time)]
     st.write(
         'Selected event no. {}, length of event {}, ToI ratio {}, energy {}'
         .format(
@@ -705,17 +514,11 @@ if show_dists == 'Events':
             float(round(10**truth['true_primary_energy'], 3))
         )
     )
-    if predict_path.exists():
-        superpose = st.multiselect(
-            'Choose wisely',
-            options=['Truth', 'ToI', 'Predict'],
-        )
-    else:
-        superpose = st.multiselect(
-            'Choose wisely',
-            options=['Truth', 'ToI'],
-        )
-        event_prediction_vector = None
+    superpose = st.multiselect(
+        'Choose wisely',
+        options=['Truth', 'ToI'],
+    )
+    event_prediction_vector = None
     # Create plotly figure
     fig = create_static(
         activations,
@@ -734,31 +537,106 @@ if show_dists == 'Events':
     st.plotly_chart(doms_fig)
     st.write('Mean number of DOMs:', meta.no_of_doms.mean())
 elif show_dists == 'Distributions':
-    events_files = file_finder(data_set)
-    key_df = key_finder(data_set)
-    hist_key = st.selectbox(
-        'Select key',
-        list(key_df.key.values),
+    hist_type = st.sidebar.selectbox(
+        'All files or sets?',
+        ['All files', 'Sets'],
         index=0
     )
-    hists = []
-    for events_file in events_files:
-        hists.append(
-            hist_maker(events_file, group, hist_key))
-    hists = np.array(hists)
-    hists = np.concatenate(hists).ravel()
-    freqs, bins = np.histogram(hists, bins=300)
-    width = 1 * (bins[1] - bins[0])
-    centers = (bins[:-1] + bins[1:]) / 2
-    fig = go.Figure(
-        [
-            go.Bar(
+    if hist_type == 'All files':
+        data_sets = [d.name for d in files_path.iterdir() if d.is_dir()]
+        data_set = st.sidebar.selectbox(
+            'Select dataset',
+            options=data_sets,
+            index=0
+        )
+        hist_path = root.joinpath('powershovel/histograms/' + data_set + '/files')
+        particle_types = [f.stem for f in hist_path.glob('**/*.h5') if f.is_file()]
+        particle_type = st.sidebar.selectbox(
+            'Select particle type',
+            options=particle_types,
+            index=0
+        )
+        file = hist_path.joinpath(particle_type + '.h5')
+        transforms = h5_groups_reader(file, 'histograms')
+        transform = st.sidebar.selectbox(
+            label='Choose transform',
+            options=transforms
+        )
+        group = 'histograms/' + transform + '/edges'
+        keys = h5_groups_reader(file, group)
+        key = st.sidebar.selectbox(
+            label='Choose key',
+            options=keys
+        )
+        values_group = 'histograms/' + transform + '/values/' + key
+        edges_group = 'histograms/' + transform + '/edges/' + key
+        values = h5_data_reader(file, values_group, 'all')
+        edges = h5_data_reader(file, edges_group, 'all')
+        centers = (edges[:-1] + edges[1:]) / 2
+        width = edges[1] - edges[0]
+        bins = len(edges) - 1
+        st.write('No. of bins:', bins)
+        st.write('Transform:', transform)
+        st.write('Key:', key)
+
+        fig = go.Figure(
+            data=go.Bar(
                 x=centers,
-                y=freqs,
+                y=values,
                 width=width
             )
-        ]
-    )
-    if hist_key == 'charge':
-        fig.update_layout(yaxis_type='log')
-    st.plotly_chart(fig)
+        )
+
+        fig.update_layout(
+            updatemenus=[
+                go.layout.Updatemenu(
+                    buttons=list(
+                        [
+                            dict(
+                                label="Linear",
+                                method="update",
+                                args=[
+                                    {
+                                        'visible': [
+                                            True,
+                                            False
+                                        ]
+                                    },
+                                    {
+                                        'yaxis': {
+                                            'type': 'linear'
+                                        }
+                                    }
+                                ]
+                            ),
+                            dict(
+                                label="Log",
+                                method="update",
+                                args=[
+                                    {
+                                        'visible': [
+                                            True,
+                                            True
+                                        ]
+                                    },
+                                    {
+                                        'yaxis': {
+                                            'type': 'log'
+                                        }
+                                    }
+                                ]
+                            )
+                        ]
+                    ),
+                    pad={"r": 10, "t": 10},
+                    showactive=True,
+                )
+            ]
+        )
+
+        fig.update_traces(
+            marker_color='black',
+            marker_line_color='black',
+        )
+
+        st.plotly_chart(fig)
