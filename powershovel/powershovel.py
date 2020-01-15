@@ -414,7 +414,6 @@ show_dists = st.sidebar.selectbox(
 
 if show_dists == 'Events':
     data_sets = [d.name for d in files_path.iterdir() if d.is_dir()]
-    print(data_sets)
     data_set = st.sidebar.selectbox(
         'Select dataset',
         options=data_sets,
