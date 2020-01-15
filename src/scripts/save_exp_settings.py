@@ -114,13 +114,14 @@ if __name__ == '__main__':
 
                         'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                                      'LayerNorm':          True},},
-                                                #{'SelfAttention':   {'input_sizes':        [64, 64],
-                                                #                     'LayerNorm':          True,
-                                                #                     'Residual':           True,}},
-                                                {'LSTM':            {'input_sizes':        [64, 512],
-                                                                    'dropout':             0.5,
-                                                                    'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
+                                                {'SelfAttention':   {'input_sizes':        [64, 64],
+                                                                     'LayerNorm':          True,
+                                                                     'Residual':           True,}},
+                                                {'MaxPool':          {}},
+                                                #{'LSTM':            {'input_sizes':        [64, 512],
+                                                #                    'dropout':             0.5,
+                                                #                    'bidirectional':       False}},
+                                                {'Linear':          {'input_sizes':        [64+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
