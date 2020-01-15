@@ -5,6 +5,7 @@ import argparse
 description = 'Loops over a directory containing a dataset of h5-files and reports the total number of events.'
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument('-p', '--path', metavar='', type=str, help='Path to model directory')
+parser.add_argument('--predict', action='store_true', help='Whether to predict with the trained model (default: False)')
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -23,4 +24,4 @@ if __name__ == '__main__':
     print(model)
     wandb_ID = model.split('/')[-1]
     print(wandb_ID)
-    mf.evaluate_model(model, wandb_ID=wandb_ID)
+    mf.evaluate_model(model, wandb_ID=wandb_ID, predict=args.predict)

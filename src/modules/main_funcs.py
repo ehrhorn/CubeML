@@ -65,7 +65,7 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN
 
     return lr, loss_vals
 
-def evaluate_model(model_dir, wandb_ID=None):
+def evaluate_model(model_dir, wandb_ID=None, predict=True):
     """Predicts on the dataset and makes performance plots induced by the model_dir. If wanted, the results are logged to W&B.
     
     Arguments:
@@ -95,8 +95,8 @@ def evaluate_model(model_dir, wandb_ID=None):
     #* ======================================================================== #
     #* PREDICT USING BEST MODEL
     #* ======================================================================== #
-
-    predict(model_dir, wandb_ID=wandb_ID)
+    if predict:
+        calc_predictions(model_dir, wandb_ID=wandb_ID)
     
     #* ======================================================================== #
     #* REPORT PERFORMANCE
@@ -268,7 +268,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
 
     return model, optimizer, device
 
-def predict(save_dir, wandb_ID=None):
+def calc_predictions(save_dir, wandb_ID=None):
     '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
     '''
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)

@@ -234,11 +234,21 @@ def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
     return diff
 
 def get_retro_crs_prefit_relE_error(retro_dict, true_dict):
+    """Calculates the relative error (E_pred-E_true)/E_true in energy from Icecube's predictions.
+    
+    Arguments:
+        retro_dict {dict} -- Dictionary with key 'E' containing array of energy predictions
+        true_dict {dict} -- Dictionary with key 'logE' containing array of true log_10 E.
+    
+    Returns:
+        array -- Relative energy error
+    """    
     E_pred = retro_dict['E']
     logE_true = true_dict['logE']
-
+    print(E_pred.shape, logE_true.shape)
     E_true = 10**logE_true
     relE_error = (E_pred-E_true)/E_true
+    print(relE_error.shape)
 
     return relE_error
     
