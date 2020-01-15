@@ -221,6 +221,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
     # * If several GPU's are available, use them all!
     print('')
     n_devices = torch.cuda.device_count()
+    meta_pars['n_devices'] = n_devices
     if n_devices > 1:
         model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
         print('Used devices:')
@@ -279,8 +280,11 @@ def predict(save_dir, wandb_ID=None):
     model_dir = save_dir+'/checkpoints'
     
     best_pars = find_best_model_pars(model_dir)
-    
+    n_devices = meta_pars.get('n_devices', 0)
     model = MakeModel(arch_pars, device)
+    # * If several GPU's have been used during training, wrap it in dataparalelle
+    if n_devices > 1:
+        model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
     model.load_state_dict(torch.load(best_pars, map_location=torch.device(device)))
     model = model.to(device)
     model = model.float()
@@ -755,6 +759,8 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
             json.dump(architecture_pars, fp)
         
         meta_pars['status'] = 'Failed'
+        n_devices = torch.cuda.device_count()
+        meta_pars['n_devices'] = n_devices
         with open(save_dir+'/meta_pars.json', 'w') as fp:
             json.dump(meta_pars, fp)
 
