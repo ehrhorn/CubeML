@@ -302,7 +302,7 @@ def predict(save_dir, wandb_ID=None):
             i_file += 1
             i_str = str(i_file)
              # TODO: Is always 0.00, since n_predicitons_wanted is np.inf.. It should be changed to len(val_set)
-            print('Progress: %.2f %%. Predicting on %s'%(100*n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
+            print('Progress: %.0f %%. Predicting on %s'%(100*n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
             
             # * Extract validation data
             val_set = load_predictions(data_pars, meta_pars, 'val', file, use_whole_file=USE_WHOLE_FILE)
@@ -516,7 +516,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     
     if log:
         name = ''
-        checkpointer = ModelCheckpoint(dirname = save_dir+'/checkpoints', filename_prefix = name, create_dir = True, save_as_state_dict = True, score_function = custom_score_function, score_name = 'Loss', n_saved = 5, require_empty = True)
+        checkpointer = ModelCheckpoint(dirname=save_dir+'/checkpoints', filename_prefix=name, create_dir=True, save_as_state_dict=True, score_function=custom_score_function, score_name='Loss', n_saved=2, require_empty=True)
         
         # * Add handler to evaluator
         checkpointer_dict = {'model': model}

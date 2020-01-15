@@ -5,15 +5,26 @@ from src.modules.helper_functions import *
 #* EVALUATION FUNCTIONS
 #*======================================================================== 
 
-def relative_logE_error(pred, truth):
+def relative_E_error(pred, truth):
+    """Calculates the relative energy error on model predictions.
+    
+    Arguments:
+        pred {array} -- log_10(E)-predictions
+        truth {array} -- log_10(E)-truths   
+    
+    Returns:
+        [torch.Tensor] -- relative energy error.
+    """    
 
-    if 'true_muon_energy' in pred:
-        logE_pred = torch.tensor(pred['true_muon_energy'])
-        logE_truth = torch.tensor(truth['true_muon_energy'], dtype=logE_pred.dtype)
+    if 'true_primary_energy' in pred:
+        logE_pred = torch.tensor(pred['true_primary_energy'])
+        logE_truth = torch.tensor(truth['true_primary_energy'], dtype=logE_pred.dtype)
 
-        rel_logE_error = (logE_pred-logE_truth)/logE_truth
+        E_pred = 10**logE_pred
+        E_truth = 10**logE_truth
+        rel_E_error = (E_pred-E_truth)/E_truth
 
-        return rel_logE_error
+        return rel_E_error
 
 def azi_error(pred, truth, units = 'degrees'):
 
@@ -131,6 +142,8 @@ def get_eval_functions(meta_pars):
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error]
     elif regression_type == 'vertex_reg_no_time':
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error]
+    elif regression_type == 'energy_reg':
+        eval_funcs = [relative_E_error]
     else:
         raise ValueError('eval_funcs: Unknown regression type (%s) encountered!'%(regression_type))
 
@@ -220,37 +233,15 @@ def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
     
     return diff
 
-# def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
-#     """Calculates the difference in polar angle between retro_crs_prefit and true values.
-    
-#     Arguments:
-#         retro_dict {dictionary} -- predictions from retro_crs_prefit with keys as in h5-files. Expects key 'zen'
-#         true_dict {dictionary} -- true values as unit vectors with keys 'x', 'y', 'z'
-    
-#     Keyword Arguments:
-#         units {str} -- 'degrees' or 'radians' (default: {'degrees'})
-    
-#     Returns:
-#         torch.tensor -- difference in polar angle between retro and truth
-#     """     
-    
-#     pi = 3.14159265359
+def get_retro_crs_prefit_relE_error(retro_dict, true_dict):
+    E_pred = retro_dict['E']
+    logE_true = true_dict['logE']
 
-#     x_pred, y_pred, z_pred = retro_dict['x'], retro_dict['y'], retro_dict['z']
-#     x_true, y_true, z_true = true_dict['x'], true_dict['y'], true_dict['z']
-#     dir_truth = torch.tensor([x_true, y_true, z_true])
-#     length_truth = torch.sum(dir_truth*dir_truth, dim=0)**0.5
-#     polar_truth = torch.acos(dir_truth[2, :]/length_truth)
+    E_true = 10**logE_true
+    relE_error = (E_pred-E_true)/E_true
 
-#     #? retro_crs seems to predit the direction the neutrino came from and not the neutrinos direction - therefore do a parity.
-#     polar_preds = pi-torch.tensor(retro_dict['zen'], dtype=polar_truth.dtype)
-#     if units == 'radians':
-#         diff = polar_preds-polar_truth
-#     elif units == 'degrees':
-#         diff = (180/pi)*(polar_preds-polar_truth)
+    return relE_error
     
-#     return diff
-
 def vertex_t_error(pred, truth):
     """Calculates the error on the t-coordinate prediction of the neutrino interaction vertex.
     
@@ -374,3 +365,35 @@ def vertex_z_error(pred, truth):
 
     diff = z_pred - z_truth
     return diff
+
+
+# def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
+#     """Calculates the difference in polar angle between retro_crs_prefit and true values.
+    
+#     Arguments:
+#         retro_dict {dictionary} -- predictions from retro_crs_prefit with keys as in h5-files. Expects key 'zen'
+#         true_dict {dictionary} -- true values as unit vectors with keys 'x', 'y', 'z'
+    
+#     Keyword Arguments:
+#         units {str} -- 'degrees' or 'radians' (default: {'degrees'})
+    
+#     Returns:
+#         torch.tensor -- difference in polar angle between retro and truth
+#     """     
+    
+#     pi = 3.14159265359
+
+#     x_pred, y_pred, z_pred = retro_dict['x'], retro_dict['y'], retro_dict['z']
+#     x_true, y_true, z_true = true_dict['x'], true_dict['y'], true_dict['z']
+#     dir_truth = torch.tensor([x_true, y_true, z_true])
+#     length_truth = torch.sum(dir_truth*dir_truth, dim=0)**0.5
+#     polar_truth = torch.acos(dir_truth[2, :]/length_truth)
+
+#     #? retro_crs seems to predit the direction the neutrino came from and not the neutrinos direction - therefore do a parity.
+#     polar_preds = pi-torch.tensor(retro_dict['zen'], dtype=polar_truth.dtype)
+#     if units == 'radians':
+#         diff = polar_preds-polar_truth
+#     elif units == 'degrees':
+#         diff = (180/pi)*(polar_preds-polar_truth)
+    
+#     return diff

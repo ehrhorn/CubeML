@@ -938,6 +938,8 @@ def get_target_keys(data_pars, meta_pars):
             target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z', 'true_primary_time']
         elif meta_pars['group'] == 'vertex_reg_no_time':
             target_keys = ['true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z']
+        elif meta_pars['group'] == 'energy_reg':
+            target_keys = ['true_primary_energy']
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
     

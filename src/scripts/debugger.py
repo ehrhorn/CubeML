@@ -31,8 +31,8 @@ if __name__ == '__main__':
     data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
     pretrained_path = '/groups/hep/bjoernhm/thesis/CubeML/models/MuonGun_Level2_139008/regression/direction_reg/2019-11-25-04.11.55' 
 
-    # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time'
-    regression_type = 'direction_reg'
+    # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time', 'energy_reg'
+    regression_type = 'energy_reg'
 
     # * Options: 'train_new', 'continue_training', 'explore_lr'
     objective = 'train_new'
@@ -40,13 +40,13 @@ if __name__ == '__main__':
         objective = 'explore_lr'
 
     # * Options: 'angle_loss', 'L1', 'L2', 'Huber', 'angle_squared_loss', 'angle_squared_loss_with_L2', 
-    error_func = 'angle_squared_loss_with_L2'
+    error_func = 'L2'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'dom_interval_min32_max64'
+    mask_name = 'dom_interval_min0_max200'
 
     # * Set project
     project = 'cubeml_test'
