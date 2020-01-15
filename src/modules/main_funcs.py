@@ -154,7 +154,8 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     n_epochs = hyper_pars['lr_finder']['n_epochs'] 
     start_lr = hyper_pars['lr_finder']['start_lr']
     end_lr = hyper_pars['lr_finder']['end_lr'] 
-    
+    hyper_pars['optimizer']['lr'] = start_lr
+
     #* ======================================================================== 
     #* MAKE LR SCAN
     #* ======================================================================== 
