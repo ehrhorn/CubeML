@@ -301,7 +301,7 @@ class FullBatchLoader(data.Dataset):
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and batch_size.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None, mask_name='all', drop_last=False):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, batch_size, prefix=None, n_events_wanted=np.inf, particle_code=None, file_list=None, mask_name='all', drop_last=False, debug_mode=False):
 
         self.directory = get_project_root() + directory
         self.scalar_features = scalar_features
@@ -320,6 +320,7 @@ class FullBatchLoader(data.Dataset):
         self.prefix = prefix
         self._mask = mask_name
         self._drop_last = drop_last
+        self._debug_mode = debug_mode
 
         self.file_path = {}
         self.file_indices = {}
@@ -459,6 +460,10 @@ class FullBatchLoader(data.Dataset):
         file_id = 1
         for file in Path(self.directory).iterdir():
             
+            # * When in debug mode, dont bother loading all files.
+            if self._debug_mode and file_id > 2:
+                break
+            
             # * Only extract events from files with the proper particle type (necessary due to how Icecube-simfiles are named)
             if not confirm_particle_type(self._particle_code, file):
                 continue
@@ -499,8 +504,6 @@ class FullBatchLoader(data.Dataset):
                     next_epoch_batches.append(last_batch)
 
         self.batches = next_epoch_batches
-        # print(len(self.batches[-1]['indices']), len(self.batches[-2]['indices']))
-
         random.shuffle(self.batches)
 
         # * Free up some memory
@@ -529,6 +532,7 @@ class PadSequence:
         # * Grab the labels and scalarvars of the *sorted* batch
         scalar_vars = torch.Tensor([x[1] for x in sorted_batch])
         targets = torch.Tensor([x[2] for x in sorted_batch])
+
         return (sequences_padded.float(), lengths, scalar_vars.float()), targets.float()
 
         # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
@@ -537,7 +541,7 @@ class PadSequence:
 #* DATALOADER FUNCTIONS
 #* ========================================================================
 
-def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None, drop_last=False):
+def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None, drop_last=False, debug_mode=False):
 
     data_dir = data_pars['data_dir'] # * WHere to load data from
     seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
@@ -571,7 +575,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
         if file_keys['transform'] == -1:
             prefix = 'raw/'
 
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_name=mask_name, drop_last=drop_last)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_name=mask_name, drop_last=drop_last, debug_mode=debug_mode)
 
     else:
         raise ValueError('Unknown data loader requested!')
@@ -692,6 +696,8 @@ class MakeModel(nn.Module):
 
     # * Input must be a tuple to be unpacked!
     def forward(self, batch):
+        # * Get device on each forward-pass to be compatible with training on multiple GPUs.
+        device = get_device(torch.cuda.current_device())
         
         # * For linear layers
         if len(batch) == 1: 
@@ -702,7 +708,7 @@ class MakeModel(nn.Module):
             seq, lengths, scalars = batch
             add_scalars = True 
             batch_size = seq.shape[0]
-            n_seq_vars = seq.shape[1]
+            longest_seq = seq.shape[1]
             # * 'Reshape' input (batch first), torch wants a certain form..
             # * seq = seq.view(batch_size, -1, n_seq_vars)
         
@@ -711,14 +717,18 @@ class MakeModel(nn.Module):
             if layer_name == 'LSTM':
                 # * A padded sequence is expected
                 # * Initialize hidden layer
-                h = self.init_hidden(batch_size, entry, self.device)
+                h = self.init_hidden(batch_size, entry, device)
 
                 # * Send to LSTM!
                 seq = pack(seq, lengths, batch_first=True)
                 
+                # ? No idea why this works, but an error is thrown when using DataParallel and not calling it, see
+                # ? https://discuss.pytorch.org/t/rnn-module-weights-are-not-part-of-single-contiguous-chunk-of-memory/6011/13
+                entry.flatten_parameters()
+                
                 seq, h = entry(seq, h)
                 x, _ = h
-                seq, lengths = unpack(seq, batch_first=True)
+                seq, lengths = unpack(seq, batch_first=True, total_length=longest_seq)
                 if entry.bidirectional:
                     # * Add hidden states from forward and backward pass to encode information
                     seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
@@ -739,11 +749,11 @@ class MakeModel(nn.Module):
                 seq = entry(seq)
             
             elif layer_name == 'SelfAttention':
-                seq = entry(seq, lengths)
+                seq = entry(seq, lengths, device=device)
             
             # * The MaxPool-layer is used after sequences have been treated -> prepare for linear decoding.
             elif layer_name == 'MaxPool':
-                x = entry(seq, lengths)
+                x = entry(seq, lengths, device=device)
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -781,7 +791,7 @@ class SelfAttention(nn.Module):
         self.layer_dict = layer_dict
         self.n_in = n_in
         self.n_out = n_out
-        self.device = get_device()
+        self._batch_first = True
 
         self.Q = nn.Linear(in_features=n_in, out_features=n_out)
         self.K = nn.Linear(in_features=n_in, out_features=n_out)
@@ -800,14 +810,20 @@ class SelfAttention(nn.Module):
         if self.layer_dict.get('Residual', False):
             self.residual_connection = True
     
-    def forward(self, seq, lengths):
-        # seq, lengths = args
+    def forward(self, seq, lengths, device=None):
+        
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            max_length = seq.shape[1]
+        else:
+            max_length = seq.shape[0]
+
         q = self.Q(seq)
         k = self.K(seq)
         v = self.V(seq)
         
         # * Attention -> potential norm and residual connection
-        post_attention = self._calc_self_attention(q, k, v, lengths, batch_first=True)
+        post_attention = self._calc_self_attention(q, k, v, lengths, max_length, batch_first=self._batch_first, device=device)
         if self.residual_connection:
             post_attention = seq + post_attention
         if self.norm:
@@ -822,12 +838,12 @@ class SelfAttention(nn.Module):
         
         return output
 
-    def _calc_self_attention(self, q, k, v, lengths, batch_first=False):
+    def _calc_self_attention(self, q, k, v, lengths, max_length, batch_first=False, device=None):
         # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
         # * The transpose means swap second to last and last dimension
         # * masked_fill_ is in-place, masked_fill creates a new tensor
         weights = torch.matmul(q, k.transpose(-2, -1)) / sqrt(self.n_out)
-        mask = self._get_mask(lengths, batch_first=batch_first)
+        mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
         weights = weights.masked_fill(~mask, float('-inf'))
         weights = self.softmax(weights)
 
@@ -836,11 +852,10 @@ class SelfAttention(nn.Module):
         
         return output
 
-    def _get_mask(self, lengths, batch_first=False):
+    def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
         # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
-        maxlen = lengths[0]
         if batch_first:
-            mask = torch.arange(maxlen, device=self.device)[None, :] < lengths[:, None]
+            mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(1)
         return mask
 
@@ -848,23 +863,32 @@ class MaxPool(nn.Module):
     def __init__(self):
                 
         super(MaxPool, self).__init__()
-        self.device = get_device()
+        self._batch_first = True
+        # self.device = get_device()
 
-    def forward(self, seq, lengths):
+    def forward(self, seq, lengths, device=None):
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            max_length = seq.shape[1]
+        else:
+            max_length = seq.shape[0]
+
         # * A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
         # * Maxpooling is done over the second index
-        mask = self._get_mask(lengths, batch_first=True)
+        mask = self._get_mask(lengths, max_length, batch_first=True, device=device)
         # * By masking with -inf, it is ensured that DOMs that are actually not there do not have an influence on the max pooling.
         seq = seq.masked_fill(~mask, float('-inf'))
-        seq, _ = torch.max(seq, dim=1)
+        if self._batch_first:
+            seq, _ = torch.max(seq, dim=1)
+        else:
+            raise ValueError('Not sure when batch not first - MaxPool')
         return seq
 
-    def _get_mask(self, lengths, batch_first=False):
+    def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
         # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
-        maxlen = lengths[0]
         if batch_first:
             # * The 'None' is a placeholder so dimensions are matched.
-            mask = torch.arange(maxlen, device=self.device)[None, :] < lengths[:, None]
+            mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(2)
         return mask
 
