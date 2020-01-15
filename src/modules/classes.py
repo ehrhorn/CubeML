@@ -696,9 +696,12 @@ class MakeModel(nn.Module):
 
     # * Input must be a tuple to be unpacked!
     def forward(self, batch):
-        # * Get device on each forward-pass to be compatible with training on multiple GPUs.
-        device = get_device(torch.cuda.current_device())
-        
+        # * Get device on each forward-pass to be compatible with training on multiple GPUs. An error is raised if no GPU available --> use except
+        try:
+            device = get_device(torch.cuda.current_device())
+        except AssertionError:
+            device = None
+
         # * For linear layers
         if len(batch) == 1: 
             x, = batch

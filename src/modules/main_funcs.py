@@ -175,17 +175,18 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     train_generator = data.DataLoader(train_set, **dataloader_params_train, collate_fn=collate_fn)#, pin_memory=True)
     
     # * Use IGNITE to train
-    trainer = create_supervised_trainer(model, optimizer, loss, device=device)
+    # trainer = create_supervised_trainer(model, optimizer, loss, device=device)
 
     pretrain_hyper_pars = hyper_pars['optimizer'].copy()
     pretrain_hyper_pars['lr'] = start_lr
+    lr, loss_vals = calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
+    
+    # lr_model = MakeModel(architecture_pars, device)
+    # lr_model = lr_model.float()
+    # lr_model = lr_model.to(device)
 
-    lr_model = MakeModel(architecture_pars, device)
-    lr_model = lr_model.float()
-    lr_model = lr_model.to(device)
-
-    pretrain_optimizer = get_optimizer(lr_model.parameters(), pretrain_hyper_pars)
-    lr, loss_vals = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
+    # pretrain_optimizer = get_optimizer(lr_model.parameters(), pretrain_hyper_pars)
+    # lr, loss_vals = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
 
     #* ======================================================================== 
     #* SAVE RELEVANT THINGS
@@ -229,10 +230,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
             name = torch.cuda.get_device_name(device=get_device(device_id))
             print(name)
     else:
-        print('Used device:')
-        name = torch.cuda.get_device_name(device=get_device())
-        print(name)
-        
+        print('Used device:', get_device())
 
     # * Makes model parameters to float precision
     model = model.float()
