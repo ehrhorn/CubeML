@@ -244,11 +244,9 @@ def get_retro_crs_prefit_relE_error(retro_dict, true_dict):
         array -- Relative energy error
     """    
     E_pred = retro_dict['E']
-    logE_true = true_dict['logE']
-    print(E_pred.shape, logE_true.shape)
+    logE_true = np.array(convert_to_proper_list(true_dict['logE']))
     E_true = 10**logE_true
     relE_error = (E_pred-E_true)/E_true
-    print(relE_error.shape)
 
     return relE_error
     

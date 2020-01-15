@@ -16,3 +16,9 @@ import src.modules.reporting as rpt
 from src.modules.constants import *
 from src.modules.classes import *
 
+x = np.array([10, 20])
+y = np.ones((2,1))
+y = np.array(convert_to_proper_list(y))
+z = ((x-y)/y)
+print(x.shape, y.shape)
+print(z)

@@ -442,6 +442,8 @@ def convert_to_proper_list(l):
     if type(l[0]) == np.ndarray:
         if l[0].shape[0] == 1:
             converted = [entry[0] for entry in l]
+    elif type(l) == np.ndarray and len(l.shape) == 2:
+        converted = l[:,0]
     else:
         converted = l
     
