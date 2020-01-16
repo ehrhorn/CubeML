@@ -69,7 +69,7 @@ if __name__ == '__main__':
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',
-                                        'max_lr':          1e-2,
+                                        'max_lr':          2e-3,
                                         'min_lr':          1e-4,
                                         'frac_up':         0.02,
                                         'frac_down':       1-0.02,
@@ -112,16 +112,16 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 512],
+                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 128],
                                                                      'LayerNorm':          True},},
-                                                {'SelfAttention':   {'input_sizes':        [512, 512],
+                                                {'SelfAttention':   {'input_sizes':        [128, 128],
                                                                      'LayerNorm':          True,
                                                                      'Residual':           True,}},
                                                 {'MaxPool':          {}},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [128+n_scalar_feat, 64, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

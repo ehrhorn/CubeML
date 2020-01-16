@@ -1,0 +1,7 @@
+md5: badbb388513835feb76048534acd8fe3
+outs:
+- md5: da02c93da171cbf774a384cfcda0b583.dir
+  path: run-20200116_012330-2020-01-16-02.23.30
+  cache: true
+  metric: false
+  persist: false
