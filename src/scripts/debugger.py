@@ -113,17 +113,20 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 16],
-                                                                     'LayerNorm':          True},},
-                                                {'SelfAttention':   {'input_sizes':        [16, 16],
+                        'layers':              [#{'Linear_embedder': {'input_sizes':        [n_seq_feat, 16],
+                                                #                     'LayerNorm':          True},},
+                                                {'AttentionEncoder':{'input_sizes':        [n_seq_feat, 16],
                                                                      'LayerNorm':          True,
                                                                      'Residual':           True,}},
+                                                # {'AttentionDecoder':{'input_sizes':        [16, 16],
+                                                #                      'LayerNorm':          True,
+                                                #                      'Residual':           True,}},
                                                 # {'MaxPool':         {}},
 
                                                 {'LSTM':            {'input_sizes':        [16, 16],
                                                                      'dropout':             0.5,
                                                                      'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [16+n_scalar_feat, 64, n_target],
+                                                {'Linear':          {'input_sizes':        [16+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

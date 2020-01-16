@@ -751,8 +751,11 @@ class MakeModel(nn.Module):
             elif layer_name == 'Linear_embedder':
                 seq = entry(seq)
             
-            elif layer_name == 'SelfAttention':
+            elif layer_name == 'AttentionEncoder':
                 seq = entry(seq, lengths, device=device)
+            
+            elif layer_name == 'AttentionDecoder':
+                x = entry(seq, lengths, device=device)
             
             # * The MaxPool-layer is used after sequences have been treated -> prepare for linear decoding.
             elif layer_name == 'MaxPool':
@@ -779,29 +782,45 @@ class MakeModel(nn.Module):
         # * x and scalars must be of shape (batch, features)
         return torch.cat((x, scalars), 1), False
 
-class SelfAttention(nn.Module):
+
+class AttentionBlock(nn.Module):
     """Implementation of Self Attention almost as described in 'Attention is All You Need'.
     
     (or https://jalammar.github.io/illustrated-transformer/) - calculates query-, key- and valuevectors, softmaxes a padded sequence and scales the dotproducts and returns weighted sum of values vectors.
     
+    Can work both as a seq2seq encoder or as a seq2vec decoder - in this case, the key-matrix produces one key only.
     Returns:
         nn.Module -- A Self-attention layer 
     """
-    def __init__(self, arch_dict, layer_dict, n_in, n_out):
+    def __init__(self, arch_dict, layer_dict, n_in, n_out, mode=None, intermediate=None):
                 
-        super(SelfAttention, self).__init__()
+        super(AttentionBlock, self).__init__()
         self.arch_dict = arch_dict
         self.layer_dict = layer_dict
         self.n_in = n_in
         self.n_out = n_out
+        if intermediate:
+            self._intermediate = intermediate
+        else:
+            self._intermediate = n_in
+        self.n_out = n_out
         self._batch_first = True
 
-        self.Q = nn.Linear(in_features=n_in, out_features=n_out)
-        self.K = nn.Linear(in_features=n_in, out_features=n_out)
-        self.V = nn.Linear(in_features=n_in, out_features=n_out)
-        init_weights(arch_dict, arch_dict['non_lin'], self.Q)
-        init_weights(arch_dict, arch_dict['non_lin'], self.K)
-        init_weights(arch_dict, arch_dict['non_lin'], self.V)
+        if mode == 'encoder':
+            self.Q = nn.Linear(in_features=n_in, out_features=n_out)
+            self.K = nn.Linear(in_features=n_in, out_features=n_out)
+            self.V = nn.Linear(in_features=n_in, out_features=n_out)
+            init_weights(arch_dict, arch_dict['non_lin'], self.Q)
+            init_weights(arch_dict, arch_dict['non_lin'], self.K)
+            init_weights(arch_dict, arch_dict['non_lin'], self.V)
+        elif mode == 'decoder':
+            raise ValueError('AttentionDecoder: Not implemented yet')
+            self.Q = nn.Linear(in_features=n_in, out_features=n_out)
+            self.K = nn.Linear(in_features=n_in, out_features=1)
+            self.V = nn.Linear(in_features=n_in, out_features=n_out)
+            init_weights(arch_dict, arch_dict['non_lin'], self.Q)
+            init_weights(arch_dict, arch_dict['non_lin'], self.K)
+            init_weights(arch_dict, arch_dict['non_lin'], self.V)
 
         self.softmax = nn.Softmax(dim=-1)
         if self.layer_dict.get('LayerNorm', False):
@@ -812,6 +831,7 @@ class SelfAttention(nn.Module):
             self.norm2 = nn.LayerNorm(n_out)
         if self.layer_dict.get('Residual', False):
             self.residual_connection = True
+        
     
     def forward(self, seq, lengths, device=None):
         
@@ -827,7 +847,7 @@ class SelfAttention(nn.Module):
         
         # * Attention -> potential norm and residual connection
         post_attention = self._calc_self_attention(q, k, v, lengths, max_length, batch_first=self._batch_first, device=device)
-        if self.residual_connection:
+        if self.residual_connection and self.n_in == self.n_out:
             post_attention = seq + post_attention
         if self.norm:
             post_attention = self.norm(post_attention)
@@ -849,7 +869,7 @@ class SelfAttention(nn.Module):
         mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
         weights = weights.masked_fill(~mask, float('-inf'))
         weights = self.softmax(weights)
-
+        
         # * Calculate weighted sum of v-vectors.
         output = torch.matmul(weights, v)
         
@@ -986,10 +1006,10 @@ def add_norm(arch_dict, layer_dict, n_features):
     else: 
         raise ValueError('An unknown normalization could not be added in model generation.')
 
-def add_SelfAttention_modules(arch_dict, layer_dict, modules):
+def add_AttentionBlock_modules(arch_dict, layer_dict, modules, mode=None):
 
     for n_in, n_out in zip(layer_dict['input_sizes'][:-1], layer_dict['input_sizes'][1:]):
-        modules.append(SelfAttention(arch_dict, layer_dict, n_in, n_out))
+        modules.append(AttentionBlock(arch_dict, layer_dict, n_in, n_out, mode=mode))
     
     return modules
 
@@ -1031,8 +1051,10 @@ def make_model_architecture(arch_dict):
                 modules.append(add_conv1d(arch_dict, layer_dict))
             elif key == 'Linear_embedder':
                 modules.append(add_linear_embedder(arch_dict, layer_dict))
-            elif key == 'SelfAttention':
-                modules = add_SelfAttention_modules(arch_dict, layer_dict, modules)
+            elif key == 'AttentionEncoder':
+                modules = add_AttentionBlock_modules(arch_dict, layer_dict, modules, mode='encoder')
+            elif key == 'AttentionDecoder':
+                modules = add_AttentionBlock_modules(arch_dict, layer_dict, modules, mode='decoder')
             elif key == 'MaxPool':
                 modules.append(MaxPool())
             else: 
@@ -1046,8 +1068,8 @@ def get_layer_names(arch_dict):
     layer_names = []
     for layer in arch_dict['layers']:
         for layer_name in layer:
-            if layer_name == 'SelfAttention':
-                n_attention_modules = len(layer['SelfAttention']['input_sizes'])-1
+            if layer_name == 'AttentionBlock':
+                n_attention_modules = len(layer['AttentionBlock']['input_sizes'])-1
                 for nth_attention_layer in range(n_attention_modules):
                     layer_names.append(layer_name)
             else:
