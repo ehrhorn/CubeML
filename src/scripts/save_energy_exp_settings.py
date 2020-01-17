@@ -45,7 +45,7 @@ if __name__ == '__main__':
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'dom_interval_min0_max200'
+    mask_name = 'dom_interval_min32_max64'
 
     # * Set project
     project = 'cubeml'
@@ -112,13 +112,13 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [{'Linear_embedder': {'input_sizes':        [n_seq_feat, 32],
-                                                                     'LayerNorm':          True},},
+                        'layers':              [#{'Linear_embedder': {'input_sizes':        [n_seq_feat, 32],
+                                                #                     'LayerNorm':          True},},
                                                 #{'AttentionEncoder':   {'input_sizes':        [n_seq_feat, 64],
                                                 #                     'LayerNorm':          True,
                                                 #                     'Residual':           True,}},
                                                 #{'MaxPool':          {}},
-                                                {'LSTM':            {'input_sizes':        [32, 512],
+                                                {'LSTM':            {'input_sizes':        [n_seq_feat, 512],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       False}},
                                                 {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
