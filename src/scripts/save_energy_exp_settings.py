@@ -39,7 +39,7 @@ if __name__ == '__main__':
         objective = 'explore_lr'
 
     # * Options: 'angle_loss', 'L1', 'L2', 'Huber', 'angle_squared_loss'
-    error_func = 'L2'
+    error_func = 'Huber'
 
     # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
