@@ -16,6 +16,9 @@ import src.modules.reporting as rpt
 from src.modules.constants import *
 from src.modules.classes import *
 
+def calc_dist():
+    pass
+
 def get_tot_charge(dataset, d):
     # * SEEMS TO WORK
     charge = 'raw/dom_charge'
@@ -49,6 +52,22 @@ def get_frac_of_n_doms(dataset, d):
         d[key][i_event] = np.arange(1, n_doms+1)/n_doms
 
     return d
+
+def get_d_to_prev(dataset, d):
+    x, y, z = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z'
+    key = 'dom_d_to_prev'
+    n_events = f['meta/events'][()]
+    d[key] = [[]]*n_events
+    for i_event in range(n_events):
+        n_doms = event.shape[0]
+        x_diff = dataset[x][i_event][1:] - dataset[x][i_event][:-1]
+        y_diff = dataset[y][i_event][1:] - dataset[y][i_event][:-1]
+        z_diff = dataset[z][i_event][1:] - dataset[z][i_event][:-1]
+        dists = np.sqrt(x_diff**2 + y_diff**2 + z_diff**2)
+        dists = np.append([0.0], dists)
+        d[key][i_event] = dists
+    print(d[key][i_event-1].shape, dataset[x][i_event-1].shape)
+    return d
 data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
 particle_code = '140000'
 
@@ -61,9 +80,10 @@ for file in file_list:
     # * open file and prep new file
     d = {}
     with h5.File(file, 'r') as f:
-        d = get_tot_charge(f, d)
-        d = get_tot_charge_frac(f, d)
-        d = get_frac_of_n_doms(f, d)
+        # d = get_tot_charge(f, d)
+        # d = get_tot_charge_frac(f, d)
+        # d = get_frac_of_n_doms(f, d)
+        d = get_d_to_prev(f, d)
     break
     # * calculate relevant stuff
 
