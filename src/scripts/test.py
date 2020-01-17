@@ -66,7 +66,25 @@ def get_d_to_prev(dataset, d):
         dists = np.sqrt(x_diff**2 + y_diff**2 + z_diff**2)
         dists = np.append([0.0], dists)
         d[key][i_event] = dists
-    print(d[key][i_event-1].shape, dataset[x][i_event-1].shape)
+    return d
+
+def get_v_from_prev(dataset, d):
+    t = 'raw/dom_time'
+    key = 'dom_v_from_prev'
+    if 'dom_d_to_prev' not in d:
+        d = get_d_to_prev(dataset, d)
+
+    n_events = f['meta/events'][()]
+    d[key] = [[]]*n_events
+    for i_event in range(n_events):
+        t_diff = dataset[t][i_event][1:] - dataset[t][i_event][:-1]
+
+        # * Time has discrete values due to the clock on the electronics + the pulse extraction algorithm bins the pulses in time --> more discreteness.
+        t_diff = np.where(t_diff==0, 1.0, t_diff)
+        t_diff = np.append([np.inf], t_diff)
+        
+        v = d['dom_d_to_prev'][i_event]/t_diff
+        d[key][i_event] = v
     return d
 data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
 particle_code = '140000'
@@ -84,12 +102,19 @@ for file in file_list:
         # d = get_tot_charge_frac(f, d)
         # d = get_frac_of_n_doms(f, d)
         d = get_d_to_prev(f, d)
+        d = get_v_from_prev(f, d)
+
     break
     # * calculate relevant stuff
 
     # * put in new file and save it
-tot_charge_fracs = []
-for entry in d['dom_frac_of_n_doms']:
-    tot_charge_fracs.extend(entry)
-pd = {'data': [tot_charge_fracs]}
+
+#%%
+
+tot = []
+for entry in d['dom_v_from_prev']:
+    tot.extend(entry)
+
+tot = sorted(tot)
+pd = {'data': [tot], 'log': [False]}
 f = rpt.make_plot(pd)
