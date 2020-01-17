@@ -69,7 +69,7 @@ if __name__ == '__main__':
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',
-                                        'max_lr':          2e-3,
+                                        'max_lr':          5e-3,
                                         'min_lr':          1e-4,
                                         'frac_up':         0.02,
                                         'frac_down':       1-0.02,
