@@ -52,8 +52,8 @@ def energy_plot(models, perf_classes, title=None, savefig=None):
 
 
 # * ENERGY REG VS POINTNET 
-# * LSTM simple model, squared_angle complex model
-models = ['2020-01-15-17.46.08', '2020-01-16-00.05.42']
+# * LSTM 64 linear preproc 256 LSTM, 1024 LSTM
+models = ['2020-01-15-17.46.08', '2020-01-17-02.06.38']
 # models = ['2020-01-08-13.54.40', ]
 
 perf_classes = []
