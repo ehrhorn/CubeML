@@ -45,7 +45,7 @@ if __name__ == '__main__':
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'dom_interval_min32_max64'
+    mask_name = 'dom_interval_min0_max200'
 
     # * Set project
     project = 'cubeml'
