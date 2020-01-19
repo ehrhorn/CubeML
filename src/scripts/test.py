@@ -16,9 +16,6 @@ import src.modules.reporting as rpt
 from src.modules.constants import *
 from src.modules.classes import *
 
-def calc_dist():
-    pass
-
 def get_tot_charge(dataset, d):
     # * SEEMS TO WORK
     charge = 'raw/dom_charge'
@@ -36,8 +33,9 @@ def get_tot_charge_frac(dataset, d):
     
     d[key] = [[]]*f['meta/events'][()]
     for i_event, event in enumerate(dataset[charge]):
+        n_doms = len(dataset[charge][i_event])
         # * charge_frac.shape = (n_doms,)
-        d[key][i_event] = event/d['dom_tot_charge'][i_event]
+        d[key][i_event] = n_doms*event/d['dom_tot_charge'][i_event]
     
     return d
 
@@ -59,7 +57,7 @@ def get_d_to_prev(dataset, d):
     n_events = f['meta/events'][()]
     d[key] = [[]]*n_events
     for i_event in range(n_events):
-        n_doms = event.shape[0]
+        # n_doms = event.shape[0]
         x_diff = dataset[x][i_event][1:] - dataset[x][i_event][:-1]
         y_diff = dataset[y][i_event][1:] - dataset[y][i_event][:-1]
         z_diff = dataset[z][i_event][1:] - dataset[z][i_event][:-1]
@@ -83,9 +81,151 @@ def get_v_from_prev(dataset, d):
         t_diff = np.where(t_diff==0, 1.0, t_diff)
         t_diff = np.append([np.inf], t_diff)
         
-        v = d['dom_d_to_prev'][i_event]/t_diff
-        d[key][i_event] = v
+        d[key][i_event] = d['dom_d_to_prev'][i_event]/t_diff
     return d
+
+def get_d_minkowski_to_prev(dataset, d, n=1.309):
+    # * See subsection https://en.wikipedia.org/wiki/Minkowski_space --> Minkowski Metric
+    x, y, z, t = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z', 'raw/dom_time'
+    key = 'dom_d_minkowski_to_prev'
+    n_events = f['meta/events'][()]
+    d[key] = [[]]*n_events
+    for i_event in range(n_events):
+
+        x_diff_sqr = (dataset[x][i_event][1:] - dataset[x][i_event][:-1])
+        x_diff_sqr = x_diff_sqr*x_diff_sqr
+        
+        y_diff_sqr = (dataset[y][i_event][1:] - dataset[y][i_event][:-1])
+        y_diff_sqr = y_diff_sqr*y_diff_sqr
+        
+        z_diff_sqr = (dataset[z][i_event][1:] - dataset[z][i_event][:-1])
+        z_diff_sqr = z_diff_sqr*z_diff_sqr
+
+        t_diff_sqr = (dataset[t][i_event][1:] - dataset[t][i_event][:-1])
+        t_diff_sqr = t_diff_sqr*t_diff_sqr
+
+        c_ns = 3e8 * 1e-9 / n
+        spacetime_interval = ((c_ns**2) * t_diff_sqr) - x_diff_sqr - y_diff_sqr - z_diff_sqr
+        abs_interval_root = np.sqrt(np.abs(spacetime_interval))
+
+        spacetime_interval_root = np.where(spacetime_interval>0, abs_interval_root, -abs_interval_root)
+        d[key][i_event] = spacetime_interval_root
+        
+    return d
+
+def sqr_dist(data1, data2):
+    diff = data1-data2
+    return diff*diff
+
+def tile_diff_sqr(dataset):
+    n_doms = len(dataset)
+    tiled = np.tile(dataset, (n_doms, 1))
+    diff_sqr = sqr_dist(dataset, tiled.transpose()) 
+    # if diff_sqr != diff_sqr:
+    #     a+=1
+    return diff_sqr
+
+def get_d_closest(dataset, d):
+    x, y, z, t = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z', 'raw/dom_time'
+    key = 'dom_d_closest'
+    n_events = f['meta/events'][()]
+    d[key] = [[]]*n_events
+    for i_event in range(n_events):
+        n_doms = len(dataset[x][i_event])
+        min_dists = np.zeros(n_doms)
+        x_diff_sqr2 = tile_diff_sqr(dataset[x][i_event])
+        y_diff_sqr2 = tile_diff_sqr(dataset[y][i_event])
+        z_diff_sqr2 = tile_diff_sqr(dataset[z][i_event])
+        tot_dist = x_diff_sqr2 + y_diff_sqr2 + z_diff_sqr2
+        np.fill_diagonal(tot_dist, np.inf)
+        min_dists_all = np.sqrt(np.min(tot_dist, axis=1))
+        d[key][i_event] = min_dists_all
+        
+    return d
+
+def get_d_minkowski_closest(dataset, d, n=1.309):
+    # * See subsection https://en.wikipedia.org/wiki/Minkowski_space --> Minkowski Metric
+    x, y, z, t = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z', 'raw/dom_time'
+    key = 'dom_d_minkowski_closest'
+    n_events = f['meta/events'][()]
+    d[key] = [[]]*n_events
+    for i_event in range(n_events):
+        n_doms = len(dataset[x][i_event])
+        min_dists = np.zeros(n_doms)
+        x_diff_sqr2 = tile_diff_sqr(dataset[x][i_event])
+        y_diff_sqr2 = tile_diff_sqr(dataset[y][i_event])
+        z_diff_sqr2 = tile_diff_sqr(dataset[z][i_event])
+        t_diff_sqr2 = tile_diff_sqr(dataset[t][i_event])
+
+        c_ns = 3e8 * 1e-9 / n
+        tot_dist = c_ns*c_ns*t_diff_sqr2 - x_diff_sqr2 - y_diff_sqr2 - z_diff_sqr2
+        tot_dist_abs = np.abs(tot_dist)
+        np.fill_diagonal(tot_dist_abs, np.inf)
+        indices = np.argmin(tot_dist_abs, axis=1)
+        # * Row i is the i'th DOMs distance to the other doms. Therefore, the minimum distance for DOM i is located at (range[i], indices[i])
+        closest_squared = tot_dist_abs[list(range(n_doms)), indices]
+        closest = tot_dist[list(range(n_doms)), indices]
+        closest = np.where(closest>0, np.sqrt(closest_squared), -np.sqrt(closest_squared))
+        d[key][i_event] = closest
+        
+    return d
+
+def get_d_vertex(dataset, d):
+    # * Use crs_prefits prediction - they are more similar to ours
+    x, y, z = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z'
+    x_pred, y_pred, z_pred = 'raw/retro_crs_prefit_x', 'raw/retro_crs_prefit_y', 'raw/retro_crs_prefit_z'
+    key = 'dom_d_vertex'
+    n_events = f['meta/events'][()]
+    d[key] = [[]]*n_events
+    for i_event in range(n_events):
+        x_diff_sqr = sqr_dist(dataset[x][i_event], dataset[x_pred][i_event])
+        y_diff_sqr = sqr_dist(dataset[y][i_event], dataset[y_pred][i_event])
+        z_diff_sqr = sqr_dist(dataset[z][i_event], dataset[z_pred][i_event])
+        tot_dist = np.sqrt(x_diff_sqr+y_diff_sqr+z_diff_sqr)
+        d[key][i_event] = tot_dist
+    
+    return d
+
+def get_d_minkowski_vertex(dataset, d, n=1.0):
+    # * Use crs_prefits prediction - they are more similar to ours
+    x, y, z, t = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z', 'raw/dom_time'
+    x_pred, y_pred, z_pred, t_pred = 'raw/retro_crs_prefit_x', 'raw/retro_crs_prefit_y', 'raw/retro_crs_prefit_z', 'raw/retro_crs_prefit_time'
+    key = 'dom_d_minkowski_vertex'
+    n_events = f['meta/events'][()]
+    d[key] = [[]]*n_events
+    for i_event in range(n_events):
+        x_diff_sqr = sqr_dist(dataset[x][i_event], dataset[x_pred][i_event])
+        y_diff_sqr = sqr_dist(dataset[y][i_event], dataset[y_pred][i_event])
+        z_diff_sqr = sqr_dist(dataset[z][i_event], dataset[z_pred][i_event])
+        t_diff_sqr = sqr_dist(dataset[t][i_event], dataset[t_pred][i_event])
+
+        c_ns = 3e8 * 1e-9 / n
+
+        tot_sqr = c_ns*c_ns*t_diff_sqr - x_diff_sqr - y_diff_sqr - z_diff_sqr
+        tot_abs = np.sqrt(abs(tot_sqr))
+        tot_mink_dist = np.where(tot_sqr>0, tot_abs, -tot_abs)
+        d[key][i_event] = tot_mink_dist
+    
+    return d
+
+def get_charge_over_d_vertex(dataset, d):
+    Q = 'raw/dom_charge'
+    key = 'dom_charge_over_vertex'
+    key2 = 'dom_charge_over_vertex_sqr'
+    n_events = f['meta/events'][()]
+    d[key] = [[]]*n_events
+    d[key2] = [[]]*n_events
+
+    if 'dom_d_vertex' not in d:
+        d = get_d_vertex(dataset, d)
+
+    for i_event in range(n_events):
+        d[key][i_event] = dataset[Q][i_event]/d['dom_d_vertex'][i_event]
+        d[key2][i_event] = dataset[Q][i_event]/(d['dom_d_vertex'][i_event]*d['dom_d_vertex'][i_event])
+
+    return d
+
+
 data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
 particle_code = '140000'
 
@@ -95,26 +235,45 @@ N_FILES = len(file_list)
     
 for file in file_list:
     # print(Path(file).name)
-    # * open file and prep new file
+    # * open file and calc important stuff
     d = {}
     with h5.File(file, 'r') as f:
         # d = get_tot_charge(f, d)
         # d = get_tot_charge_frac(f, d)
         # d = get_frac_of_n_doms(f, d)
-        d = get_d_to_prev(f, d)
-        d = get_v_from_prev(f, d)
+        # d = get_d_to_prev(f, d)
+        # d = get_v_from_prev(f, d)
+        # d = get_d_minkowski_to_prev(f, d)
+        # d = get_d_closest(f, d)
+        # d = get_d_minkowski_closest(f, d)
+        # d = get_d_vertex(f, d)
+        # d = get_d_minkowski_vertex(f, d)
+        d = get_charge_over_d_vertex(f, d)
 
     break
-    # * calculate relevant stuff
 
     # * put in new file and save it
 
 #%%
 
 tot = []
-for entry in d['dom_v_from_prev']:
+for entry in d['dom_charge_over_vertex']:
     tot.extend(entry)
 
 tot = sorted(tot)
-pd = {'data': [tot], 'log': [False]}
+tot = np.array(tot)
+print('we done here too')
+
+tot = (tot - np.median(tot))/calc_iqr(tot)
+path = get_project_root() + '/plots/dom_d_mink_to_prev.png'
+title = r'$d_{Minkowski}$ from $DOM_{t-1}$ to $DOM_{t} $'
+pd = {'data': [tot[:167000]], 'log': [False]}#, 'title': title, 'savefig': path}
 f = rpt.make_plot(pd)
+print(tot.shape)
+# tot = []
+# for entry in d['dom_t']:
+#     tot.extend(entry)
+
+# tot = sorted(tot)
+# pd = {'data': [tot], 'log': [False]}#, 'title': title, 'savefig': path}
+# f = rpt.make_plot(pd)

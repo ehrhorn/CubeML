@@ -126,6 +126,9 @@ if __name__ == '__main__':
                                                 {'LSTM':            {'input_sizes':        [n_seq_feat, 16],
                                                                      'dropout':             0.5,
                                                                      'bidirectional':       False}},
+                                                {'LSTM':            {'input_sizes':        [16, 16],
+                                                                    'dropout':              0.5,
+                                                                    'bidirectional':        False}},
                                                 {'Linear':          {'input_sizes':        [16+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }

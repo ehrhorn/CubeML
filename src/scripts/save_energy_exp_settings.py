@@ -61,7 +61,7 @@ if __name__ == '__main__':
                 }
 
     hyper_pars = {'batch_size':        128,
-                'max_epochs':          10,
+                'max_epochs':          12,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
@@ -69,7 +69,7 @@ if __name__ == '__main__':
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',
-                                        'max_lr':          5e-3,
+                                        'max_lr':          2e-3,
                                         'min_lr':          1e-4,
                                         'frac_up':         0.02,
                                         'frac_down':       1-0.02,
@@ -118,10 +118,13 @@ if __name__ == '__main__':
                                                 #                     'LayerNorm':          True,
                                                 #                     'Residual':           True,}},
                                                 #{'MaxPool':          {}},
-                                                {'LSTM':            {'input_sizes':        [n_seq_feat, 512],
+                                                {'LSTM':            {'input_sizes':        [n_seq_feat, 256],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
+                                                {'LSTM':            {'input_sizes':        [256, 256],
+                                                                    'dropout':             0.5,
+                                                                    'bidirectional':       False}}
+                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
