@@ -123,7 +123,7 @@ if __name__ == '__main__':
                                                                     'bidirectional':       False}},
                                                 {'LSTM':            {'input_sizes':        [256, 256],
                                                                     'dropout':             0.5,
-                                                                    'bidirectional':       False}}
+                                                                    'bidirectional':       False}},
                                                 {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
