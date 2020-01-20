@@ -7,6 +7,7 @@ import h5py as h5
 from time import time
 from scipy.stats import norm
 import subprocess
+import multiprocessing
 
 # from src.modules.classes import *
 import src.modules.loss_funcs as lf
@@ -19,23 +20,23 @@ from src.modules.classes import *
 def get_tot_charge(dataset, d):
     # * SEEMS TO WORK
     charge = 'raw/dom_charge'
-    d['dom_tot_charge'] = np.array([0.0]*f['meta/events'][()])
+    d['tot_charge'] = np.array([0.0]*dataset['meta/events'][()])
     for i, event in enumerate(dataset[charge]):
-        d['dom_tot_charge'][i] = np.sum(event)
+        d['tot_charge'][i] = np.sum(event)
     return d
 
-def get_tot_charge_frac(dataset, d):
+def get_charge_significance(dataset, d):
      # * SEEMS TO WORK
     charge = 'raw/dom_charge'
-    key = 'dom_tot_charge_frac'
-    if not 'dom_tot_charge' in d:
+    key = 'dom_charge_significance'
+    if not 'tot_charge' in d:
         d = get_tot_charge(dataset, d)
     
-    d[key] = [[]]*f['meta/events'][()]
+    d[key] = [[]]*dataset['meta/events'][()]
     for i_event, event in enumerate(dataset[charge]):
         n_doms = len(dataset[charge][i_event])
         # * charge_frac.shape = (n_doms,)
-        d[key][i_event] = n_doms*event/d['dom_tot_charge'][i_event]
+        d[key][i_event] = n_doms*event/d['tot_charge'][i_event]
     
     return d
 
@@ -43,7 +44,7 @@ def get_frac_of_n_doms(dataset, d):
     # * SEEMS TO WORK
     charge = 'raw/dom_charge'
     key = 'dom_frac_of_n_doms'
-    d[key] = [[]]*f['meta/events'][()]
+    d[key] = [[]]*dataset['meta/events'][()]
     for i_event, event in enumerate(dataset[charge]):
         # * charge_frac.shape = (n_doms,)
         n_doms = event.shape[0]
@@ -54,7 +55,7 @@ def get_frac_of_n_doms(dataset, d):
 def get_d_to_prev(dataset, d):
     x, y, z = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z'
     key = 'dom_d_to_prev'
-    n_events = f['meta/events'][()]
+    n_events = dataset['meta/events'][()]
     d[key] = [[]]*n_events
     for i_event in range(n_events):
         # n_doms = event.shape[0]
@@ -72,7 +73,7 @@ def get_v_from_prev(dataset, d):
     if 'dom_d_to_prev' not in d:
         d = get_d_to_prev(dataset, d)
 
-    n_events = f['meta/events'][()]
+    n_events = dataset['meta/events'][()]
     d[key] = [[]]*n_events
     for i_event in range(n_events):
         t_diff = dataset[t][i_event][1:] - dataset[t][i_event][:-1]
@@ -88,7 +89,7 @@ def get_d_minkowski_to_prev(dataset, d, n=1.309):
     # * See subsection https://en.wikipedia.org/wiki/Minkowski_space --> Minkowski Metric
     x, y, z, t = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z', 'raw/dom_time'
     key = 'dom_d_minkowski_to_prev'
-    n_events = f['meta/events'][()]
+    n_events = dataset['meta/events'][()]
     d[key] = [[]]*n_events
     for i_event in range(n_events):
 
@@ -128,7 +129,7 @@ def tile_diff_sqr(dataset):
 def get_d_closest(dataset, d):
     x, y, z, t = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z', 'raw/dom_time'
     key = 'dom_d_closest'
-    n_events = f['meta/events'][()]
+    n_events = dataset['meta/events'][()]
     d[key] = [[]]*n_events
     for i_event in range(n_events):
         n_doms = len(dataset[x][i_event])
@@ -147,7 +148,7 @@ def get_d_minkowski_closest(dataset, d, n=1.309):
     # * See subsection https://en.wikipedia.org/wiki/Minkowski_space --> Minkowski Metric
     x, y, z, t = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z', 'raw/dom_time'
     key = 'dom_d_minkowski_closest'
-    n_events = f['meta/events'][()]
+    n_events = dataset['meta/events'][()]
     d[key] = [[]]*n_events
     for i_event in range(n_events):
         n_doms = len(dataset[x][i_event])
@@ -175,7 +176,7 @@ def get_d_vertex(dataset, d):
     x, y, z = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z'
     x_pred, y_pred, z_pred = 'raw/retro_crs_prefit_x', 'raw/retro_crs_prefit_y', 'raw/retro_crs_prefit_z'
     key = 'dom_d_vertex'
-    n_events = f['meta/events'][()]
+    n_events = dataset['meta/events'][()]
     d[key] = [[]]*n_events
     for i_event in range(n_events):
         x_diff_sqr = sqr_dist(dataset[x][i_event], dataset[x_pred][i_event])
@@ -186,12 +187,12 @@ def get_d_vertex(dataset, d):
     
     return d
 
-def get_d_minkowski_vertex(dataset, d, n=1.0):
+def get_d_minkowski_vertex(dataset, d, n=1.309):
     # * Use crs_prefits prediction - they are more similar to ours
     x, y, z, t = 'raw/dom_x', 'raw/dom_y', 'raw/dom_z', 'raw/dom_time'
     x_pred, y_pred, z_pred, t_pred = 'raw/retro_crs_prefit_x', 'raw/retro_crs_prefit_y', 'raw/retro_crs_prefit_z', 'raw/retro_crs_prefit_time'
     key = 'dom_d_minkowski_vertex'
-    n_events = f['meta/events'][()]
+    n_events = dataset['meta/events'][()]
     d[key] = [[]]*n_events
     for i_event in range(n_events):
         x_diff_sqr = sqr_dist(dataset[x][i_event], dataset[x_pred][i_event])
@@ -212,7 +213,7 @@ def get_charge_over_d_vertex(dataset, d):
     Q = 'raw/dom_charge'
     key = 'dom_charge_over_vertex'
     key2 = 'dom_charge_over_vertex_sqr'
-    n_events = f['meta/events'][()]
+    n_events = dataset['meta/events'][()]
     d[key] = [[]]*n_events
     d[key2] = [[]]*n_events
 
@@ -225,51 +226,92 @@ def get_charge_over_d_vertex(dataset, d):
 
     return d
 
+def main(data_dir, particle_code=None):
+    if particle_code:
+        file_list = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)])
+    else:
+        file_list = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5'])
 
-data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
-particle_code = '140000'
-
-file_list = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)])
-
-N_FILES = len(file_list)
+    N_FILES = len(file_list)
     
-for file in file_list:
-    # print(Path(file).name)
-    # * open file and calc important stuff
-    d = {}
-    with h5.File(file, 'r') as f:
-        # d = get_tot_charge(f, d)
-        # d = get_tot_charge_frac(f, d)
-        # d = get_frac_of_n_doms(f, d)
-        # d = get_d_to_prev(f, d)
-        # d = get_v_from_prev(f, d)
-        # d = get_d_minkowski_to_prev(f, d)
-        # d = get_d_closest(f, d)
-        # d = get_d_minkowski_closest(f, d)
-        # d = get_d_vertex(f, d)
-        # d = get_d_minkowski_vertex(f, d)
-        d = get_charge_over_d_vertex(f, d)
+    import time
+    start = time.time()
+    # * For every datafile, make a new datafile to not fuck shit up
+    for i_file, file in enumerate(file_list):
 
-    break
+        # * open file and calc important stuff
+        d = {}
+        with h5.File(file, 'r') as f:
+            d = get_tot_charge(f, d)
+            d = get_charge_significance(f, d)
+            d = get_frac_of_n_doms(f, d)
+            d = get_d_to_prev(f, d)
+            d = get_v_from_prev(f, d)
+            d = get_d_minkowski_to_prev(f, d)
+            d = get_d_closest(f, d)
+            d = get_d_minkowski_closest(f, d)
+            d = get_d_vertex(f, d)
+            d = get_d_minkowski_vertex(f, d)
+            d = get_charge_over_d_vertex(f, d)
+        
+        # * Append our calculations to the file
+        with h5.File(file, 'a') as f:
+            # * Make a 'raw/'-group if it doesnt exist
+            if 'raw' not in f:
+                raw = f.create_group("raw")
 
-    # * put in new file and save it
+            # * Now make the datasets
+            for key, data in d.items():
+                dataset_path = 'raw/'+key
+                # * Check if it is a DOM-variable or global event-variable
+                if data[0].shape:
+                    # * If dataset already exists, delete it first
+                    if dataset_path in f:
+                        del f[dataset_path]
+                    f.create_dataset(dataset_path, data=data, dtype=h5.special_dtype(vlen=data[0][0].dtype))
 
-#%%
+                else:
+                    # * If dataset already exists, delete it first
+                    if dataset_path in f:
+                        del f[dataset_path]
+                    f.create_dataset(dataset_path, data=data, dtype=data[0].dtype)
+        # * Print progress for our sanity..
+        print_progress(start, i_file+1, N_FILES)
 
-tot = []
-for entry in d['dom_charge_over_vertex']:
-    tot.extend(entry)
+if __name__ =='__main__':
+    data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2_copy'
+    particle_code = '140000'
+    main(data_dir)
+    # print(multiprocessing.cpu_count())
 
-tot = sorted(tot)
-tot = np.array(tot)
-print('we done here too')
+# # * put in new file and save it
+        # path_obj = Path(file)
+        # new_path = dir_path+'/'+path_obj.name
+        # new_path_obj = Path(new_full_path)
+        # mode = 'a' if new_path_obj.is_file() else 'w'
 
-tot = (tot - np.median(tot))/calc_iqr(tot)
-path = get_project_root() + '/plots/dom_d_mink_to_prev.png'
-title = r'$d_{Minkowski}$ from $DOM_{t-1}$ to $DOM_{t} $'
-pd = {'data': [tot[:167000]], 'log': [False]}#, 'title': title, 'savefig': path}
-f = rpt.make_plot(pd)
-print(tot.shape)
+    # # * Make new directory
+    # data_path = hf.get_project_root() + hf.get_path_from_root(data_dir)
+    # name = hf.get_dataset_name(data_dir)
+
+    # dir_path = hf.get_project_root() + '/data/2.0_'+name
+    # if not Path(dir_path).is_dir():
+    #     Path(dir_path).mkdir(parents=True)
+
+# tot = []
+# for entry in d['dom_charge_over_vertex']:
+#     tot.extend(entry)
+
+# tot = sorted(tot)
+# tot = np.array(tot)
+# print('we done here too')
+
+# tot = (tot - np.median(tot))/calc_iqr(tot)
+# path = get_project_root() + '/plots/dom_d_mink_to_prev.png'
+# title = r'$d_{Minkowski}$ from $DOM_{t-1}$ to $DOM_{t} $'
+# pd = {'data': [tot[:167000]], 'log': [False]}#, 'title': title, 'savefig': path}
+# f = rpt.make_plot(pd)
+# print(tot.shape)
 # tot = []
 # for entry in d['dom_t']:
 #     tot.extend(entry)
