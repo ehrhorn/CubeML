@@ -118,13 +118,13 @@ if __name__ == '__main__':
                                                 #                     'LayerNorm':          True,
                                                 #                     'Residual':           True,}},
                                                 #{'MaxPool':          {}},
-                                                {'LSTM':            {'input_sizes':        [n_seq_feat, 256],
+                                                {'LSTM':            {'input_sizes':        [n_seq_feat, 512],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       False}},
-                                                {'LSTM':            {'input_sizes':        [256, 256],
+                                                {'LSTM':            {'input_sizes':        [512, 512],
                                                                     'dropout':             0.5,
                                                                     'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
