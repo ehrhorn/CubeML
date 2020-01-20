@@ -1185,6 +1185,26 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle=
 
     return model_dir
 
+def print_progress(start_time, progress, total):
+    """Prints elapsed time in hours and minutes since start of program.
+    
+    Arguments:
+        start_time {float} -- Start time in seconds of program (from time.time())
+        progress {int} -- Some measure of progress, like i_file
+        total {int} -- Total number of iterations.
+    """       
+    elapsed_seconds = (time()-start_time)
+    speed = progress/elapsed_seconds
+    elapsed_hours = elapsed_seconds//3600
+    elapsed_minutes = (elapsed_seconds%3600)//60
+    remaining_seconds = (total-progress)/speed
+    remaining_hours = remaining_seconds//3600
+    remaining_minutes = (remaining_seconds%3600)//60
+    
+    print(strftime("\n%d/%m %H:%M:", localtime()), 'Progress: %d/%d'%(progress, total))
+    print('Time elapsed: %.0f hours, %.0f minutes.'%(elapsed_hours, elapsed_minutes))
+    print('Time remaining: %.0f hours, %.0f minutes.'%(remaining_hours, remaining_minutes))
+
 def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indices=[]):
     """Reads a dataset from a h5-file induced by key and prefix.
     
