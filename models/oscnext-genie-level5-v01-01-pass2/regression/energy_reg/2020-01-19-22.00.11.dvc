@@ -1,0 +1,7 @@
+md5: e139bb465018ee7f5aa5737add4b2c5d
+outs:
+- md5: afec09eabfc255bbad106703e1df9f05.dir
+  path: 2020-01-19-22.00.11
+  cache: true
+  metric: false
+  persist: false
