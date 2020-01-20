@@ -962,7 +962,7 @@ def get_time():
     Returns:
         str -- Current time
     """    
-    return strftime("\n%d/%m %H:%M:", localtime())
+    return strftime("%d/%m %H:%M:", localtime())
 
 def get_train_val_test_indices(n_data, train_frac, val_frac, test_frac, shuffle=True):
     '''Split a dataset into a test-sample with test_frac*n_data datapoints, a training-sample with (1-test_frac)*train_frac*n_data datapoints and a validation set with (1-test_frac)*(1-train_frac)*n_data datapoints.
