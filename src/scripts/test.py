@@ -122,8 +122,7 @@ def tile_diff_sqr(dataset):
     n_doms = len(dataset)
     tiled = np.tile(dataset, (n_doms, 1))
     diff_sqr = sqr_dist(dataset, tiled.transpose()) 
-    # if diff_sqr != diff_sqr:
-    #     a+=1
+    
     return diff_sqr
 
 def get_d_closest(dataset, d):
@@ -281,8 +280,8 @@ def main(data_dir, particle_code=None):
 if __name__ =='__main__':
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2_copy'
     particle_code = '140000'
-    main(data_dir)
-    # print(multiprocessing.cpu_count())
+    # main(data_dir)
+    print(multiprocessing.cpu_count())
 
 # # * put in new file and save it
         # path_obj = Path(file)
