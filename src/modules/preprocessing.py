@@ -1,21 +1,6 @@
-#%%
-import torch
-import numpy as np
-from matplotlib import pyplot as plt
-from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
+import src.modules.helper_functions as hf
 import h5py as h5
-from time import time
-from scipy.stats import norm
-import subprocess
-from multiprocessing import Pool, cpu_count
-
-# from src.modules.classes import *
-import src.modules.loss_funcs as lf
-from src.modules.helper_functions import *
-from src.modules.eval_funcs import *
-import src.modules.reporting as rpt
-from src.modules.constants import *
-from src.modules.classes import *
+import numpy as np
 
 def prep_dict(key, d, n_events, datatype='sequence'):
     """Small helper function for feature_engineer. Checks if a key is in the given dictionary and adds it if it is not.
@@ -458,7 +443,7 @@ def feature_engineer(packed):
     i_file, file, N_FILES = packed
     
     # * Print progress for our sanity..
-    print(get_time(), 'Processing file %d of %d'%(i_file+1, N_FILES))
+    print(hf.get_time(), 'Processing file %d of %d'%(i_file+1, N_FILES))
     
     # * Retrieve wanted engineers - they have to be predefined in get_wanted_feature_engineers (for now)
     functions = get_wanted_feature_engineers()
@@ -487,58 +472,4 @@ def feature_engineer(packed):
                 if dataset_path in f:
                     del f[dataset_path]
                 f.create_dataset(dataset_path, data=data, dtype=data[0].dtype)
-    
-if __name__ =='__main__':
-    # * For every datafile, make a new datafile to not fuck shit up
-    data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2_copy'
-
-    file_list = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5'])
-
-    N_FILES = len(file_list)
-    packed = [entry for entry in zip(range(N_FILES), file_list, [N_FILES]*N_FILES)]
-    start = time()
-
-    # * Use multiprocessing for parallelizing the job.
-    available_cores = cpu_count()
-    with Pool(available_cores) as p:
-        p.map(feature_engineer, packed)
-    # for entry in packed:
-    #     feature_engineer(entry)
-    # print_progress(start, len(packed), N_FILES)
-    # main(data_dir)
-
-# # * put in new file and save it
-        # path_obj = Path(file)
-        # new_path = dir_path+'/'+path_obj.name
-        # new_path_obj = Path(new_full_path)
-        # mode = 'a' if new_path_obj.is_file() else 'w'
-
-    # # * Make new directory
-    # data_path = hf.get_project_root() + hf.get_path_from_root(data_dir)
-    # name = hf.get_dataset_name(data_dir)
-
-    # dir_path = hf.get_project_root() + '/data/2.0_'+name
-    # if not Path(dir_path).is_dir():
-    #     Path(dir_path).mkdir(parents=True)
-
-# tot = []
-# for entry in d['dom_charge_over_vertex']:
-#     tot.extend(entry)
-
-# tot = sorted(tot)
-# tot = np.array(tot)
-# print('we done here too')
-
-# tot = (tot - np.median(tot))/calc_iqr(tot)
-# path = get_project_root() + '/plots/dom_d_mink_to_prev.png'
-# title = r'$d_{Minkowski}$ from $DOM_{t-1}$ to $DOM_{t} $'
-# pd = {'data': [tot[:167000]], 'log': [False]}#, 'title': title, 'savefig': path}
-# f = rpt.make_plot(pd)
-# print(tot.shape)
-# tot = []
-# for entry in d['dom_t']:
-#     tot.extend(entry)
-
-# tot = sorted(tot)
-# pd = {'data': [tot], 'log': [False]}#, 'title': title, 'savefig': path}
-# f = rpt.make_plot(pd)
+ 
