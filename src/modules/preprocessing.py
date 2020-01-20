@@ -1,6 +1,7 @@
 import src.modules.helper_functions as hf
 import h5py as h5
 import numpy as np
+from pathlib import Path
 
 def prep_dict(key, d, n_events, datatype='sequence'):
     """Small helper function for feature_engineer. Checks if a key is in the given dictionary and adds it if it is not.
@@ -441,9 +442,10 @@ def feature_engineer(packed):
     
     # * Unpack. One input is expected to be compatible with multiprocessing
     i_file, file, N_FILES = packed
+    name = Path(file).name
     
     # * Print progress for our sanity..
-    print(hf.get_time(), 'Processing file %d of %d'%(i_file+1, N_FILES))
+    print(hf.get_time(), 'Processing %s (file %d of %d)'%(name, i_file+1, N_FILES))
     
     # * Retrieve wanted engineers - they have to be predefined in get_wanted_feature_engineers (for now)
     functions = get_wanted_feature_engineers()
@@ -472,4 +474,4 @@ def feature_engineer(packed):
                 if dataset_path in f:
                     del f[dataset_path]
                 f.create_dataset(dataset_path, data=data, dtype=data[0].dtype)
- 
+    
