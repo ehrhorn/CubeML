@@ -21,7 +21,7 @@ if __name__ == '__main__':
     transformer_dict = pp.get_feature_transformers()
 
     n_wanted_sample = 10e6
-    n_wanted_histogram = 100e3
+    n_wanted_histogram = 1e6
     dicts = [dicts[key] for key in keys]
     clip_dicts = [clip_dicts[key] for key in keys]
     files_list = [files]*len(keys)
