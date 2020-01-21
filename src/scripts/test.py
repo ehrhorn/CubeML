@@ -11,76 +11,40 @@ from multiprocessing import Pool, cpu_count
 
 # from src.modules.classes import *
 import src.modules.loss_funcs as lf
-from src.modules.helper_functions import *
+import src.modules.helper_functions as hf
 from src.modules.eval_funcs import *
 import src.modules.reporting as rpt
 from src.modules.constants import *
 from src.modules.classes import *
 import src.modules.preprocessing as pp
 
-def make_feature_histogram(package):
-    # * Unpack
-    key, d, clip_dict, file_list, \
-    n_wanted_sample, n_wanted_histogram, particle_code = package
+if __name__ =='__main__':
+    # * For every datafile, make a new datafile to not fuck shit up
+    data_dir = hf.get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2_copy'
+    particle_code = '140000'
+    prefix = 'transform1'
 
-    # * Read some data
-    all_data = []
-    for file in file_list:
-        # * once enough data has been read, break out
-        if len(all_data)>n_wanted_sample:
-            break
-        data = read_h5_dataset(file, key, prefix='raw/')
-        if data[0].shape:
-            for entry in data:
-                all_data.extend(entry)
-        else:
-            all_data.extend(data)
+    # * Load transformers, keys and prepare filenames
+    transformer_path = data_dir + '/transformers/' + particle_code + '_' + prefix +'.pickle'
+    transformers = joblib.load(open(transformer_path, 'rb'))
+    file_list = [str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)]
+    keys = pp.get_feature_keys()
+
+
+    # * Pack each filepath with transformers and keys for multiprocessing
+    N_FILES = len(file_list)
     
-    # * Data read. Now draw a random sample
-    indices = list(range(len(all_data)))
-    random.shuffle(indices)
-    random_subsample = sorted(indices[:n_wanted_histogram])
+    transformers_list = [transformers for i_file in range(N_FILES)]
+    keys_list = [keys for i_file in range(N_FILES)]
+    prefix_list = [prefix for i_file in range(N_FILES)]
 
-    # * Draw histogram and save it.
-    plot_data = sorted(np.array(all_data)[random_subsample])
-    if clip_dict:
-        minimum = clip_dict['min']
-        maximum = clip_dict['max']
-        plot_data = np.clip(plot_data, minimum, maximum)
-    d['data'] = [plot_data]
-    d['title'] = key
+    packed = [entry for entry in zip(file_list, transformers_list, keys_list, prefix_list)]
 
-    path = get_project_root() + '/plots/features/'
-    d['savefig'] = path + particle_code + '_' + key + '.png'
-    fig = rpt.make_plot(d)
-
-data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2_copy'
-particle_code = '140000'
-
-files = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)])
-random.shuffle(files)    
-
-keys = pp.get_feature_keys()
-dicts = pp.get_feature_plot_dicts()
-clip_dicts = pp.get_feature_clip_dicts()
-
-n_wanted_sample = 1e7
-n_wanted_histogram = 50e3
-dicts = [dicts[key] for key in keys]
-clip_dicts = [clip_dicts[key] for key in keys]
-files_list = [files]*len(keys)
-n_wanted_sample = [n_wanted_sample for key in keys]
-n_wanted_histogram = [n_wanted_histogram for key in keys]
-particle_code = [particle_code for key in keys]
-
-
-packages = [entry for entry in zip(keys, dicts, clip_dicts, files_list, n_wanted_sample, n_wanted_histogram, particle_code)]
-
-# * Use multiprocessing for parallelizing the job.
-available_cores = cpu_count()
-with Pool(available_cores) as p:
-    p.map(make_feature_histogram, packages)
-
+    # * Use multiprocessing for parallelizing the job.
+    available_cores = cpu_count()
+    with Pool(available_cores) as p:
+        print(hf.get_time(), 'Transformation begun')
+        p.map(pp.transform_features, packed)
 # tot = []
 # for entry in d['dom_charge_over_vertex']:
 #     tot.extend(entry)

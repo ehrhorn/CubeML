@@ -4,6 +4,7 @@ import h5py as h5
 import numpy as np
 from pathlib import Path
 import random
+from time import time
 from sklearn.preprocessing import QuantileTransformer, RobustScaler, StandardScaler
 
 def prep_dict(key, d, n_events, datatype='sequence'):
@@ -505,7 +506,7 @@ def get_wanted_feature_engineers():
 
     return functions
 
-def feature_engineer(packed):
+def feature_engineer(pack):
     """Calculates desired features for a h5-datafile and appends the new datasets to the file. Multiprocessing-friendly.
     
     Arguments:
@@ -517,7 +518,7 @@ def feature_engineer(packed):
     """    
     
     # * Unpack. One input is expected to be compatible with multiprocessing
-    i_file, file, N_FILES = packed
+    i_file, file, N_FILES = pack
     name = Path(file).name
     
     # * Print progress for our sanity..
@@ -551,10 +552,10 @@ def feature_engineer(packed):
                     del f[dataset_path]
                 f.create_dataset(dataset_path, data=data, dtype=data[0].dtype)
 
-def fit_feature_transformers(package):
+def fit_feature_transformers(pack):
     # * Unpack
     key, d, clip_dict, file_list, \
-    n_wanted_sample, n_wanted_histogram, particle_code, transformer = package
+    n_wanted_sample, n_wanted_histogram, particle_code, transformer = pack
 
     # * Read some data
     all_data = []
@@ -604,5 +605,57 @@ def fit_feature_transformers(package):
 
     return d_transformer
 
-def transform_features(packed):
-    pass
+def transform_features(pack):
+    file, transformers, keys, prefix = pack
+    start = time()
+    name = Path(file).name
+
+    with h5.File(file, 'a') as f:
+        n_events = f['meta/events'][()]
+        
+        # * Loop over keys and do all transformations for the whole file.
+        # * scikits transformers expect 2D-arrays, hence we reshape into 2D-array and flatten again.
+        d = {}
+        for key in keys:
+           
+           # * For each key, check if already transformed - if yes, don't do it again
+            if f['raw/'+key]:# and prefix+'/'+key not in f:
+                transformer = transformers[key]
+                
+                # * Prepare an empty dataset
+                if f['raw/'+key][0].shape:
+                    d[key] = [[]]*n_events
+
+                    # * We must loop due to the sequential nature of DOM sequences
+                    for i_event, event in enumerate(f['raw/'+key]):
+                        d[key][i_event] = transformer.transform(event.reshape(-1, 1)).flatten()
+                
+                else:   
+                    # * For non-sequential data, we can transform entire set in one go
+                    d[key] = transformer.transform(f['raw/'+key][:].reshape(-1, 1)).flatten()
+        
+        # * Now save
+        for key, data in d.items():
+            dataset_path = prefix + '/' + key
+
+            # * Check if it is a DOM-variable or global event-variable
+            if data[0].shape:
+                
+                # * If dataset already exists, delete it first
+                if dataset_path in f:
+                    del f[dataset_path]
+                
+                f.create_dataset(dataset_path, data=data, dtype=h5.special_dtype(vlen=data[0][0].dtype))
+
+            else:
+                
+                # * If dataset already exists, delete it first
+                if dataset_path in f:
+                    del f[dataset_path]
+                
+                f.create_dataset(dataset_path, data=data, dtype=data[0].dtype)
+    
+    # * Print progress for sanity...
+    finish_time = time()-start
+    print(hf.get_time(),'Finished %s in %.0f seconds'%(name, finish_time))
+    print('Speed: %.0f Events per second\n'%(n_events/finish_time))
