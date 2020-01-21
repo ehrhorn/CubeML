@@ -584,7 +584,7 @@ def fit_feature_transformers(package):
     d['data'] = [plot_data]
     d['title'] = key + '- Entries = %.1e'%(plot_data_unclipped.shape[0])
 
-    path = hf.get_project_root() + '/plots/features/'
+    path = hf.get_project_root() + '/reports/plots/features/'
     d['savefig'] = path + particle_code + '_' + key + '.png'
     fig = rpt.make_plot(d)
 
