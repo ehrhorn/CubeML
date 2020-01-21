@@ -603,3 +603,6 @@ def fit_feature_transformers(package):
     d_transformer = {key: transformer}
 
     return d_transformer
+
+def transform_features(packed):
+    pass
