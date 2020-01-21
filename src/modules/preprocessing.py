@@ -1,7 +1,10 @@
 import src.modules.helper_functions as hf
+import src.modules.reporting as rpt
 import h5py as h5
 import numpy as np
 from pathlib import Path
+import random
+from sklearn.preprocessing import QuantileTransformer, RobustScaler, StandardScaler
 
 def prep_dict(key, d, n_events, datatype='sequence'):
     """Small helper function for feature_engineer. Checks if a key is in the given dictionary and adds it if it is not.
@@ -407,6 +410,79 @@ def calc_features(functions, file):
         
     return d
 
+def get_feature_keys():
+    keys = [
+        'tot_charge',
+        'dom_charge_significance',
+        'dom_frac_of_n_doms',
+        'dom_d_to_prev',
+        'dom_v_from_prev',
+        'dom_d_minkowski_to_prev',
+        'dom_d_closest',
+        'dom_d_minkowski_closest',
+        'dom_d_vertex',
+        'dom_d_minkowski_vertex',
+        'dom_charge_over_vertex',
+        'dom_charge_over_vertex_sqr'
+    ]
+    return keys
+
+def get_feature_plot_dicts():
+    d  = {
+        'tot_charge': {},
+        'dom_charge_significance': {
+            'log': [True]},
+        'dom_frac_of_n_doms': {},
+        'dom_d_to_prev': {},
+        'dom_v_from_prev': {
+            'log': [True]},
+        'dom_d_minkowski_to_prev': {},
+        'dom_d_closest': {},
+        'dom_d_minkowski_closest': {},
+        'dom_d_vertex': {},
+        'dom_d_minkowski_vertex': {},
+        'dom_charge_over_vertex': {
+            'log': [True]},
+        'dom_charge_over_vertex_sqr': {
+            'log': [True]}
+    }
+    return d
+
+def get_feature_transformers():
+    d  = {
+        'tot_charge': StandardScaler(),
+        'dom_charge_significance': StandardScaler(),
+        'dom_frac_of_n_doms': RobustScaler(),
+        'dom_d_to_prev': RobustScaler(),
+        'dom_v_from_prev': QuantileTransformer(output_distribution='normal'),
+        'dom_d_minkowski_to_prev': RobustScaler(),
+        'dom_d_closest': StandardScaler(),
+        'dom_d_minkowski_closest': StandardScaler(),
+        'dom_d_vertex': RobustScaler(),
+        'dom_d_minkowski_vertex': RobustScaler(),
+        'dom_charge_over_vertex': QuantileTransformer(output_distribution='normal'),
+        'dom_charge_over_vertex_sqr': QuantileTransformer(output_distribution='normal')
+    }
+    return d
+
+def get_feature_clip_dicts():
+    d  = {
+        'tot_charge': None,
+        'dom_charge_significance': {'min': None, 'max': 15},
+        'dom_frac_of_n_doms': None,
+        'dom_d_to_prev': None,
+        'dom_v_from_prev': {'min': None, 'max': 0.4e12},
+        'dom_d_minkowski_to_prev': None,
+        'dom_d_closest': None,
+        'dom_d_minkowski_closest': None,
+        'dom_d_vertex': None,
+        'dom_d_minkowski_vertex': None,
+        'dom_charge_over_vertex': {'min': None, 'max': 0.4},
+        'dom_charge_over_vertex_sqr': {'min': None, 'max': 0.04}
+
+    }
+    return d
+
 def get_wanted_feature_engineers():
     """Helperfunction for feature_engineer. Predefined list of functions, which calculate the desired features.
     
@@ -474,4 +550,56 @@ def feature_engineer(packed):
                 if dataset_path in f:
                     del f[dataset_path]
                 f.create_dataset(dataset_path, data=data, dtype=data[0].dtype)
+
+def fit_feature_transformers(package):
+    # * Unpack
+    key, d, clip_dict, file_list, \
+    n_wanted_sample, n_wanted_histogram, particle_code, transformer = package
+
+    # * Read some data
+    all_data = []
+    for file in file_list:
+        # * once enough data has been read, break out
+        if len(all_data)>n_wanted_sample:
+            break
+        data = hf.read_h5_dataset(file, key, prefix='raw/')
+        if data[0].shape:
+            for entry in data:
+                all_data.extend(entry)
+        else:
+            all_data.extend(data)
     
+    # * Data read. Now draw a random sample
+    indices = np.array(range(len(all_data)))
+    random.shuffle(indices)
+    random_subsample = sorted(indices[:min(len(indices), int(n_wanted_histogram))])
+
+    # * Draw histogram and save it.
+    plot_data = np.array(sorted(np.array(all_data)[random_subsample]))
+    plot_data_unclipped = np.array(sorted(np.array(all_data)[random_subsample]))
+    if clip_dict:
+        minimum = clip_dict['min']
+        maximum = clip_dict['max']
+        plot_data = np.clip(plot_data, minimum, maximum)
+    d['data'] = [plot_data]
+    d['title'] = key + '- Entries = %.1e'%(plot_data_unclipped.shape[0])
+
+    path = hf.get_project_root() + '/plots/features/'
+    d['savefig'] = path + particle_code + '_' + key + '.png'
+    fig = rpt.make_plot(d)
+
+    # * Fit a transformer/scaler
+    transformer.fit(plot_data_unclipped.reshape(-1, 1))
+
+    # * Transform plot data
+    plot_data_transformed = transformer.transform(plot_data_unclipped.reshape(-1, 1))    
+
+    # * Plot and save
+    d_transformed = {'data': [plot_data_transformed]}
+    d_transformed['title'] = key+' transformed - Entries = %.1e'%(plot_data_unclipped.shape[0])
+    d_transformed['savefig'] = path + particle_code + '_transformed_' + key + '.png'
+    fig = rpt.make_plot(d_transformed)
+
+    d_transformer = {key: transformer}
+
+    return d_transformer
