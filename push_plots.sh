@@ -1,3 +1,3 @@
 #!/bin/bash -e
-dvc add bak_plots
-dvc push -r models bak_plots.dvc
+dvc add reports
+dvc push -r models reports.dvc
