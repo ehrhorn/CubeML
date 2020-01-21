@@ -933,7 +933,7 @@ def get_target_keys(data_pars, meta_pars):
 
     dataset_name = get_dataset_name(data_pars['data_dir'])
     
-    if dataset_name == 'oscnext-genie-level5-v01-01-pass2':
+    if dataset_name == 'oscnext-genie-level5-v01-01-pass2' or dataset_name == 'oscnext-genie-level5-v01-01-pass2_copy':
         if meta_pars['group'] == 'direction_reg':
             target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
         elif meta_pars['group'] == 'vertex_reg':

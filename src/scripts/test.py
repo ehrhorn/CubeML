@@ -42,9 +42,13 @@ if __name__ =='__main__':
 
     # * Use multiprocessing for parallelizing the job.
     available_cores = cpu_count()
-    with Pool(available_cores) as p:
-        print(hf.get_time(), 'Transformation begun')
-        p.map(pp.transform_features, packed)
+    for file in file_list:
+
+        with h5.File(file, 'a') as f:
+            for key in f:
+                print(key)
+            print( f['transform1/dom_d_vertex'][0])
+        break
 # tot = []
 # for entry in d['dom_charge_over_vertex']:
 #     tot.extend(entry)

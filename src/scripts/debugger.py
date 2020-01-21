@@ -46,7 +46,7 @@ if __name__ == '__main__':
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'dom_interval_min0_max200'
+    mask_name = 'dom_interval_min32_max64'
 
     # * Set project
     project = 'cubeml_test'
@@ -87,8 +87,8 @@ if __name__ == '__main__':
     data_pars = {'data_dir':     data_dir,
                 'particle':      particle,
                 'mask':          mask_name,
-                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], 
-                'scalar_feat': ['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'], #['dom_timelength_fwhm'], #
+                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time', 'dom_d_vertex'],#['dom_x', 'dom_d_vertex', 'dom_d_to_prev'],  
+                'scalar_feat': [],#['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'], #['dom_timelength_fwhm'], #
                 'n_val_events_wanted':   110,# np.inf,
                 'n_train_events_wanted': 110,# np.inf,
                 'n_predictions_wanted': 100,
