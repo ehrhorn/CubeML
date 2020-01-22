@@ -87,8 +87,8 @@ if __name__ == '__main__':
     data_pars = {'data_dir':     data_dir,
                 'particle':      particle,
                 'mask':          mask_name,
-                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time', 'dom_d_vertex'],#['dom_x', 'dom_d_vertex', 'dom_d_to_prev'],  
-                'scalar_feat': [],#['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'], #['dom_timelength_fwhm'], #
+                'seq_feat':   ['dom_charge'], # ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time', 'dom_charge_significance', 'dom_frac_of_n_doms', 'dom_d_to_prev', 'dom_v_from_prev', 'dom_d_minkowski_to_prev', 'dom_d_closest', 'dom_d_minkowski_closest', 'dom_d_vertex', 'dom_d_minkowski_vertex', 'dom_charge_over_vertex'],  
+                'scalar_feat': [],#['tot_charge', 'dom_timelength_fwhm'],#['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'], #['dom_timelength_fwhm'], #
                 'n_val_events_wanted':   110,# np.inf,
                 'n_train_events_wanted': 110,# np.inf,
                 'n_predictions_wanted': 100,
