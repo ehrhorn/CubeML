@@ -11,7 +11,7 @@ from src.modules.main_funcs import *
 description = 'Saves settings for an experiment to be run.'
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument('-r', '--run', action='store_true', help='Runs experiment immediately.')
-parser.add_argument('-t', '--test', action='store_true', help='Initiates testmode - logging is turned off.')
+parser.add_argument('-t', '--test', action='store_true', help='Initiates testmode - logging and prediction is turned off.')
 parser.add_argument('-d', '--dev', action='store_true', help='Initiates developermode - Logging is done at CubeML_test.')
 parser.add_argument('-e', '--explore_lr', action='store_true', help='Performs a learning rate exploration.')
 parser.add_argument('-s', '--scan_lr', action='store_true', help='Performs a learning rate scan before training.')
@@ -57,19 +57,19 @@ if __name__ == '__main__':
                 'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            200000,
+                'log_every':            200000 if not args.dev else 50,
                 'lr_scan':              args.scan_lr 
                 }
 
-    hyper_pars = {'batch_size':        128,
-                'max_epochs':          12,
+    hyper_pars = {'batch_size':        128 if not args.dev else 20,
+                'max_epochs':          12 if not args.dev else 2,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
-                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',
+                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR' if not args.dev else None,
                                         'max_lr':          2e-3,
                                         'min_lr':          1e-4,
                                         'frac_up':         0.02,
@@ -87,18 +87,18 @@ if __name__ == '__main__':
     data_pars = {'data_dir':     data_dir,
                 'mask':          mask_name,
                 'particle':      particle,
-                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time', 'dom_charge_significance', 'dom_frac_of_n_doms'], # 'dom_d_to_prev', 'dom_v_from_prev', 'dom_d_minkowski_to_prev', 'dom_d_closest', 'dom_d_minkowski_closest', 'dom_d_vertex', 'dom_d_minkowski_vertex', 'dom_charge_over_vertex'], 
-                'scalar_feat': ['dom_timelength_fwhm', 'tot_charge'],
-                'n_val_events_wanted':   50000,# np.inf,
-                'n_train_events_wanted': np.inf,
-                'n_predictions_wanted': np.inf,
-                'train_frac':  0.80,
-                'val_frac':    0.10,
+                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], #, 'dom_charge_significance', 'dom_frac_of_n_doms', 'dom_d_to_prev', 'dom_v_from_prev', 'dom_d_minkowski_to_prev', 'dom_d_closest', 'dom_d_minkowski_closest', 'dom_d_vertex', 'dom_d_minkowski_vertex', 'dom_charge_over_vertex'], 
+                'scalar_feat': ['dom_timelength_fwhm'], #, 'tot_charge'],
+                'n_val_events_wanted':   50000 if not args.dev else 100,# np.inf,
+                'n_train_events_wanted': np.inf if not args.dev else 100,
+                'n_predictions_wanted': np.inf if not args.dev else 100,
+                'train_frac':  0.80 if not args.dev else 0.1,
+                'val_frac':    0.10 if not args.dev else 0.05,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   1},
                 'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      512
+                'val_batch_size':      512 if not args.dev else 20
                 }
 
 
