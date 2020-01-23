@@ -349,7 +349,7 @@ class FullBatchLoader(data.Dataset):
         scalar_features = {}
         targets = {}
         
-        with h5.File(fname, 'r', swmr=True) as f:
+        with h5.File(fname, 'r', swmr=False) as f:
             
             # * If key does not exist, it means the key hasn't been transformed - it is therefore located at raw/key
             for key in self.seq_features:

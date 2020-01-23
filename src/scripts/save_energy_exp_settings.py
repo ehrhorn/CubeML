@@ -87,7 +87,7 @@ if __name__ == '__main__':
     data_pars = {'data_dir':     data_dir,
                 'mask':          mask_name,
                 'particle':      particle,
-                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time'], #, 'dom_charge_significance', 'dom_frac_of_n_doms', 'dom_d_to_prev', 'dom_v_from_prev', 'dom_d_minkowski_to_prev', 'dom_d_closest', 'dom_d_minkowski_closest', 'dom_d_vertex', 'dom_d_minkowski_vertex', 'dom_charge_over_vertex'], 
+                'seq_feat':    ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time', 'dom_charge_significance', 'dom_frac_of_n_doms', 'dom_d_to_prev', 'dom_v_from_prev', 'dom_d_minkowski_to_prev', 'dom_d_closest', 'dom_d_minkowski_closest', 'dom_d_vertex', 'dom_d_minkowski_vertex', 'dom_charge_over_vertex'], 
                 'scalar_feat': ['dom_timelength_fwhm'], #, 'tot_charge'],
                 'n_val_events_wanted':   50000 if not args.dev else 100,# np.inf,
                 'n_train_events_wanted': np.inf if not args.dev else 100,
