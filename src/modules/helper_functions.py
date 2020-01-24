@@ -792,6 +792,19 @@ def get_set_length(dataloader):
     
     return set_length
 
+def get_n_events_in_h5(file_path):
+    """Retrieve the number of events in a h5-file
+    
+    Arguments:
+        file_path {str} -- absolute path to file
+    
+    Returns:
+        int -- number of events in file
+    """    
+    with h5.File(file_path, 'r') as f:
+        n_events = int(f['meta/events'][()])
+    return n_events
+
 def get_n_parameters(model):
     params = 0
     for parameter in model.parameters():

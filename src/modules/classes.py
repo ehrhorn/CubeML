@@ -349,7 +349,7 @@ class FullBatchLoader(data.Dataset):
         scalar_features = {}
         targets = {}
         
-        with h5.File(fname, 'r', swmr=False) as f:
+        with h5.File(fname, 'r', swmr=True) as f:
             
             # * If key does not exist, it means the key hasn't been transformed - it is therefore located at raw/key
             for key in self.seq_features:
@@ -781,7 +781,6 @@ class MakeModel(nn.Module):
     def concat_scalars(self, x, scalars):
         # * x and scalars must be of shape (batch, features)
         return torch.cat((x, scalars), 1), False
-
 
 class AttentionBlock(nn.Module):
     """Implementation of Self Attention almost as described in 'Attention is All You Need'.
