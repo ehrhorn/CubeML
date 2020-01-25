@@ -543,6 +543,17 @@ def find_files(name, main_dir=None):
     
     return files_str
 
+def flatten_list_of_lists(l):
+    """Given a list of lists (e.g. from multiprocessing), unpacks the elements of the sublists into a single list.
+    
+    Arguments:
+        l {list} -- List of lists
+    
+    Returns:
+        list -- Unpacked sublists.
+    """    
+    return [item for sublist in l for item in sublist]
+
 def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=None):
     """A helper function for initializing of dataloader - the different dataloaders require different settings
     
@@ -1078,6 +1089,9 @@ def load_model_pars(model_dir):
         meta_pars = json.load(f)
     
     return hyper_pars, data_pars, arch_pars, meta_pars
+
+def load_pickle_mask(data_dir, maskname):
+    pass
 
 def log_weights_and_grads(i_layer, layer, step):
     '''Logs weight- and gradienthistograms to wandb

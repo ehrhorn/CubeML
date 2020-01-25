@@ -86,6 +86,7 @@ if __name__ == '__main__':
     # * Get filepaths and retrieve the new names for the files in each file
     h5_files = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)])
     n_events_file = [get_n_events_in_h5(path) for path in h5_files]
+    
     from_to = np.cumsum(n_events_file)
     from_to = np.append([0], from_to)
     new_names = []
