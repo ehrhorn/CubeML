@@ -7,21 +7,7 @@ from time import time
 import random
 from multiprocessing import cpu_count, Pool
 
-from src.modules.helper_functions import get_dataset_size, get_particle_code, get_n_events_in_h5, confirm_particle_type
-
-def get_project_root():
-    """Finds absolute path to project root - useful for running code on different machines.
-    
-    Returns:
-        str -- path to project root
-    """    
-    
-    # * Find project root
-    current_dir_splitted = str(Path.cwd()).split('/')
-    i = 0
-    while current_dir_splitted[i] != 'CubeML':
-        i += 1
-    return '/'.join(current_dir_splitted[:i+1]) 
+from src.modules.helper_functions import get_dataset_size, get_particle_code, get_n_events_in_h5, confirm_particle_type, get_particle_code_from_h5, get_project_root
 
 def empty_pickle_event():
     pickle_event = {}
@@ -35,7 +21,7 @@ def wanted_groups():
 
 def pickle_events(pack):
     # * Unpack - assumes multiprocessing
-    fname, new_names, data_dir = pack
+    fname, new_names, data_dir, particle_code, n_per_dir = pack
 
     # * Loop over events in file - each event is turned into a .pickle
     with h5.File(fname, 'r') as f:
@@ -54,39 +40,41 @@ def pickle_events(pack):
                     else:
                         event[group][key] = data[i_event]
             
-            # * Assign metavalues - where is event from?
+            # * Assign metavalues - where is event from, what kind of particle?
             event['meta'] = {}
             event['meta']['file'] = Path(fname).name
             event['meta']['index'] = i_event
+            event['meta']['particle_code'] = particle_code
 
-            # * Save it
-            new_name = data_dir + '/' + str(new_name)+'.pickle'
+            # * Save it in subdirs - put n_per_dir in each directory
+            dir_name = str(new_name//n_per_dir)
+            if not Path(data_dir+'/'+dir_name).is_dir(): 
+                Path(data_dir+'/'+dir_name).mkdir()
+            new_name = data_dir+'/'+dir_name+'/'+str(new_name)+'.pickle'
             pickle.dump(event, open(new_name, 'wb'))
 
 if __name__ == '__main__':
     # * Setup - where to load data, how many events
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
-    particle = 'muon_neutrino'
-    particle_code = get_particle_code(particle)
-    new_data_dir = data_dir + '/' + particle_code
+    particles = ['electron_neutrino', 'muon_neutrino', 'tau_neutrino']
+    n_per_dir = 10000
+    particle_codes = [get_particle_code(particle) for particle in particles]
     
     seed = 2912
-    n_files, ave_pr_file, std = get_dataset_size(data_dir, particle=particle)
+    n_files, ave_pr_file, std = get_dataset_size(data_dir)
     n_events = int(n_files*ave_pr_file+0.1)
-
-    # * If new data directory does not exist, make it
-    if not Path(new_data_dir).is_dir(): 
-        Path(new_data_dir).mkdir()
 
     # * Each event is given a new name: A number. All events across all files are shuffled
     indices_shuffled = np.arange(n_events)
     random.seed(seed)
     random.shuffle(indices_shuffled)
    
-    # * Get filepaths and retrieve the new names for the files in each file
-    h5_files = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)])
+    # * Get filepaths and retrieve the particle code for each file
+    h5_files = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5'])
+    particle_codes = [get_particle_code_from_h5(file, particle_codes) for file in h5_files]
     n_events_file = [get_n_events_in_h5(path) for path in h5_files]
     
+    # * Create the new names for the events in each file
     from_to = np.cumsum(n_events_file)
     from_to = np.append([0], from_to)
     new_names = []
@@ -95,9 +83,10 @@ if __name__ == '__main__':
         new_names.append(indices_shuffled[name_indices])
 
     # * Zip and multiprocess
-    new_data_dirs = [new_data_dir]*len(new_names)
-    packed = [entry for entry in zip(h5_files, new_names, new_data_dirs)]
+    new_data_dirs = [data_dir]*len(new_names)
+    n_per_dir_list = [n_per_dir]*len(new_names)
+    packed = [entry for entry in zip(h5_files, new_names, new_data_dirs, particle_codes, n_per_dir_list)]
     
     available_cores = cpu_count()
-    with Pool(available_cores) as p:
+    with Pool(available_cores+2) as p:
         p.map(pickle_events, packed)

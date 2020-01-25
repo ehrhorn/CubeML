@@ -897,6 +897,23 @@ def get_particle_code(particle):
 
     return particle_code
 
+def get_particle_code_from_h5(h5_file, codes):
+    """Given an oscnext-h5-file, the particle code is retrieved from the filename
+    
+    Arguments:
+        h5_file {str} -- path to or name of h5_file
+        codes {list} -- List of particle-codes to check for in filename.
+    
+    Returns:
+        str -- The particle code of the file.
+    """    
+    splitted = h5_file.split('.')
+    for index, code in enumerate(codes):
+        if code in splitted:
+            break
+    
+    return codes[index]
+
 def get_path_from_root(path):
     '''Given a path, get_path_from_root strips the potential path to the root directory.
 
@@ -1011,7 +1028,7 @@ def inverse_transform(data, model_dir):
     '''
 
     try:
-        transformers = joblib.load( open(model_dir+'/transformers.pickle', "rb"))
+        transformers = joblib.load(open(model_dir+'/transformers.pickle', "rb"))
     except FileNotFoundError:
         transformers = None
     transformed = {}
@@ -1090,8 +1107,31 @@ def load_model_pars(model_dir):
     
     return hyper_pars, data_pars, arch_pars, meta_pars
 
-def load_pickle_mask(data_dir, maskname):
-    pass
+def load_pickle_mask(data_dir, masknames):
+    """Given a list of masknames (corresponding to a list of indices), the intersection between all masks are found.
+    
+    Arguments:
+        data_dir {str} -- Absolute path to dataset
+        masknames {list} -- Names of masks to apply to dataset.
+    
+    Returns:
+        list -- intersection of masks
+    """    
+
+    # * Load masks    
+    masks_path = data_dir + '/masks/'
+    list_of_masks = []
+    for maskname in masknames:
+        mask = pickle.load(open(masks_path+maskname+'.pickle', "rb"))
+        list_of_masks.append(mask)
+    
+    # * Find intersection using sets
+    mask = set(list_of_masks[0])
+    for i in range(1, len(list_of_masks)):
+        mask = mask & set(list_of_masks[i])
+
+    return list(mask)
+    
 
 def log_weights_and_grads(i_layer, layer, step):
     '''Logs weight- and gradienthistograms to wandb
@@ -1249,7 +1289,7 @@ def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indice
     
     Keyword Arguments:
         prefix {str} -- a string to ensure correct path in file (path is prefix+'/'+key) (default: {''})
-        from_frac {int} -- Used to calculate the index to read from. Index = int( n_data_in_file*from_frac+0.5 ) (default: {0})
+        from_frac {int} -- Used to calculate the index to read from. Index = int(n_data_in_file*from_frac+0.5) (default: {0})
         to_frac {int} -- Index to read to. Calculated as from_frac (default: {1})
         indices {list} -- Optional list of indices to read (overwrites from_frac, to_frac) (default: {[]})
     
@@ -1282,7 +1322,7 @@ def read_h5_directory(data_dir, keys, prefix=None, from_frac=0, to_frac=1, n_wan
     
     Keyword Arguments:
         prefix {str} -- String to ensure correct path in h5-file (default: {None})
-        from_frac {float} -- Used to calculate the index to read from; index = int( N_data_in_file*from_frac+0.5) (default: {0})
+        from_frac {float} -- Used to calculate the index to read from; index = int(N_data_in_file*from_frac+0.5) (default: {0})
         to_frac {float} -- the index to read to. Calculated as from_frac (default: {1})
         n_wanted {int} -- An upper bound on the amount of data to be read. Stops reading from additional files if n_loaded > n_wanted. (default: {np.inf})
         particle {str} -- If a dataset with several particle types is read, the name of the desired particle should be given (default: {None})
@@ -1502,9 +1542,9 @@ def sort_wrt_file_id(file_path, values):
 def show_train_val_error(x_address, train_address, val_address, save_address=None):
     
     # * Load pickle-files
-    x = pickle.load( open( x_address, "rb" ) )
-    train = pickle.load( open( train_address, "rb" ) )
-    val = pickle.load( open( val_address, "rb" ) )
+    x = pickle.load(open(x_address, "rb"))
+    train = pickle.load(open(train_address, "rb"))
+    val = pickle.load(open(val_address, "rb"))
 
     alpha = 0.5
     plt.style.use('default')

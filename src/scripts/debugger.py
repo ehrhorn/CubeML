@@ -46,13 +46,13 @@ if __name__ == '__main__':
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_name = 'dom_interval_min32_max64'
+    mask_names = ['dom_interval_min0_max200', 'muon_neutrino']
 
     # * Set project
     project = 'cubeml_test'
 
     dataset = data_dir.split('/')[-1]
-    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, mask_name],
+    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names],
                 'group':                regression_type,
                 'project':              project,
                 'objective':            objective,
@@ -86,8 +86,8 @@ if __name__ == '__main__':
 
     data_pars = {'data_dir':     data_dir,
                 'particle':      particle,
-                'mask':          mask_name,
-                'seq_feat':   ['dom_charge'], # ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time', 'dom_charge_significance', 'dom_frac_of_n_doms', 'dom_d_to_prev', 'dom_v_from_prev', 'dom_d_minkowski_to_prev', 'dom_d_closest', 'dom_d_minkowski_closest', 'dom_d_vertex', 'dom_d_minkowski_vertex', 'dom_charge_over_vertex'],  
+                'masks':         mask_names,
+                'seq_feat':   ['dom_charge', 'dom_x', 'dom_y', 'dom_z', 'dom_time', 'dom_charge_significance', 'dom_frac_of_n_doms', 'dom_d_to_prev', 'dom_v_from_prev', 'dom_d_minkowski_to_prev', 'dom_d_closest', 'dom_d_minkowski_closest', 'dom_d_vertex', 'dom_d_minkowski_vertex', 'dom_charge_over_vertex'],  
                 'scalar_feat': [],#['tot_charge', 'dom_timelength_fwhm'],#['toi_point_on_line_x', 'toi_point_on_line_y', 'toi_point_on_line_z', 'toi_direction_x', 'toi_direction_y', 'toi_direction_z', 'toi_evalratio', 'dom_timelength_fwhm'], #['dom_timelength_fwhm'], #
                 'n_val_events_wanted':   110,# np.inf,
                 'n_train_events_wanted': 110,# np.inf,
@@ -96,7 +96,7 @@ if __name__ == '__main__':
                 'val_frac':    0.1,
                 'test_frac':   0.0,
                 'file_keys':             {'transform':   1},
-                'dataloader':  'FullBatchLoader',#'LstmLoader',#'LstmLoader',
+                'dataloader':  'PickleLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
                 'val_batch_size':      21
                 }

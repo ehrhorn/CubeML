@@ -498,7 +498,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
     dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
-
+    
     # * Initialize model and log it - use GPU if available
     model, optimizer, device = initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars)
     if log:
@@ -645,6 +645,10 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
             if data_pars['dataloader'] == 'FullBatchLoader':
                 trainerr_set.make_batches()
                 val_set.make_batches()
+            elif data_pars['dataloader'] == 'PickleLoader':
+                trainerr_set.shuffle_indices()
+                val_set.shuffle_indices()
+
             
             # * Log maximum memory allocated and speed.
             if log:
@@ -723,7 +727,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     particle = data_pars.get('particle', 'any')
 
 
-# * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
+    # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
     if meta_pars['objective'] == 'continue_training':
         save_dir, hyper_pars, data_pars, architecture_pars = update_model_pars(hyper_pars, data_pars, meta_pars)
         wandb_ID = save_dir.split('/')[-1]

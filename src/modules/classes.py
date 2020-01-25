@@ -10,7 +10,6 @@ from src.modules.helper_functions import *
 #* ======================================================================== 
 #* DATALOADERS
 #* ========================================================================
-
 class LstmLoader(data.Dataset):
     '''A Pytorch dataloader for LSTM-like NN, which takes sequences and scalar variables as input. 
 
@@ -537,6 +536,109 @@ class PadSequence:
 
         # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
 
+class PickleLoader(data.Dataset):
+    '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads and closes the file again upon every __getitem__.
+
+    Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and an optional datapoints_wanted.
+    '''
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, prefix=None, masks=['all'], n_events_wanted=np.inf):
+
+        self.directory = get_project_root() + directory
+
+        self.scalar_features = scalar_features
+        self.seq_features = seq_features
+        self.targets = targets
+
+        self.n_scalar_features = len(scalar_features)
+        self.n_seq_features = len(seq_features)
+        self.n_targets = len(targets)
+
+        self.type = set_type
+        self.train_frac = train_frac
+        self.val_frac = val_frac
+        self.test_frac = test_frac
+        self.prefix = prefix
+        self.masks = masks
+        self.n_events_wanted = n_events_wanted
+
+        self.len = None # * To be determined in get_meta_information
+        self.indices = None # * To be determined in get_meta_information
+        self._n_events_per_dir = None # * To be determined in get_meta_information
+
+        self._get_meta_information()
+
+    def __getitem__(self, index):
+        # * Find path
+        true_index = self.indices[index]
+        filename = str(true_index) + '.pickle'
+        path = self.directory + '/' + str(true_index//self._n_events_per_dir) + '/' + str(true_index) + '.pickle'
+        
+        # * Load event
+        event = pickle.load(open(path, "rb"))
+        
+        # * Extract relevant data
+        seq_len = event[self.prefix][self.seq_features[0]].shape[0]
+        seq_array = np.empty((self.n_seq_features, seq_len))
+
+        # * Sequential data
+        for i, key in enumerate(self.seq_features):
+            try:        
+                seq_array[i, :] = event[self.prefix][key]
+            except KeyError:
+                seq_array[i, :] = event['raw'][key]
+
+        # * Scalar data
+        scalar_array = np.empty(self.n_scalar_features)    
+        for i, key in enumerate(self.scalar_features):
+            try:
+                scalar_array[i] = event[self.prefix][key]
+            except KeyError:
+                scalar_array[i] = event['raw'][key]
+
+        # * Targets
+        targets_array = np.empty(self.n_targets)    
+        for i, key in enumerate(self.targets):
+            try:
+                targets_array[i] = event[self.prefix][key]
+            except KeyError:
+                targets_array[i] = event['raw'][key]
+        
+        # * Tuple is now passed to collate_fn
+        return (seq_array, scalar_array, targets_array)
+
+    def __len__(self):
+        return self.len
+    
+    def _get_from_to(self):
+        if self.type == 'train':
+            from_frac, to_frac = 0.0, self.train_frac
+        elif self.type == 'val':
+            from_frac, to_frac = self.train_frac, self.train_frac + self.val_frac
+        else:
+            from_frac, to_frac = self.train_frac + self.val_frac, self.train_frac + self.val_frac + self.test_frac
+
+        return from_frac, to_frac
+
+    def _get_meta_information(self):
+        '''Extracts filenames, calculates indices induced by train-, val.- and test_frac
+        '''
+        # * Get mask
+        mask_all = np.array(load_pickle_mask(self.directory, self.masks))
+        n_events = len(mask_all)
+
+        # * Extract the indices corresponding to the train/val/test part.
+        from_frac, to_frac = self._get_from_to()
+        indices = get_indices_from_fraction(n_events, from_frac, to_frac)
+        
+        self.indices = mask_all[indices]
+        self.len = min(self.n_events_wanted, len(self.indices))
+
+        # * Now get the number of events per event directory
+        self._n_events_per_dir = len([event for event in Path(self.directory+'/0').iterdir()])
+    
+    def shuffle_indices(self):
+        random.shuffle(self.indices)
+
 #* ======================================================================== 
 #* DATALOADER FUNCTIONS
 #* ========================================================================
@@ -552,31 +654,32 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     val_frac = data_pars['val_frac'] # * how much data should be used for validation?
     test_frac = data_pars['test_frac'] # * how much data should be used for training
     file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
-    mask_name = data_pars['mask']
+    mask_names = data_pars['masks']
     
     if keyword == 'train':
         drop_last = True
+        batch_size = hyper_pars['batch_size']
+        n_events_wanted = data_pars.get('n_train_events_wanted', np.inf)
+    elif keyword == 'val':
+        batch_size = data_pars['val_batch_size']
+        n_events_wanted = data_pars.get('n_val_events_wanted', np.inf)
+    
+    prefix = 'transform'+str(file_keys['transform'])+'/'
+    if file_keys['transform'] == -1:
+        prefix = 'raw/'
 
     if 'LstmLoader' == data_pars['dataloader']:
         dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
-    
     elif 'SeqScalarTargetLoader' == data_pars['dataloader']:
         prefix = 'transform'+str(file_keys['transform'])+'/'
         dataloader = SeqScalarTargetLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix)
-    
     elif 'FullBatchLoader' == data_pars['dataloader']:
-        if keyword == 'train':
-            batch_size = hyper_pars['batch_size']
-            n_events_wanted = data_pars.get('n_train_events_wanted', np.inf)
-        elif keyword == 'val':
-            batch_size = data_pars['val_batch_size']
-            n_events_wanted = data_pars.get('n_val_events_wanted', np.inf)
-        prefix = 'transform'+str(file_keys['transform'])+'/'
-        if file_keys['transform'] == -1:
-            prefix = 'raw/'
-
         dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_name=mask_name, drop_last=drop_last, debug_mode=debug_mode)
-
+    elif 'PickleLoader' == data_pars['dataloader']:
+        prefix = 'transform'+str(file_keys['transform'])
+        if file_keys['transform'] == -1:
+            prefix = 'raw'
+        dataloader = PickleLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix, n_events_wanted=n_events_wanted, masks=mask_names)
     else:
         raise ValueError('Unknown data loader requested!')
     
@@ -623,10 +726,7 @@ def get_collate_fn(data_pars):
 
     if 'collate_fn' in data_pars:
         name = data_pars['collate_fn']
-        if name == 'CnnCollater': 
-            func =  CnnCollater()
-
-        elif name == 'PadSequence':
+        if name == 'PadSequence':
             func = PadSequence()
         
         else:
@@ -709,6 +809,7 @@ class MakeModel(nn.Module):
         # * For RNNs with additional scalar values
         if len(batch) == 3: 
             seq, lengths, scalars = batch
+            print(seq.shape)
             add_scalars = True 
             batch_size = seq.shape[0]
             longest_seq = seq.shape[1]
