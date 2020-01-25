@@ -52,11 +52,12 @@ def make_dom_interval_mask(data_path, min_doms, max_doms, multiprocess=True):
 def find_dom_interval_passed_cands(pack):
     # * Unpack
     candidates, min_doms, max_doms = pack
-    
+    print_every = 1000
     # * Check each file.
     accepted = []
     for i_file, file in enumerate(candidates):
-
+        if (i_file+1)%print_every == 0:
+            print(get_time(), 'Processed %d'%(i_file+1))
         event = pickle.load( open( file, "rb" ) )
         n_doms = event['raw']['dom_charge'].shape[0]
         if min_doms <= n_doms <= max_doms:
