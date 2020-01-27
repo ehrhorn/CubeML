@@ -513,7 +513,10 @@ class PadSequence:
     '''A helper-function for lstm_v2_loader, which zero-pads shortest sequences.
     '''
     def __call__(self, batch):
-        
+        # * Inference and training is handled differently - therefore a keyword is passed along
+        # * During inference, the true index of the event is passed aswell as 4th entry - see what PickleLoader returns 
+        keyword = batch[0][3]
+
         # * Each element in "batch" is a tuple (sequentialdata, scalardata, label).
         # * Each instance of data is an array of shape (5, *), where 
         # * * is the sequence length
@@ -531,8 +534,13 @@ class PadSequence:
         # * Grab the labels and scalarvars of the *sorted* batch
         scalar_vars = torch.Tensor([x[1] for x in sorted_batch])
         targets = torch.Tensor([x[2] for x in sorted_batch])
-
-        return (sequences_padded.float(), lengths, scalar_vars.float()), targets.float()
+        
+        if keyword == 'predict':
+            true_indices = [batch[4] for batch in sorted_batch]
+            pack = (sequences_padded.float(), lengths, scalar_vars.float(), true_indices)
+        else:
+            pack = (sequences_padded.float(), lengths, scalar_vars.float())
+        return pack, targets.float()
 
         # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
 
@@ -603,8 +611,13 @@ class PickleLoader(data.Dataset):
             except KeyError:
                 targets_array[i] = event['raw'][key]
         
-        # * Tuple is now passed to collate_fn
-        return (seq_array, scalar_array, targets_array)
+        # * Tuple is now passed to collate_fn - handle training and predicting differently. We need the name of the event for prediction to log which belongs to which
+        if self.type == 'predict':
+            pack = (seq_array, scalar_array, targets_array, self.type, true_index)
+        else:
+            pack = (seq_array, scalar_array, targets_array, self.type)
+        
+        return pack
 
     def __len__(self):
         return self.len
@@ -612,7 +625,7 @@ class PickleLoader(data.Dataset):
     def _get_from_to(self):
         if self.type == 'train':
             from_frac, to_frac = 0.0, self.train_frac
-        elif self.type == 'val':
+        elif self.type == 'val' or self.type == 'predict':
             from_frac, to_frac = self.train_frac, self.train_frac + self.val_frac
         else:
             from_frac, to_frac = self.train_frac + self.val_frac, self.train_frac + self.val_frac + self.test_frac
@@ -663,6 +676,9 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     elif keyword == 'val':
         batch_size = data_pars['val_batch_size']
         n_events_wanted = data_pars.get('n_val_events_wanted', np.inf)
+    elif keyword == 'predict':
+        batch_size = data_pars['val_batch_size']
+        n_events_wanted = data_pars.get('n_predictions_wanted', np.inf)
     
     prefix = 'transform'+str(file_keys['transform'])+'/'
     if file_keys['transform'] == -1:
@@ -809,7 +825,6 @@ class MakeModel(nn.Module):
         # * For RNNs with additional scalar values
         if len(batch) == 3: 
             seq, lengths, scalars = batch
-            print(seq.shape)
             add_scalars = True 
             batch_size = seq.shape[0]
             longest_seq = seq.shape[1]

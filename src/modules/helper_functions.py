@@ -12,6 +12,7 @@ import h5py as h5
 import numpy as np
 import json
 from ignite.engine import Events
+from multiprocessing import cpu_count, Pool
 
 import src.modules.loss_funcs
 from src.modules.constants import *
@@ -826,6 +827,18 @@ def get_n_parameters(model):
         params += layer_params
     return params
 
+def get_n_events_per_dir(data_dir):
+    """Finds the number of pickled events in each subdirectory
+    
+    Arguments:
+        data_dir {str} -- relative path to main data directory
+    
+    Returns:
+        int -- Events per subdirectory
+    """    
+    return len([event for event in Path(data_dir+'/0').iterdir()])
+
+
 def get_n_train_val_test(n_data, train_frac, val_frac, test_frac):
     if train_frac+val_frac+test_frac > 1.0:
         raise ValueError('\nERROR: Train, validation and test fractions add up to more than one !\n')
@@ -1421,6 +1434,105 @@ def read_predicted_h5_data(file_address, keys, data_pars, true_keys):
     truths_sorted = sort_wrt_file_id(file_address, truths) 
     
     return preds_sorted, truths_sorted
+
+def read_pickle_predicted_h5_data(file_address, keys, data_pars, true_keys):
+    """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
+    
+    Arguments:
+        file_address {str} -- absolute path to predictions-file.
+        keys {list} -- names of datasets to read in predictions-file
+        data_pars {dict} -- dictionary containing data-parameters of the model.
+        true_keys {list} -- names of datasets to read in raw data-files.
+    
+    Returns:
+        dicts -- predictions_dict, raw_dict
+    """    
+
+    data_dir = data_pars['data_dir']
+    prefix = 'transform'+str(data_pars['file_keys']['transform'])
+
+    preds = {key: [] for key in keys}
+    preds['indices'] = []
+
+    # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
+    with h5.File(file_address, 'r') as f:
+        preds['indices'] = f['index'][:]
+        for key in keys:
+            preds[key] = f[key][:]
+    
+    # * Now read the matching true values
+    truths = read_pickle_data(data_dir, preds['indices'], true_keys, prefix=prefix)
+    
+    return preds, truths
+
+def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
+    """Given a dataset, indices to load and which attributes from each event to load, a dictionary is created with wanted attributes in same order as indices is given.
+    
+    Arguments:
+        data_dir {str} -- Relative path to dataset
+        indices {list} -- Events to load
+        keys {list} -- Desired event properties.
+    
+    Keyword Arguments:
+        prefix {str} -- Which transformation of property wanted (default: {'raw'})
+        multiprocess {bool} -- Whether or not to use several workers for loading (default: {True})
+    
+    Raises:
+        ValueError: Only a multiprocessing solution is implemented atm.
+    
+    Returns:
+        dict -- A dictionary with keys corresponding to the desired properties.
+    """    
+    path = get_project_root() + data_dir
+    n_events_per_dir = get_n_events_per_dir(path)
+    
+    if multiprocess:
+        available_cores = cpu_count()
+        
+        indices_chunked = np.array_split(indices, available_cores)
+        keys_list = [keys]*available_cores
+        path_list = [path]*available_cores
+        prefix_list = [prefix]*available_cores
+        n_events_per_dir_list = [n_events_per_dir]*available_cores
+        packed = [entry for entry in zip(indices_chunked, keys_list, path_list, prefix_list, n_events_per_dir_list)]
+        
+        with Pool(available_cores) as p:
+            dicts_list = p.map(read_pickle_data_multiprocess, packed)
+        
+        # * Gather results
+        final_dict = {key: [] for key in keys}
+        for d in dicts_list:
+            for key, items in d.items():
+                final_dict[key].extend(items)
+    else:
+        raise ValueError('read_pickle_data: Only a multiprocessing solution is implemented.')
+    
+    return final_dict
+
+def read_pickle_data_multiprocess(pack):
+    """The multiprocessing function called by read_pickle_data
+    
+    Arguments:
+        pack {tuple} -- indices, keys, path prefix and how many events in each subdir.
+    
+    Returns:
+        dict -- Dictionary with same format as read_pickle_data returns.
+    """    
+    indices, keys, path, prefix, n_events_per_dir = pack
+    data = {key: [0]*len(indices) for key in keys}
+
+    for i_event, true_index in enumerate(indices):
+        filename = str(true_index) + '.pickle'
+        event_path = path + '/' + str(true_index//n_events_per_dir) + '/' + str(true_index) + '.pickle'
+        event = pickle.load(open(event_path, "rb"))
+
+        for key in data:
+            try:
+                data[key][i_event] = event[prefix][key]
+            except KeyError:
+                data[key][i_event] = event['raw'][key]
+
+    return data
 
 def remove_tests_modeldir(directory=get_project_root() + '/models/'):
     '''Deletes all cubeml_test-models and all models that failed during training.

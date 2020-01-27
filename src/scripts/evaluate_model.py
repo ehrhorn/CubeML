@@ -6,6 +6,7 @@ description = 'Loops over a directory containing a dataset of h5-files and repor
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument('-p', '--path', metavar='', type=str, help='Path to model directory')
 parser.add_argument('--predict', action='store_true', help='Whether to predict with the trained model (default: False)')
+parser.add_argument('--wandb', type=int, default=1, help='Whether to log to W&B or not (default: True)')
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -22,6 +23,10 @@ if __name__ == '__main__':
             break
     
     print(model)
-    wandb_ID = model.split('/')[-1]
+    print(args.wandb)
+    if args.wandb:
+        wandb_ID = model.split('/')[-1]
+    else:
+        wandb_ID = None
     print(wandb_ID)
     mf.evaluate_model(model, wandb_ID=wandb_ID, predict=args.predict)

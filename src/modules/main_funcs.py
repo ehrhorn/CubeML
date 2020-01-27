@@ -1,9 +1,10 @@
 import h5py as h5
 import torch
 from torch.utils import data
-from ignite.engine import Events, create_supervised_evaluator, create_supervised_trainer 
+from ignite.engine import Engine, Events, create_supervised_evaluator, create_supervised_trainer 
 from ignite.metrics import Accuracy, Loss
 from ignite.handlers import EarlyStopping, ModelCheckpoint, Timer, TerminateOnNan
+from ignite.utils import convert_tensor
 import pickle
 import pathlib
 from time import localtime, strftime, time
@@ -96,7 +97,12 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
     #* PREDICT USING BEST MODEL
     #* ======================================================================== #
     if predict:
-        calc_predictions(model_dir, wandb_ID=wandb_ID)
+        hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
+
+        if data_pars['dataloader'] == 'PickleLoader':
+            calc_predictions_pickle(model_dir, wandb_ID=wandb_ID)
+        else:
+            calc_predictions(model_dir, wandb_ID=wandb_ID)
     
     #* ======================================================================== #
     #* REPORT PERFORMANCE
@@ -383,6 +389,128 @@ def calc_predictions(save_dir, wandb_ID=None):
             n_predicted += len(val_set)
                 
         print(strftime("%d/%m %H:%M", localtime()), ': Predictions finished!')
+
+def calc_predictions_pickle(save_dir, wandb_ID=None):
+    '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
+    '''
+
+    # * Load the best model 
+    hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
+    particle_code = get_particle_code(data_pars['particle'])
+    device = get_device()
+    model_dir = save_dir+'/checkpoints'
+    best_pars = find_best_model_pars(model_dir)
+    n_devices = meta_pars.get('n_devices', 0)
+    model = MakeModel(arch_pars, device)
+    LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
+    
+    # * If several GPU's have been used during training, wrap it in dataparalelle
+    if n_devices > 1:
+        model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
+    model.load_state_dict(torch.load(best_pars, map_location=torch.device(device)))
+    model = model.to(device)
+    model = model.float()
+
+    # * Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
+    n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
+    VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
+    dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
+    val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
+    collate_fn = get_collate_fn(data_pars)
+    val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)#, pin_memory=True)
+    N_VAL = get_set_length(val_set)
+    
+    # * Use IGNITE to predict
+    predictions = {key: [] for key in val_set.targets}
+    truths = {key: [] for key in val_set.targets}
+    error_from_preds = {}
+    indices_PadSequence_sorted = []
+
+    # * The handler saving predictions
+    def log_prediction(engine):
+        # * The indices returned by the Ignite Engine defined in pickle_evaluator sorts the indices for us        
+        pred, truth, indices = engine.state.output
+        indices_PadSequence_sorted.extend(indices)
+        for i_batch in range(pred.shape[0]):
+            for i_key, key in enumerate(predictions):
+                predictions[key].append(pred[i_batch, i_key])
+                truths[key].append(truth[i_batch, i_key])
+        
+        # * Log for sanity...
+        if engine.state.iteration%(max(1, int(LOG_EVERY/VAL_BATCH_SIZE))) == 0:
+            n_predicted = engine.state.iteration*VAL_BATCH_SIZE
+            print(get_time(), 'Progress %.0f: Predicted %d of %d'%(100*n_predicted/N_VAL, n_predicted, N_VAL)) 
+
+    # * Start predicting!
+    print(get_time(), 'Prediction begun.')
+    evaluator_val = pickle_evaluator(model, device) # create_supervised_evaluator(model, device=device)
+    evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
+    evaluator_val.run(val_generator)
+    print(get_time(), 'Prediction finished!')
+    
+    # * Sort predictions w.r.t. index before saving
+    for key, values in predictions.items():
+        _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
+        predictions[key] = sorted_vals
+    # * Sort w.r.t. index before saving
+    for key, values in truths.items():
+        _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
+        truths[key] = sorted_vals
+    indices = sorted(indices_PadSequence_sorted)
+
+    # * Run predictions through desired functions - transform back to 'true' values, if transformed
+    predictions_transformed = inverse_transform(predictions, save_dir)
+    truths_transformed = inverse_transform(truths, save_dir)
+
+    eval_functions = get_eval_functions(meta_pars)
+    for func in eval_functions:
+        error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
+
+    # * Save predictions in h5-file.
+    pred_filename = str(best_pars).split('.pth')[0].split('/')[-1]
+    pred_full_address = save_dir+'/data/predict'+pred_filename+'.h5'
+    
+    print(get_time(), 'Saving predictions...')
+    with h5.File(pred_full_address, 'w') as f:
+        f.create_dataset('index', data=np.array(indices))
+        for key, pred in predictions.items():
+            f.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
+        for key, pred in error_from_preds.items():
+            f.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
+    print(get_time(), 'Predictions saved!')
+
+def pickle_evaluator(model, device, non_blocking=False):
+    """Custom evaluator. Prepares an Ignite Engine for inference specifically for evaluation with the PickleLoader as dataloader
+    
+    Arguments:
+        model {torch.Module} -- The torch model ready for inference
+        device {str} -- Used device - GPU or CPU
+    
+    Keyword Arguments:
+        non_blocking {bool} -- Something used by cuda, not sure what it is, but Ignite defaults to false (default: {False})
+    
+    Returns:
+        Engine -- an evaluator
+    """    
+    def _prepare_batch(batch, device=None, non_blocking=False):
+        """Prepare batch for evaluation: pass to a device with options.
+        """
+        x, y = batch
+        seq, lens, scalars, true_indices = x
+        extracted = (seq, lens, scalars)
+        return (convert_tensor(extracted, device=device, non_blocking=non_blocking),
+                convert_tensor(y, device=device, non_blocking=non_blocking), true_indices)
+
+    def _inference(engine, batch):
+        model.eval()
+        with torch.no_grad():
+            x, y, indices = _prepare_batch(batch, device=device, non_blocking=non_blocking)
+            y_pred = model(x)
+            return (y, y_pred, indices)
+
+    engine = Engine(_inference)
+    
+    return engine    
 
 def run_experiment(file, log=True, debug_mode=False):
     """Runs the experiment defined by file and deletes file.
