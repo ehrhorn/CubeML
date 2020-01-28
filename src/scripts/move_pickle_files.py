@@ -7,19 +7,22 @@ import sys
 
 def move_pickle(pack):
     integer, hep_dir, gpu_dir = pack
+    n_per_dir = 10000
     path = hep_dir + str(integer)
-    
+    name_range = range(integer*n_per_dir, (integer+1)*n_per_dir)
 
     print(get_time(), 'Moving %s'%(path))
     sys.stdout.flush()
-    for entry in Path(path).iterdir():
-        event = pickle.load(open(entry, "rb"))
-        if event['meta']['particle_code'] == '140000':
-            from_ = hep_dir + str(integer) + '/' + entry.name
-            destination =  'bjoernhm@gpulab.hepexp.nbi.dk:' + gpu_dir + str(integer) + '/' + entry.name
-            command = 'scp'
-            subprocess.run([command, from_, destination])
-            # call(command + from_ + destination)
+    command = 'scp'
+    for name in name_range:
+        from_ = 'bjoernhm@hep03.hpc.ku.dk:' + hep_dir + str(integer) + '/' + str(name) +'.pickle'
+        to = gpu_dir + str(integer) + '/' + str(name) +'.pickle'
+        subprocess.run([command, from_, to])
+    
+        event = pickle.load(open(to, "rb"))
+        if event['meta']['particle_code'] != '140000':
+            Path(to).unlink()
+
 
 if __name__ == '__main__':
     n_dirs = 1131
@@ -34,5 +37,5 @@ if __name__ == '__main__':
     packed = [entry for entry in zip(dir_names, hep_dir_list, gpu_dir_list)]
     
     available_cores = cpu_count()
-    with Pool(available_cores+2) as p:
+    with Pool(available_cores+6) as p:
         p.map(move_pickle, packed)
