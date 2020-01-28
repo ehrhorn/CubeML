@@ -1,6 +1,6 @@
 from multiprocessing import Pool, cpu_count
 from src.modules.helper_functions import get_project_root, get_time
-from subprocess import call
+import subprocess
 from pathlib import Path
 import pickle
 import sys
@@ -16,9 +16,10 @@ def move_pickle(pack):
         event = pickle.load(open(entry, "rb"))
         if event['meta']['particle_code'] == '140000':
             from_ = hep_dir + str(integer) + '/' + entry.name
-            destination =  ' bjoernhm@gpulab.hepexp.nbi.dk:' + gpu_dir + str(integer) + '/' + entry.name
-            command = 'scp ' 
-            call(command + from_ + destination)
+            destination =  'bjoernhm@gpulab.hepexp.nbi.dk:' + gpu_dir + str(integer) + '/' + entry.name
+            command = 'scp'
+            subprocess.run([command, from_, destination])
+            # call(command + from_ + destination)
 
 if __name__ == '__main__':
     n_dirs = 1131
