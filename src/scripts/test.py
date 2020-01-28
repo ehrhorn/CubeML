@@ -18,17 +18,31 @@ from src.modules.constants import *
 from src.modules.classes import *
 import src.modules.preprocessing as pp
 
-# * First, make all directories.
-n_dirs = 1131
-path = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2/'
-for i in range(n_dirs):
-    if not Path(path+str(i)).exists():
-        Path(path+str(i)).mkdir()
+def move_pickle(pack):
+    integer, hep_dir, gpu_dir, my_dir = pack
+    path = hep_dir + str(integer)
+    path = my_dir + str(integer)
+    for entry in Path(path).iterdir():
+        event = pickle.load(open(entry, "rb"))
+        print(event['meta']['particle_code'])
+        if event['meta']['particle_code'] == '140000':
+            destination =  'bjoernhm@gpulab.hepexp.ku.dk:' + gpu_dir + str(integer) + '/' + entry.name 
+            print('scp', entry, destination)
+        break
+if __name__ == '__main__':
+    n_dirs = 20#1131
 
-# * Now, prep a list of from-paths
-# hep_dir = '/groups/hep/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
-# gpu_dir = '/home/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2'
-# dir_names = [path + str(i) for i ]
+    # * Now, prep a list of from-paths
+    hep_dir = '/groups/hep/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
+    gpu_dir = '/home/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/'
+    my_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2/'
+    dir_names = list(range(n_dirs))
+    hep_dir_list = [hep_dir]*len(dir_names)
+    gpu_dir_list = [gpu_dir]*len(dir_names)
+    my_dir_list = [my_dir]*len(dir_names)
+
+    packed = [entry for entry in zip(dir_names, hep_dir_list, gpu_dir_list, my_dir_list)]
+    move_pickle(packed[0])
 
 # tot = []
 
