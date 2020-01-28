@@ -123,13 +123,15 @@ if __name__ == '__main__':
                                                 #                      'Residual':           True,}},
                                                 # {'MaxPool':         {}},
 
-                                                {'LSTM':            {'input_sizes':        [n_seq_feat, 16],
-                                                                     'dropout':             0.5,
-                                                                     'bidirectional':       False}},
-                                                {'LSTM':            {'input_sizes':        [16, 16],
-                                                                    'dropout':              0.5,
-                                                                    'bidirectional':        False}},
-                                                {'Linear':          {'input_sizes':        [16+n_scalar_feat, n_target],
+                                                {'LstmBlock':        {'n_in':               n_seq_feat,
+                                                                     'n_out':               16,
+                                                                     'n_parallel':          2,
+                                                                     'n_stacks':            2,
+                                                                     'residual':            False}},
+                                                # {'LSTM':            {'input_sizes':        [16, 16],
+                                                #                     'dropout':              0.5,
+                                                #                     'bidirectional':        False}},
+                                                {'Linear':          {'input_sizes':        [32+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

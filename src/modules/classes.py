@@ -7,9 +7,10 @@ from math import sqrt
 
 from src.modules.helper_functions import *
 
-#* ======================================================================== 
-#* DATALOADERS
-#* ========================================================================
+# * ======================================================================== 
+# * DATALOADERS
+# * ========================================================================
+
 class LstmLoader(data.Dataset):
     '''A Pytorch dataloader for LSTM-like NN, which takes sequences and scalar variables as input. 
 
@@ -876,6 +877,9 @@ class MakeModel(nn.Module):
             # * The MaxPool-layer is used after sequences have been treated -> prepare for linear decoding.
             elif layer_name == 'MaxPool':
                 x = entry(seq, lengths, device=device)
+            
+            elif layer_name == 'LstmBlock':
+                x = entry(seq, lengths, device=device)
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -996,6 +1000,82 @@ class AttentionBlock(nn.Module):
             mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(1)
         return mask
+
+class LstmBlock(nn.Module):
+    
+    def __init__(self, n_in, n_out, n_parallel, n_stacks, bidir=False, residual=True, batch_first=True):
+                
+        super(LstmBlock, self).__init__()
+
+        self._batch_first = batch_first
+        self.par_LSTMs = nn.ModuleList()
+        self.residual = residual
+        
+        for i_par in range(n_parallel):
+            par_module = nn.ModuleList()
+            par_module.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
+            for i_stack in range(n_stacks-1):
+                par_module.append(nn.LSTM(input_size=n_out, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
+
+            self.par_LSTMs.append(par_module)
+
+    def forward(self, seq, lengths, device=None):
+        
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            longest_seq = seq.shape[1]
+            batch_size = seq.shape[0]
+        else:
+            longest_seq = seq.shape[0]
+            batch_size = seq.shape[1]
+
+        # * Send through LSTMs! Prep for first layer.
+        seq = pack(seq, lengths, batch_first=self._batch_first)
+        
+        # * x is output - concatenate outputs of LSTMs in parallel
+        for i_par, stack in enumerate(self.par_LSTMs):
+            
+            # * Stack section.
+            # ? Maybe learn initial state?             
+            h_par = self.init_hidden(batch_size, stack[0], device)
+            seq_par, h_par = stack[0](seq, h_par)
+            stack[0].flatten_parameters()
+
+            # * If residual connection, save the pre-LSTM version
+            if self.residual:
+                seq_par_pre, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
+
+            for i_stack in range(1, len(stack)):
+                
+                h_par = self.init_hidden(batch_size, stack[i_stack], device)
+                seq_par, h_par = stack[i_stack](seq_par, h_par)
+                
+                # * Residual connection
+                # ? Maybe Add + Norm as in Attention?
+                if self.residual:
+                    seq_par_post, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
+                    seq_par_pre = seq_par_pre + seq_par_post
+                    seq_par = pack(seq_par_pre, lengths, batch_first=self._batch_first)
+
+            # * Define x on first parallel LSTM-module
+            if i_par == 0:
+                x, _ = h_par
+
+            # * Now keep cat'ing for each parallel stack
+            else:
+                x = torch.cat((x, h_par[0]), -1)
+        
+        return x.squeeze(0)
+        
+    def init_hidden(self, batch_size, layer, device):
+        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
+        if layer.bidirectional: num_dir = 2
+        else: num_dir = 1
+
+        # * Initialize hidden and cell states - to either random nums or 0's
+        # * (num_layers * num_directions, batch, hidden_size)
+        return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
+                torch.zeros(num_dir, batch_size, hidden_size, device=device))
 
 class MaxPool(nn.Module):
     def __init__(self):
@@ -1172,6 +1252,8 @@ def make_model_architecture(arch_dict):
                 modules = add_AttentionBlock_modules(arch_dict, layer_dict, modules, mode='decoder')
             elif key == 'MaxPool':
                 modules.append(MaxPool())
+            elif key == 'LstmBlock':
+                modules.append(LstmBlock(**layer_dict))
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 

@@ -1135,7 +1135,7 @@ def load_pickle_mask(data_dir, masknames):
     masks_path = data_dir + '/masks/'
     list_of_masks = []
     for maskname in masknames:
-        mask = pickle.load(open(masks_path+maskname+'.pickle', "rb"))
+        mask = pickle.load(open(masks_path+maskname+'.pickle', 'rb'))
         list_of_masks.append(mask)
     
     # * Find intersection using sets

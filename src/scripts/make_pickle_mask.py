@@ -4,9 +4,10 @@ from pathlib import Path
 import subprocess
 import pickle
 from multiprocessing import cpu_count, Pool
-from src.modules.helper_functions import get_project_root, get_path_from_root, get_dataset_name, get_time, flatten_list_of_lists, get_particle_code
+from src.modules.helper_functions import get_project_root, get_path_from_root, get_time, flatten_list_of_lists, get_particle_code
 
 PRINT_EVERY = 1000
+
 
 def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf):
     # * make mask directory if it doesn't exist
@@ -25,6 +26,7 @@ def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf):
     # # * Make a .dvc-file to track mask
     # dvc_path = get_project_root() + '/data'
     # subprocess.run(['dvc', 'add', 'masks'], cwd=dvc_path)
+
 
 def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=True):
     
@@ -50,6 +52,7 @@ def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=Tru
     pickle.dump(mask, open(mask_path, 'wb'))
     
     return mask_path
+
 
 def make_particle_mask(data_path, dirs, particle, multiprocess=True):
     
@@ -77,6 +80,7 @@ def make_particle_mask(data_path, dirs, particle, multiprocess=True):
     
     return mask_path
 
+
 def find_dom_interval_passed_cands(pack):
     # * Unpack
     dirs, min_doms, max_doms = pack
@@ -103,6 +107,7 @@ def find_dom_interval_passed_cands(pack):
     
     return accepted
 
+
 def find_particles(pack):
     # * Unpack
     dirs, particle_code = pack
@@ -123,10 +128,11 @@ def find_particles(pack):
 
             # * Print for sanity
             i_file += 1
-            if (i_file)%PRINT_EVERY == 0:
+            if (i_file) % PRINT_EVERY == 0:
                 print(get_time(), 'Subprocess: Processed %d'%(i_file))
     
     return accepted
+
 
 def make_all_mask(data_path, dirs):
     # * Check number of events
@@ -143,12 +149,14 @@ def make_all_mask(data_path, dirs):
     
     return mask_path
 
+
 if __name__ == '__main__':
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
     mask_name = 'muon_neutrino'
     min_doms = 0
     max_doms = 200
-    mask_dict = {'mask_name': mask_name, 'min_doms': min_doms, 'max_doms': max_doms}
+    mask_dict = {'mask_name': mask_name, 'min_doms':
+        min_doms, 'max_doms': max_doms}
 
     # * If maskdirectory doesn't exist, make it
     mask_dir = get_project_root() + '/masks'
