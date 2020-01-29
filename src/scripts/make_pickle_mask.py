@@ -3,10 +3,11 @@ import numpy as np
 from pathlib import Path
 import subprocess
 import pickle
+import sys
 from multiprocessing import cpu_count, Pool
 from src.modules.helper_functions import get_project_root, get_path_from_root, get_time, flatten_list_of_lists, get_particle_code
 
-PRINT_EVERY = 1000
+PRINT_EVERY = 10000
 
 
 def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf):
@@ -26,7 +27,6 @@ def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf):
     # # * Make a .dvc-file to track mask
     # dvc_path = get_project_root() + '/data'
     # subprocess.run(['dvc', 'add', 'masks'], cwd=dvc_path)
-
 
 def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=True):
     
@@ -52,7 +52,6 @@ def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=Tru
     pickle.dump(mask, open(mask_path, 'wb'))
     
     return mask_path
-
 
 def make_particle_mask(data_path, dirs, particle, multiprocess=True):
     
@@ -80,7 +79,6 @@ def make_particle_mask(data_path, dirs, particle, multiprocess=True):
     
     return mask_path
 
-
 def find_dom_interval_passed_cands(pack):
     # * Unpack
     dirs, min_doms, max_doms = pack
@@ -104,9 +102,9 @@ def find_dom_interval_passed_cands(pack):
             i_file += 1
             if (i_file)%PRINT_EVERY == 0:
                 print(get_time(), 'Subprocess: Processed %d'%(i_file))
-    
-    return accepted
+                sys.stdout.flush()
 
+    return accepted
 
 def find_particles(pack):
     # * Unpack
@@ -130,9 +128,9 @@ def find_particles(pack):
             i_file += 1
             if (i_file) % PRINT_EVERY == 0:
                 print(get_time(), 'Subprocess: Processed %d'%(i_file))
+
     
     return accepted
-
 
 def make_all_mask(data_path, dirs):
     # * Check number of events
@@ -163,8 +161,8 @@ if __name__ == '__main__':
     if not Path(mask_dir).is_dir(): 
         Path(mask_dir).mkdir()
 
-    dirs = [file for file in Path(data_dir).iterdir() if file.is_dir() and file.name != 'masks' and file.name != 'transformers']
-
+    dirs = [file for file in Path(data_dir + '/pickles').iterdir()]
+    
     print(get_time(), 'Mask calculation begun.')
     mask_path = make_mask(data_dir, dirs, **mask_dict)
     print(get_time(), 'Mask created', mask_path)
