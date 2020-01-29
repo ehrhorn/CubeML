@@ -4,11 +4,18 @@ from pathlib import Path
 import subprocess
 import pickle
 import sys
+import argparse
 from multiprocessing import cpu_count, Pool
+
 from src.modules.helper_functions import get_project_root, get_path_from_root, get_time, flatten_list_of_lists, get_particle_code
 
 PRINT_EVERY = 10000
 
+description = 'Creates masks for pickled Icecube data.'
+parser = argparse.ArgumentParser(description=description)
+parser.add_argument('--name', default='None', type=str, help='Sets the name of the mask.')
+
+args = parser.parse_args()
 
 def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf, min_energy=-np.inf, max_energy=np.inf):
     # * make mask directory if it doesn't exist
@@ -204,7 +211,9 @@ def make_all_mask(data_path, dirs):
 if __name__ == '__main__':
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
     # * Options: particle_name, dom_interval, energy_interval
-    mask_name = 'energy_interval'
+    mask_name = args.name
+    if mask_name == 'None':
+        raise KeyError('Must parse a name!')
 
     min_doms = 0
     max_doms = 200
