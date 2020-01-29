@@ -56,7 +56,7 @@ def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=Tru
 def make_particle_mask(data_path, dirs, particle, multiprocess=True):
     
     particle_code = get_particle_code(particle)
-    
+
     # * Split the candidates into chunks for multiprocessing
     if multiprocess:
         available_cores = cpu_count()
@@ -128,7 +128,7 @@ def find_particles(pack):
             i_file += 1
             if (i_file) % PRINT_EVERY == 0:
                 print(get_time(), 'Subprocess: Processed %d'%(i_file))
-
+                sys.stdout.flush()
     
     return accepted
 
