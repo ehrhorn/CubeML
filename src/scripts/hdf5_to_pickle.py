@@ -7,7 +7,8 @@ from time import time
 import random
 from multiprocessing import cpu_count, Pool
 
-from src.modules.helper_functions import get_dataset_size, get_particle_code, get_n_events_in_h5, confirm_particle_type, get_particle_code_from_h5, get_project_root
+from src.modules.helper_functions import get_dataset_size, get_particle_code, \
+    get_n_events_in_h5, confirm_particle_type, get_particle_code_from_h5, get_project_root
 
 def empty_pickle_event():
     pickle_event = {}
@@ -59,21 +60,21 @@ if __name__ == '__main__':
     particles = ['electron_neutrino', 'muon_neutrino', 'tau_neutrino']
     n_per_dir = 10000
     particle_codes = [get_particle_code(particle) for particle in particles]
-    
+
     seed = 2912
-    n_files, ave_pr_file, std = get_dataset_size(data_dir)
-    n_events = int(n_files*ave_pr_file+0.1)
+    # n_files, ave_pr_file, std = get_dataset_size(data_dir)
+    # n_events = int(n_files*ave_pr_file+0.1)
 
     # * Each event is given a new name: A number. All events across all files are shuffled
-    indices_shuffled = np.arange(n_events)
-    random.seed(seed)
-    random.shuffle(indices_shuffled)
-   
+    # indices_shuffled = np.arange(n_events)
+    # random.seed(seed)
+    # random.shuffle(indices_shuffled)
+
     # * Get filepaths and retrieve the particle code for each file
-    h5_files = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5'])
+    h5_files = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type('140000', file)])
     particle_codes = [get_particle_code_from_h5(file, particle_codes) for file in h5_files]
     n_events_file = [get_n_events_in_h5(path) for path in h5_files]
-    
+    print(h5_files)
     # * Create the new names for the events in each file
     from_to = np.cumsum(n_events_file)
     from_to = np.append([0], from_to)
@@ -87,6 +88,6 @@ if __name__ == '__main__':
     n_per_dir_list = [n_per_dir]*len(new_names)
     packed = [entry for entry in zip(h5_files, new_names, new_data_dirs, particle_codes, n_per_dir_list)]
     
-    available_cores = cpu_count()
-    with Pool(available_cores+2) as p:
-        p.map(pickle_events, packed)
+    # available_cores = cpu_count()
+    # with Pool(available_cores+2) as p:
+    #     p.map(pickle_events, packed)
