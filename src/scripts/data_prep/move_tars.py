@@ -14,9 +14,16 @@ def move_tar(pack):
         command = 'rsync'
         subprocess.run([command, from_hep, to_gpu])
 
-if __name__ == '__main__':
-    n_pickle_dirs = 1131
+def move_tars():
+    """Scripts used to move tarballs of rpickled data from HEP to gpulab.
+
+    Script must be run on gpulab - cannot ssh from HEP to gpulab, only other way around.
+
+    Uses rsync to move tarballs. WHere, to and how many must be hardcoded for now.
+    """    
+    
     # * Setup - where to load data, how many events
+    n_pickle_dirs = 1131
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2/'
     if not Path(data_dir).exists():
         Path(data_dir).mkdir()
@@ -38,4 +45,6 @@ if __name__ == '__main__':
     
     print(get_time(), 'Finished copying tarballs!')
     
+if __name__ == '__main__':
+    move_tars()
     

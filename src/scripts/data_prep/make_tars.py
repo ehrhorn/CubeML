@@ -15,8 +15,11 @@ def make_tar(pack):
     tar_path = tar_dir + '/' + pickle_dir.name + '.tar'
     subprocess.run(['tar', '-cf', tar_path, pickle_dir])
 
+def make_tars():
+    """Script to pack pickle-directories with single events into .tars 
 
-if __name__ == '__main__':
+    Must hardcode where pickles are located and where tars should be put.
+    """    
     # * Setup - where to load data, how many events
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2/'
     from_ = data_dir + 'pickles'
@@ -32,3 +35,6 @@ if __name__ == '__main__':
         p.map(make_tar, packed)
     
     print(get_time(), 'Finished making tarballs!')
+
+if __name__ == '__main__':
+    make_tars()
