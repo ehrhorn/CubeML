@@ -369,7 +369,8 @@ def calc_widths(sorted_data, entries, width_measure='iqr'):
         return widths
 
 def confirm_particle_type(particle_code, file):
-    """When loading data and looping over files, this function tries to confirm if the file in question contains events with the right particle.
+    """When loading data and looping over files, this function tries to 
+    confirm if the file in question contains events with the right particle.
     
     Arguments:
         particle_code {str} -- 6-digit particle code of the desired particle

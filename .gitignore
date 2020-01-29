@@ -97,3 +97,4 @@ temp/
 *.h5
 nohup.out
 /reports
+/data
