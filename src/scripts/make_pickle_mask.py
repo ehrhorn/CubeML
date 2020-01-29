@@ -10,7 +10,7 @@ from src.modules.helper_functions import get_project_root, get_path_from_root, g
 PRINT_EVERY = 10000
 
 
-def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf):
+def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf, min_energy=-np.inf, max_energy=np.inf):
     # * make mask directory if it doesn't exist
     data_path = get_project_root() + get_path_from_root(data_path)
 
@@ -22,11 +22,11 @@ def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf):
     
     elif mask_name == 'muon_neutrino':
         mask_path = make_particle_mask(data_path, dirs, mask_name)
+    
+    elif mask_name == 'energy_interval':
+        mask_path = make_energy_interval_mask(data_path, dirs, min_energy, max_energy)
 
     return mask_path
-    # # * Make a .dvc-file to track mask
-    # dvc_path = get_project_root() + '/data'
-    # subprocess.run(['dvc', 'add', 'masks'], cwd=dvc_path)
 
 def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=True):
     
@@ -49,6 +49,31 @@ def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=Tru
     
     # * save it
     mask_path = data_path+'/masks/dom_interval_min%d_max%d.pickle'%(min_doms, max_doms)
+    pickle.dump(mask, open(mask_path, 'wb'))
+    
+    return mask_path
+
+def make_energy_interval_mask(data_path, dirs, min_energy, max_energy, multiprocess=True):
+
+    # * Split the candidates into chunks for multiprocessing
+    if multiprocess:
+        available_cores = cpu_count()
+        dirs_chunked = np.array_split(dirs, available_cores)
+        min_energy_list = [min_energy]*len(dirs_chunked)
+        max_energy_list = [max_energy]*len(dirs_chunked)
+        packed = zip(dirs_chunked, min_energy_list, max_energy_list)
+        
+        with Pool(available_cores) as p:
+            accepted_lists = p.map(find_energy_interval_passed_cands, packed)
+        
+        # * Combine again
+        mask = sorted(flatten_list_of_lists(accepted_lists))
+
+    else:
+        raise ValueError('make_energy_interval_mask: Only multiprocessing solution implemented')
+    
+    # * save it
+    mask_path = data_path+'/masks/energy_interval_min%.1f_max%.1f.pickle'%(min_energy, max_energy)
     pickle.dump(mask, open(mask_path, 'wb'))
     
     return mask_path
@@ -106,6 +131,34 @@ def find_dom_interval_passed_cands(pack):
 
     return accepted
 
+def find_energy_interval_passed_cands(pack):
+    # * Unpack
+    dirs, min_energy, max_energy = pack
+    
+    accepted = []
+    i_file = 0
+    
+    # * Loop over the given directories
+    for directory in dirs:
+
+        # * Loop over the events in the subdirectory
+        for file in directory.iterdir():
+            
+            # * Check each file.
+            event = pickle.load(open(file, "rb" ))
+            energy = event['raw']['true_primary_energy']
+            
+            if min_energy <= energy <= max_energy:
+                accepted.append(int(file.stem))
+
+            # * Print for sanity
+            i_file += 1
+            if (i_file)%PRINT_EVERY == 0:
+                print(get_time(), 'Subprocess: Processed %d'%(i_file))
+                sys.stdout.flush()
+
+    return accepted
+
 def find_particles(pack):
     # * Unpack
     dirs, particle_code = pack
@@ -150,11 +203,16 @@ def make_all_mask(data_path, dirs):
 
 if __name__ == '__main__':
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
-    mask_name = 'muon_neutrino'
+    # * Options: particle_name, dom_interval, energy_interval
+    mask_name = 'energy_interval'
+
     min_doms = 0
     max_doms = 200
+    
+    min_energy = 0.0
+    max_energy = 3.0
     mask_dict = {'mask_name': mask_name, 'min_doms':
-        min_doms, 'max_doms': max_doms}
+        min_doms, 'max_doms': max_doms, 'min_energy': min_energy, 'max_energy': max_energy}
 
     # * If maskdirectory doesn't exist, make it
     mask_dir = get_project_root() + '/masks'
@@ -162,6 +220,8 @@ if __name__ == '__main__':
         Path(mask_dir).mkdir()
 
     dirs = [file for file in Path(data_dir + '/pickles').iterdir()]
+    # * For debugging on local.
+    # dirs = [file for file in Path(data_dir).iterdir() if file.is_dir() and file.name != 'masks' and file.name != 'transformers']
     
     print(get_time(), 'Mask calculation begun.')
     mask_path = make_mask(data_dir, dirs, **mask_dict)
