@@ -12,9 +12,14 @@ def energy_plot(models, perf_classes, title=None, savefig=None):
     data, bins, weights, histtype, log = [], [], [], [], []
     for model, pc in zip(models, perf_classes):
         pd = pc.get_relE_dict()
-        edges.extend(pd['edges'])
-        y.extend(pd['y'])
-        yerr.extend(pd['yerr'])
+
+        pd_edges = [pd['edges'][0][:-3]]
+        pd_y = [pd['y'][0][:-3]]       
+        pd_yerr = [pd['yerr'][0][:-3]]       
+
+        edges.extend(pd_edges)
+        y.extend(pd_y)
+        yerr.extend(pd_yerr)
         label.append(model)
 
         pd_h = pc.get_energy_dict()
@@ -50,10 +55,9 @@ def energy_plot(models, perf_classes, title=None, savefig=None):
     fig = rpt.make_plot(pd_h, h_figure=fig, axes_index=0)
     return fig
 
-
 # * ENERGY REG VS POINTNET 
 # * Stacked LSTM 256 HUBER LOSS, L2 1024 LSTM, LSTM 512 HUBER LOSS
-models = ['2020-01-19-22.00.11', '2020-01-17-02.06.38']#, '2020-01-17-13.35.31']
+models = ['2020-01-19-22.00.11', '2020-01-17-02.06.38', '2020-01-30-11.17.16']#, '2020-01-17-13.35.31']
 # models = ['2020-01-08-13.54.40', ]
 
 perf_classes = []

@@ -837,7 +837,7 @@ def get_n_events_per_dir(data_dir):
     Returns:
         int -- Events per subdirectory
     """    
-    return len([event for event in Path(data_dir+'/0').iterdir()])
+    return len([event for event in Path(data_dir+'/pickles/0').iterdir()])
 
 
 def get_n_train_val_test(n_data, train_frac, val_frac, test_frac):
@@ -1524,7 +1524,7 @@ def read_pickle_data_multiprocess(pack):
 
     for i_event, true_index in enumerate(indices):
         filename = str(true_index) + '.pickle'
-        event_path = path + '/' + str(true_index//n_events_per_dir) + '/' + str(true_index) + '.pickle'
+        event_path = path + '/pickles/' + str(true_index//n_events_per_dir) + '/' + str(true_index) + '.pickle'
         event = pickle.load(open(event_path, "rb"))
 
         for key in data:

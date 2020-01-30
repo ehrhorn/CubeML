@@ -396,24 +396,13 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
 
     # * Load the best model 
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
-    particle_code = get_particle_code(data_pars['particle'])
-    device = get_device()
-    model_dir = save_dir+'/checkpoints'
-    best_pars = find_best_model_pars(model_dir)
-    n_devices = meta_pars.get('n_devices', 0)
-    model = MakeModel(arch_pars, device)
-    LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
-    
-    # * If several GPU's have been used during training, wrap it in dataparalelle
-    if n_devices > 1:
-        model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
-    model.load_state_dict(torch.load(best_pars, map_location=torch.device(device)))
-    model = model.to(device)
-    model = model.float()
+    model = load_best_model(save_dir)
 
     # * Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
     n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
+    LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
     VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
+    device = get_device()
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
     val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
     collate_fn = get_collate_fn(data_pars)
@@ -467,8 +456,7 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
         error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
 
     # * Save predictions in h5-file.
-    pred_filename = str(best_pars).split('.pth')[0].split('/')[-1]
-    pred_full_address = save_dir+'/data/predict'+pred_filename+'.h5'
+    pred_full_address = save_dir+'/data/predictions.h5'
     
     print(get_time(), 'Saving predictions...')
     with h5.File(pred_full_address, 'w') as f:

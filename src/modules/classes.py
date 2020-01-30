@@ -580,7 +580,7 @@ class PickleLoader(data.Dataset):
         # * Find path
         true_index = self.indices[index]
         filename = str(true_index) + '.pickle'
-        path = self.directory + '/' + str(true_index//self._n_events_per_dir) + '/' + str(true_index) + '.pickle'
+        path = self.directory + '/pickles/' + str(true_index//self._n_events_per_dir) + '/' + str(true_index) + '.pickle'
         
         # * Load event
         event = pickle.load(open(path, "rb"))
@@ -648,7 +648,7 @@ class PickleLoader(data.Dataset):
         self.len = min(self.n_events_wanted, len(self.indices))
 
         # * Now get the number of events per event directory
-        self._n_events_per_dir = len([event for event in Path(self.directory+'/0').iterdir()])
+        self._n_events_per_dir = len([event for event in Path(self.directory+'/pickles/0').iterdir()])
     
     def shuffle_indices(self):
         random.shuffle(self.indices)
@@ -1038,8 +1038,8 @@ class LstmBlock(nn.Module):
             # * Stack section.
             # ? Maybe learn initial state?             
             h_par = self.init_hidden(batch_size, stack[0], device)
-            seq_par, h_par = stack[0](seq, h_par)
             stack[0].flatten_parameters()
+            seq_par, h_par = stack[0](seq, h_par)
 
             # * If residual connection, save the pre-LSTM version
             if self.residual:
@@ -1048,6 +1048,7 @@ class LstmBlock(nn.Module):
             for i_stack in range(1, len(stack)):
                 
                 h_par = self.init_hidden(batch_size, stack[i_stack], device)
+                stack[i_stack].flatten_parameters()
                 seq_par, h_par = stack[i_stack](seq_par, h_par)
                 
                 # * Residual connection
@@ -1226,6 +1227,33 @@ def init_weights(arch_dict, layer_dict, layer):
             raise ValueError('An unknown initialization was encountered.')
     else:
         raise ValueError('An unknown initialization was encountered.')
+
+def load_best_model(save_dir):
+    """Loads and prepares the best model for prediction for a given experiment
+    
+    Arguments:
+        save_dir {str} -- Absolute or relative path to the trained model
+    
+    Returns:
+        torch.nn.Module -- A torch NN.
+    """     
+    
+    hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
+    particle_code = get_particle_code(data_pars['particle'])
+    device = get_device()
+    model_dir = save_dir+'/checkpoints'
+    best_pars = find_best_model_pars(model_dir)
+    n_devices = meta_pars.get('n_devices', 0)
+    model = MakeModel(arch_pars, device)
+    
+    # * If several GPU's have been used during training, wrap it in dataparalelle
+    if n_devices > 1:
+        model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
+    model.load_state_dict(torch.load(best_pars, map_location=torch.device(device)))
+    model = model.to(device)
+    model = model.float()
+
+    return model
 
 def make_model_architecture(arch_dict):
 
