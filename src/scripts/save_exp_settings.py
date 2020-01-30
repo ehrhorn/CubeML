@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
     hyper_pars = {'batch_size':        128 if not args.dev else 21,
                 'max_epochs':          10 if not args.dev else 2,
-                'early_stop_patience': 30,
+                'early_stop_patience': 15,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
@@ -125,7 +125,7 @@ if __name__ == '__main__':
                 'file_keys':             {'transform':   1},
                 'dataloader':  'PickleLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      512 if not args.dev else 21
+                'val_batch_size':      1024 if not args.dev else 21
                 }
 
 
