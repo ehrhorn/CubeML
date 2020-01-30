@@ -55,7 +55,7 @@ if __name__ == '__main__':
     # * Setup - where to load data, how many events
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
     particles = ['electron_neutrino', 'muon_neutrino', 'tau_neutrino']
-    n_per_dir = 1000
+    n_per_dir = 10000
     particle_codes = [get_particle_code(particle) for particle in particles]
 
     # * Get filepaths and retrieve the particle code for each file
@@ -72,8 +72,7 @@ if __name__ == '__main__':
     seed = 2912
     random.seed(seed)
     random.shuffle(indices_shuffled)
-    print(indices_shuffled[:20])
-    a+=1
+
     new_names = []
     for from_, to_ in zip(from_to[:-1], from_to[1:]):
         name_indices = np.arange(from_, to_)
@@ -95,6 +94,6 @@ if __name__ == '__main__':
 
     packed = [entry for entry in zip(h5_files, new_names, new_data_dirs, particle_codes, n_per_dir_list)]
     
-    available_cores = cpu_count()
+    available_cores = cpu_count()+6
     with Pool(available_cores) as p:
         p.map(pickle_events, packed)

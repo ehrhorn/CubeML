@@ -224,8 +224,8 @@ if __name__ == '__main__':
         min_doms, 'max_doms': max_doms, 'min_energy': min_energy, 'max_energy': max_energy}
 
     # * If maskdirectory doesn't exist, make it
-    mask_dir = get_project_root() + '/masks'
-    if not Path(mask_dir).is_dir(): 
+    mask_dir = data_dir + '/masks'
+    if not Path(mask_dir).exists(): 
         Path(mask_dir).mkdir()
 
     dirs = [file for file in Path(data_dir + '/pickles').iterdir()]
