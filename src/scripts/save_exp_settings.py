@@ -78,7 +78,7 @@ if __name__ == '__main__':
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR' if not args.dev else None,
-                                        'max_lr':          1e-2,
+                                        'max_lr':          5e-3,
                                         'min_lr':          1e-4,
                                         'frac_up':         0.02,
                                         'frac_down':       1-0.02,
@@ -112,7 +112,7 @@ if __name__ == '__main__':
                                 'dom_charge_over_vertex',
                                 'dom_charge_over_vertex_sqr'], 
                                 
-                'scalar_feat': ['dom_timelength_fwhm'.
+                'scalar_feat': ['dom_timelength_fwhm',
                                 'tot_charge'],
                                 
                 'n_val_events_wanted':   50000 if not args.dev else 100,# np.inf,
@@ -139,11 +139,11 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':              [#{'Linear_embedder': {'input_sizes':        [n_seq_feat, 512],
+                        'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 512],
                                                 #                     'LayerNorm':          True},},
                                                 {'LstmBlock':        {'n_in':               n_seq_feat,
-                                                                     'n_out':               128,
-                                                                     'n_parallel':          2,
+                                                                     'n_out':               256,
+                                                                     'n_parallel':          1,
                                                                      'n_stacks':            2,
                                                                      'residual':            False}},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
