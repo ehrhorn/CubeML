@@ -17,3 +17,4 @@ def get_project_root():
 PATH_MASKS = get_project_root() + '/data/masks/'
 PATH_DATA = get_project_root() + '/data/'
 PATH_MODELS = get_project_root() + '/models/'
+N_BINS_PERF_PLOTS = 18

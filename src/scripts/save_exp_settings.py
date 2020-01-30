@@ -21,6 +21,8 @@ parser.add_argument('--lr_finder_epochs', default=1, type=int, help='Sets the nu
 
 parser.add_argument('--regression', default='None', type=str, help='Sets the regression type to run. Options: "full_reg", "direction_reg", "vertex_reg", "vertex_reg_no_time", "energy_reg"')
 parser.add_argument('--loss', default='None', type=str, help='Sets the loss function to use. Options: "angle_loss", "L1", "L2", "Huber", "angle_squared_loss"')
+parser.add_argument('--masks', default='dom_interval_min0_max200 muon_neutrino', type=str, help='Sets the masks to choose data. Options: "dom_interval_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
+
 
 
 args = parser.parse_args()
@@ -54,8 +56,9 @@ if __name__ == '__main__':
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_names = ['dom_interval_min0_max200', 'muon_neutrino']
-
+    mask_names = args.masks#['dom_interval_min0_max200', 'muon_neutrino']
+    print(mask_names)
+    a += 1
     # * Set project
     project = 'cubeml_test' if args.dev else 'cubeml'
 

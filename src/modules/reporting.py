@@ -8,10 +8,12 @@ from time import localtime, strftime
 
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
+from src.modules.constants import *
 
 #* ======================================================================== 
 #* PERFORMANCE CLASSES
 #* ========================================================================
+
 
 class AziPolarHists:
     '''A class to create azimuthal and polar error plots - one 2D-histogram and two performance plots.
@@ -178,7 +180,7 @@ class AziPolarPerformance:
         # * Our predictions have already been converted in predict()
         true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
         energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
-        self.counts, self.bin_edges = np.histogram(energy, bins=12)
+        self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
         
         polar_error = pred_dict['polar_error']
         print('\nCalculating polar performance...')
@@ -386,7 +388,7 @@ class EnergyPerformance:
         # * Our predictions have already been converted in predict()
         true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
         energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
-        self.counts, self.bin_edges = np.histogram(energy, bins=12)
+        self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
         
         relE_error = pred_dict['relative_E_error']
         print('\nCalculating energy performance...')
@@ -702,7 +704,7 @@ class VertexPerformance:
         true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
         energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
     
-        self.counts, self.bin_edges = np.histogram(energy, bins=12)
+        self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
         
         x_error = pred_dict['vertex_x_error']
         print('\nCalculating x performance...')
