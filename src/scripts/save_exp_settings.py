@@ -144,13 +144,13 @@ if __name__ == '__main__':
                                                 #                     'LayerNorm':          True},},
                                                 {'LstmBlock':        {'n_in':               n_seq_feat,
                                                                      'n_out':               256,
-                                                                     'n_parallel':          1,
+                                                                     'n_parallel':          2,
                                                                      'n_stacks':            2,
                                                                      'residual':            False}},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
