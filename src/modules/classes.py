@@ -1038,8 +1038,8 @@ class LstmBlock(nn.Module):
             # * Stack section.
             # ? Maybe learn initial state?             
             h_par = self.init_hidden(batch_size, stack[0], device)
-            seq_par, h_par = stack[0](seq, h_par)
             stack[0].flatten_parameters()
+            seq_par, h_par = stack[0](seq, h_par)
 
             # * If residual connection, save the pre-LSTM version
             if self.residual:
@@ -1048,6 +1048,7 @@ class LstmBlock(nn.Module):
             for i_stack in range(1, len(stack)):
                 
                 h_par = self.init_hidden(batch_size, stack[i_stack], device)
+                stack[i_stack].flatten_parameters()
                 seq_par, h_par = stack[i_stack](seq_par, h_par)
                 
                 # * Residual connection
