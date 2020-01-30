@@ -18,12 +18,9 @@ parser.add_argument('-s', '--scan_lr', action='store_true', help='Performs a lea
 parser.add_argument('--start_lr', default=1e-6, type=float, help='Sets the start learning rate for the learning rate finder.')
 parser.add_argument('--end_lr', default=0.1, type=float, help='Sets the end learning rate for the learning rate finder.')
 parser.add_argument('--lr_finder_epochs', default=1, type=int, help='Sets the number of epochs the learning rate finder should run.')
-
 parser.add_argument('--regression', default='None', type=str, help='Sets the regression type to run. Options: "full_reg", "direction_reg", "vertex_reg", "vertex_reg_no_time", "energy_reg"')
 parser.add_argument('--loss', default='None', type=str, help='Sets the loss function to use. Options: "angle_loss", "L1", "L2", "Huber", "angle_squared_loss"')
-parser.add_argument('--masks', default='dom_interval_min0_max200 muon_neutrino', type=str, help='Sets the masks to choose data. Options: "dom_interval_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
-
-
+parser.add_argument('--masks', nargs='+', default='None', type=str, help='Sets the masks to choose data. Options: "dom_interval_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
 
 args = parser.parse_args()
 
@@ -56,9 +53,10 @@ if __name__ == '__main__':
     particle = 'muon_neutrino'
 
     # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
-    mask_names = args.masks#['dom_interval_min0_max200', 'muon_neutrino']
-    print(mask_names)
-    a += 1
+    mask_names = args.masks
+    if mask_names == 'None':
+        raise KeyError('Masks must be chosen!')
+
     # * Set project
     project = 'cubeml_test' if args.dev else 'cubeml'
 
@@ -68,7 +66,7 @@ if __name__ == '__main__':
                 'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
-                'log_every':            200000 if not args.dev else 50,
+                'log_every':            500000 if not args.dev else 50,
                 'lr_scan':              args.scan_lr 
                 }
 
@@ -118,7 +116,7 @@ if __name__ == '__main__':
                 'scalar_feat': ['dom_timelength_fwhm',
                                 'tot_charge'],
                                 
-                'n_val_events_wanted':   50000 if not args.dev else 100,# np.inf,
+                'n_val_events_wanted':   100000 if not args.dev else 100,# np.inf,
                 'n_train_events_wanted': np.inf if not args.dev else 100,
                 'n_predictions_wanted': np.inf if not args.dev else 100,
                 'train_frac':  0.80 if not args.dev else 0.1,
