@@ -580,7 +580,7 @@ class PickleLoader(data.Dataset):
         # * Find path
         true_index = self.indices[index]
         filename = str(true_index) + '.pickle'
-        path = self.directory + '/' + str(true_index//self._n_events_per_dir) + '/' + str(true_index) + '.pickle'
+        path = self.directory + '/pickles/' + str(true_index//self._n_events_per_dir) + '/' + str(true_index) + '.pickle'
         
         # * Load event
         event = pickle.load(open(path, "rb"))
@@ -648,7 +648,7 @@ class PickleLoader(data.Dataset):
         self.len = min(self.n_events_wanted, len(self.indices))
 
         # * Now get the number of events per event directory
-        self._n_events_per_dir = len([event for event in Path(self.directory+'/0').iterdir()])
+        self._n_events_per_dir = len([event for event in Path(self.directory+'/pickles/0').iterdir()])
     
     def shuffle_indices(self):
         random.shuffle(self.indices)
