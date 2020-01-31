@@ -88,7 +88,7 @@ def energy_plot(models, perf_classes, title=None, savefig=None):
     pd['y'] = y
     pd['yerr'] = yerr
     pd['xlabel'] = r'$\log_{10}$E [E/GeV]'
-    pd['ylabel'] = r'Relative Error'
+    pd['ylabel'] = r'Relative Error, $\sigma\left( \left(E_{pred}-E_{true}\right)/E_{true}\right)$'
     if savefig:
         pd['savefig'] = savefig
 
