@@ -28,3 +28,5 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
     scalar_features = data_pars['scalar_feat']
 
     
+cpus = cpu_count()
+print(cpus)

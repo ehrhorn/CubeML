@@ -210,7 +210,7 @@ def make_all_mask(data_path, dirs):
 
 if __name__ == '__main__':
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
-    # * Options: particle_name, dom_interval, energy_interval
+    # * Options: particle_name (e.g. muon_neutrino), dom_interval, energy_interval
     mask_name = args.name
     if mask_name == 'None':
         raise KeyError('Must parse a name!')
@@ -224,8 +224,8 @@ if __name__ == '__main__':
         min_doms, 'max_doms': max_doms, 'min_energy': min_energy, 'max_energy': max_energy}
 
     # * If maskdirectory doesn't exist, make it
-    mask_dir = get_project_root() + '/masks'
-    if not Path(mask_dir).is_dir(): 
+    mask_dir = data_dir + '/masks'
+    if not Path(mask_dir).exists(): 
         Path(mask_dir).mkdir()
 
     dirs = [file for file in Path(data_dir + '/pickles').iterdir()]
