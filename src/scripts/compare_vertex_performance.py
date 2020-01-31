@@ -180,7 +180,7 @@ def z_plot(models, perf_classes, title=None, savefig=None):
 
 # * VERTEX REG WITH OR WITHOUT MASK? BEST MODELS 
 # * 16.57.20 IS WITH MASK, 21.01.31 IS WITHOUT
-models = ['2020-01-08-13.54.40', '2020-01-08-21.01.31']
+models = ['2020-01-11-01.23.49']
 # models = ['2020-01-08-13.54.40', ]
 
 perf_classes = []
@@ -199,4 +199,4 @@ for model in models:
 path = get_project_root() + '/plots/vertex_reg_z_with_without_t.png'
 title = 'vertex z: Without t (blue) and with t (orange)'
 
-fig = z_plot(models, perf_classes)#, title=title, savefig=path)
+fig = t_plot(models, perf_classes)#, title=title, savefig=path)

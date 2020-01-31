@@ -1315,6 +1315,11 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
     if 'title' in plot_dict:
         plt.title(plot_dict['title'])
 
+    if 'yrange' in plot_dict:
+        bottom = plot_dict['yrange'][0]
+        top = plot_dict['yrange'][1]
+        h_axis.set_ylim(bottom=bottom, top=top)
+
     if 'savefig' in plot_dict: 
         h_figure.savefig(plot_dict['savefig'])
         print('\nFigure saved at:')
