@@ -50,12 +50,18 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
 
 # path = '/home/bjoernhm/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/energy_reg/2020-01-30-20.10.15'
 # calc_permutation_importance(path)
-data_path = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2/pickles/'
-from_ = 0
-indices = np.arange(from_, from_+100)
-for index in indices:
-    subdir = str(index//10000)
-    path = data_path + subdir + '/'+str(index) +'.pickle'
-    event = pickle.load(open(path, "rb"))
+# data_path = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2/pickles/'
+# from_ = 0
+# indices = np.arange(from_, from_+100)
+# for index in indices:
+#     subdir = str(index//10000)
+#     path = data_path + subdir + '/'+str(index) +'.pickle'
+#     event = pickle.load(open(path, "rb"))
 
-    print(event['meta']['file'], event['meta']['index'])
+#     print(event['meta']['file'], event['meta']['index'])
+
+model_path = get_project_root() + '/models/oscnext-genie-level5-v01-01-pass2/regression/energy_reg/2020-01-31-14.27.11/data/predictions.h5'
+with h5.File(model_path, 'r') as f:
+    indices = f['index'][:]
+
+print(indices[-100:])

@@ -587,7 +587,7 @@ class PickleLoader(data.Dataset):
         self._n_events_per_dir = None # * To be determined in get_meta_information
 
         self._get_meta_information()
-
+        
     def __getitem__(self, index):
         # * Find path
         true_index = self.indices[index]

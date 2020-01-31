@@ -654,7 +654,10 @@ class VertexPerformance:
     def _get_data_dicts(self):
         full_pred_address = self._get_pred_path()
         true_keys = self._energy_key + self._reco_keys + self._true_xyzt_keys
-        pred_dict, true_dict = read_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
+        if self.data_pars['dataloader'] == 'PickleLoader':
+            pred_dict, true_dict = read_pickle_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
+        else:
+            pred_dict, true_dict = read_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
         return pred_dict, true_dict
 
     def _get_energy_key(self):
