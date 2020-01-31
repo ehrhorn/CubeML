@@ -125,7 +125,7 @@ if __name__ == '__main__':
                 'file_keys':             {'transform':   1},
                 'dataloader':  'PickleLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
-                'val_batch_size':      1024 if not args.dev else 21
+                'val_batch_size':      256 if not args.dev else 21
                 }
 
 
