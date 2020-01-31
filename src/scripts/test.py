@@ -28,5 +28,8 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
     scalar_features = data_pars['scalar_feat']
 
     
-cpus = cpu_count()
-print(cpus)
+path = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2/pickles'
+names = [int(dir_.name) for dir_ in Path(path).iterdir()]
+ints = np.arange(1131)
+difference = set(names).symmetric_difference(set(ints))
+print(difference)
