@@ -553,7 +553,7 @@ class PadSequence:
         return pack, targets.float()
 
         def _permute(self, seqs, scalars):
-            
+            pass
 
         # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
 

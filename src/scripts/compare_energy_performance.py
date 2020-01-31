@@ -55,9 +55,11 @@ def energy_plot(models, perf_classes, title=None, savefig=None):
     fig = rpt.make_plot(pd_h, h_figure=fig, axes_index=0)
     return fig
 
-# * ENERGY REG VS POINTNET 
+# * New model, suspecting something is off.
+models = ['2020-01-31-14.27.11', '2020-01-20-09.42.49']
+
 # * Stacked LSTM 256 HUBER LOSS, L2 1024 LSTM, LSTM 512 HUBER LOSS
-models = ['2020-01-19-22.00.11', '2020-01-17-02.06.38', '2020-01-30-11.17.16']#, '2020-01-17-13.35.31']
+#models = ['2020-01-19-22.00.11', '2020-01-17-02.06.38', '2020-01-30-11.17.16']#, '2020-01-17-13.35.31']
 # models = ['2020-01-08-13.54.40', ]
 
 perf_classes = []
