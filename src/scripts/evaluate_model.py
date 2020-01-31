@@ -1,12 +1,13 @@
-import src.modules.main_funcs as mf
-import src.modules.helper_functions as hf
+from src.modules.main_funcs import evaluate_model
+from src.modules.helper_functions import get_time, find_files
 import argparse
+from pathlib import Path
 
 description = 'Loops over a directory containing a dataset of h5-files and reports the total number of events.'
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument('-p', '--path', metavar='', type=str, help='Path to model directory')
 parser.add_argument('--predict', action='store_true', help='Whether to predict with the trained model (default: False)')
-parser.add_argument('--wandb', type=int, default=1, help='Whether to log to W&B or not (default: True)')
+parser.add_argument('--wandb', type=int, default=1, help='Whether to log (1) to W&B or not (0) (default: 1)')
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -16,17 +17,15 @@ if __name__ == '__main__':
         raise ValueError('No path supplied!')
     
     #* Locate the model directory
-    paths = hf.find_files(model_dir)
+    paths = find_files(model_dir)
     for path in paths:
         if path.split('/')[-1] == model_dir:
             model = path
             break
     
-    print(model)
-    print(args.wandb)
+    print(get_time(), 'Used model: %s'%(Path(model_dir).name))
     if args.wandb:
         wandb_ID = model.split('/')[-1]
     else:
         wandb_ID = None
-    print(wandb_ID)
-    mf.evaluate_model(model, wandb_ID=wandb_ID, predict=args.predict)
+    evaluate_model(model, wandb_ID=wandb_ID, predict=args.predict)

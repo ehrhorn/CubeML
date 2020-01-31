@@ -513,6 +513,10 @@ class FullBatchLoader(data.Dataset):
 class PadSequence:
     '''A helper-function for lstm_v2_loader, which zero-pads shortest sequences.
     '''
+    def __init__(self, mode='normal', permute_features=None):
+        self._mode = mode
+        self._permute_features = permute_features
+
     def __call__(self, batch):
         # * Inference and training is handled differently - therefore a keyword is passed along
         # * During inference, the true index of the event is passed aswell as 4th entry - see what PickleLoader returns 
@@ -523,7 +527,15 @@ class PadSequence:
         # * * is the sequence length
         # * Sort the batch in the descending order
         sorted_batch = sorted(batch, key=lambda x: x[0].shape[1], reverse=True)
+        
+        # * Grab the vars of the *sorted* batch
         sequences = [torch.tensor(np.transpose(x[0])) for x in sorted_batch]
+        scalar_vars = torch.Tensor([x[1] for x in sorted_batch])
+        targets = torch.Tensor([x[2] for x in sorted_batch])
+
+        # * permute-mode is used for permutation importance
+        if self._mode == 'permute':
+            sequences, scalar_vars = self._permute(sequences, scalar_vars)
 
         # * Also need to store the length of each sequence
         # * This is later needed in order to unpad the sequences
@@ -532,16 +544,16 @@ class PadSequence:
         # * pad_sequence returns a tensor(seqlen, batch, n_features)
         sequences_padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
         
-        # * Grab the labels and scalarvars of the *sorted* batch
-        scalar_vars = torch.Tensor([x[1] for x in sorted_batch])
-        targets = torch.Tensor([x[2] for x in sorted_batch])
-        
         if keyword == 'predict':
             true_indices = [batch[4] for batch in sorted_batch]
             pack = (sequences_padded.float(), lengths, scalar_vars.float(), true_indices)
         else:
             pack = (sequences_padded.float(), lengths, scalar_vars.float())
+        
         return pack, targets.float()
+
+        def _permute(self, seqs, scalars):
+            
 
         # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
 
@@ -737,14 +749,14 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
     else:
         raise ValueError('An unknown prediction loader was requested!')
 
-def get_collate_fn(data_pars):
+def get_collate_fn(data_pars, mode='normal', permute_features=None):
     '''Returns requested collate-function, if the key 'collate_fn' is in the dictionary data_pars.
     '''
 
     if 'collate_fn' in data_pars:
         name = data_pars['collate_fn']
         if name == 'PadSequence':
-            func = PadSequence()
+            func = PadSequence(mode=mode, permute_features=permute_features)
         
         else:
             raise ValueError('Unknown collate-function requested!')
