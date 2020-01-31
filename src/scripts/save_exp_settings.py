@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
     hyper_pars = {'batch_size':        128 if not args.dev else 21,
                 'max_epochs':          10 if not args.dev else 2,
-                'early_stop_patience': 15,
+                'early_stop_patience': 20,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),

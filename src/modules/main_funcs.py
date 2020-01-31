@@ -409,49 +409,16 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)#, pin_memory=True)
     N_VAL = get_set_length(val_set)
     
-    # * Use IGNITE to predict
-    predictions = {key: [] for key in val_set.targets}
-    truths = {key: [] for key in val_set.targets}
-    error_from_preds = {}
-    indices_PadSequence_sorted = []
-
-    # * The handler saving predictions
-    def log_prediction(engine):
-        # * The indices returned by the Ignite Engine defined in pickle_evaluator sorts the indices for us        
-        pred, truth, indices = engine.state.output
-        indices_PadSequence_sorted.extend(indices)
-        for i_batch in range(pred.shape[0]):
-            for i_key, key in enumerate(predictions):
-                predictions[key].append(pred[i_batch, i_key])
-                truths[key].append(truth[i_batch, i_key])
-        
-        # * Log for sanity...
-        if engine.state.iteration%(max(1, int(LOG_EVERY/VAL_BATCH_SIZE))) == 0:
-            n_predicted = engine.state.iteration*VAL_BATCH_SIZE
-            print(get_time(), 'Progress %.0f: Predicted %d of %d'%(100*n_predicted/N_VAL, n_predicted, N_VAL)) 
-
-    # * Start predicting!
-    print(get_time(), 'Prediction begun.')
-    evaluator_val = pickle_evaluator(model, device) # create_supervised_evaluator(model, device=device)
-    evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
-    evaluator_val.run(val_generator)
-    print(get_time(), 'Prediction finished!')
-    
-    # * Sort predictions w.r.t. index before saving
-    for key, values in predictions.items():
-        _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
-        predictions[key] = sorted_vals
-    # * Sort w.r.t. index before saving
-    for key, values in truths.items():
-        _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
-        truths[key] = sorted_vals
-    indices = sorted(indices_PadSequence_sorted)
+    # * Run evaluator!
+    predictions, truths, indices = run_pickle_evaluator(model, val_generator, val_set.targets, 
+        LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL)
 
     # * Run predictions through desired functions - transform back to 'true' values, if transformed
     predictions_transformed = inverse_transform(predictions, save_dir)
     truths_transformed = inverse_transform(truths, save_dir)
 
     eval_functions = get_eval_functions(meta_pars)
+    error_from_preds = {}
     for func in eval_functions:
         error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
 
@@ -548,6 +515,63 @@ def run_experiments(log=True):
         exp_dir = get_project_root() + '/experiments/'
         exps = Path(exp_dir).glob('*.json')
         n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
+
+def run_pickle_evaluator(model, val_generator, targets, LOG_EVERY=50000, VAL_BATCH_SIZE=1028, N_VAL=np.inf):
+    """Runs inference with a trained model over a dataset.
+    
+    Arguments:
+        model {torch.nn.Module} -- Trained and loaded model
+        val_generator {torch.utils.dataloader} -- Dataloader
+        targets {list} -- Prediction targets.
+    
+    Keyword Arguments:
+        LOG_EVERY {int} -- How often to print for sanity (default: {50000})
+        VAL_BATCH_SIZE {int} -- Batchsize to be used during inference (default: {1028})
+        N_VAL {int} -- How many predictions to make in dataset.Accuracy (default: {np.inf})
+    
+    Returns:
+        dict, dict, list -- Predictions, truths and indices in dataset
+    """    
+    
+    # * Use IGNITE to predict
+    predictions = {key: [] for key in targets}
+    truths = {key: [] for key in targets}
+    indices_PadSequence_sorted = []
+    device = get_device()
+
+    # * The handler saving predictions
+    def log_prediction(engine):
+        # * The indices returned by the Ignite Engine defined in pickle_evaluator sorts the indices for us        
+        pred, truth, indices = engine.state.output
+        indices_PadSequence_sorted.extend(indices)
+        for i_batch in range(pred.shape[0]):
+            for i_key, key in enumerate(predictions):
+                predictions[key].append(pred[i_batch, i_key])
+                truths[key].append(truth[i_batch, i_key])
+        
+        # * Log for sanity...
+        if engine.state.iteration%(max(1, int(LOG_EVERY/VAL_BATCH_SIZE))) == 0:
+            n_predicted = engine.state.iteration*VAL_BATCH_SIZE
+            print(get_time(), 'Progress %.0f: Predicted %d of %d'%(100*n_predicted/N_VAL, n_predicted, N_VAL)) 
+
+    # * Start predicting!
+    print(get_time(), 'Prediction begun.')
+    evaluator_val = pickle_evaluator(model, device) # create_supervised_evaluator(model, device=device)
+    evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
+    evaluator_val.run(val_generator)
+    print(get_time(), 'Prediction finished!')
+    
+    # * Sort predictions w.r.t. index before saving
+    for key, values in predictions.items():
+        _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
+        predictions[key] = sorted_vals
+    # * Sort w.r.t. index before saving
+    for key, values in truths.items():
+        _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
+        truths[key] = sorted_vals
+    indices = sorted(indices_PadSequence_sorted)
+
+    return predictions, truths, indices
 
 def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True, debug_mode=False):
     """Main training script. Takes experiment-defining dictionaries as input and trains the model induced by them.
