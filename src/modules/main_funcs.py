@@ -552,7 +552,7 @@ def run_pickle_evaluator(model, val_generator, targets, LOG_EVERY=50000, VAL_BAT
         # * Log for sanity...
         if engine.state.iteration%(max(1, int(LOG_EVERY/VAL_BATCH_SIZE))) == 0:
             n_predicted = engine.state.iteration*VAL_BATCH_SIZE
-            print(get_time(), 'Progress %.0f: Predicted %d of %d'%(100*n_predicted/N_VAL, n_predicted, N_VAL)) 
+            print(get_time(), 'Progress %.0f %%: Predicted %d of %d'%(100*n_predicted/N_VAL, n_predicted, N_VAL)) 
 
     # * Start predicting!
     print(get_time(), 'Prediction begun.')

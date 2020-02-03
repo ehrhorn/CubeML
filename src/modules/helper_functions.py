@@ -17,7 +17,6 @@ from multiprocessing import cpu_count, Pool
 import src.modules.loss_funcs
 from src.modules.constants import *
 
-
 class lr_watcher:
 
     def __init__(self, start_lr, max_lr, min_lr, n_rise, n_fall, batch_size, schedule='exp'):
@@ -244,26 +243,26 @@ def calc_MAEs(sorted_data, entries, error_measure='median'):
     
     return maes
 
-def calc_perf_as_fn_of_energy(energy, predictor_vals, n_bins=15):
-    '''Calculates error histograms as a function of energy.
+# def calc_perf_as_fn_of_energy(energy, predictor_vals, n_bins=15):
+#     '''Calculates error histograms as a function of energy.
 
-    Input
-    true: list of true values
-    predictor_vals: list of predictions
+#     Input
+#     true: list of true values
+#     predictor_vals: list of predictions
 
-    returns: lists of edges, Median Absolute errors and interquartile errors.
-    '''
+#     returns: lists of edges, Median Absolute errors and interquartile errors.
+#     '''
 
-    energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
+#     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
 
-    entries, edges = calc_histogram(energy_sorted, n_bins=n_bins)
-    maes = calc_MAEs(predictor_vals_sorted, entries)
-    widths_lower, widths_upper = calc_widths(predictor_vals_sorted, entries)
+#     entries, edges = calc_histogram(energy_sorted, n_bins=n_bins)
+#     maes = calc_MAEs(predictor_vals_sorted, entries)
+#     widths_lower, widths_upper = calc_widths(predictor_vals_sorted, entries)
 
-    return edges, maes, [widths_lower, widths_upper]
+#     return edges, maes, [widths_lower, widths_upper]
 
 def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
-    '''Calculates error histograms as a function of energy.
+    '''Calculates error histograms as a function of energy using multiprocessing.
 
     Input
     true: list of true values
@@ -273,26 +272,51 @@ def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
     '''
     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
-    
     sigmas, e_sigmas = [], []
-    for entry in predictor_bins:
-        means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75])
-        e_quartiles = []
-        e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
-        e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
-
-        # * Assume errors are symmetric - which they look to be (quick inspection)
-        # * Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
-        sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
-        
-        # * Ignore nans - it is due to too little statistics in a bin
-        if e_sigma != e_sigma:
-            sigma = np.nan
-            
-        sigmas.append(sigma)
-        e_sigmas.append(e_sigma)
+    
+    # * Spread the job
+    available_cores = cpu_count()
+    with Pool(available_cores) as p:
+        dicts = p.map(estimate_sigma_multiprocess, predictor_bins)
+    
+    # * Unpack the result
+    for d in dicts:
+        sigmas.append(d['sigma'])
+        e_sigmas.append(d['e_sigma'])
 
     return sigmas, e_sigmas
+
+# def calc_perf2_as_fn_of_energy_old(energy, predictor_vals, bin_edges):
+#     '''Calculates error histograms as a function of energy.
+
+#     Input
+#     true: list of true values
+#     predictor_vals: list of predictions
+
+#     returns: lists of edges, Median Absolute errors and interquartile errors.
+#     '''
+#     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
+#     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
+#     sigmas, e_sigmas = [], []
+#     for entry in predictor_bins:
+#         means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75])
+#         e_quartiles = []
+#         e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
+#         e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
+
+#         # * Assume errors are symmetric - which they look to be (quick inspection)
+#         # * Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
+#         sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
+        
+#         # * Ignore nans - it is due to too little statistics in a bin
+#         if e_sigma != e_sigma:
+#             sigma = np.nan
+            
+#         sigmas.append(sigma)
+#         e_sigmas.append(e_sigma)
+#     # return predictor_bins, energy_sorted
+
+#     return sigmas, e_sigmas
 
 def calc_relative_error(l1, l2, e1=None, e2=None):
     """Calculates the relative error (l2-l1) / l1 wrt the values of l1 and propagates uncertainties if given.
@@ -505,6 +529,23 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
             minussigmas.append(np.nan)
 
     return means, plussigmas, minussigmas
+
+def estimate_sigma_multiprocess(entry):
+
+    means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75])
+    e_quartiles = []
+    e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
+    e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
+
+    # * Assume errors are symmetric - which they look to be (quick inspection)
+    # * Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
+    sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
+    
+    # * Ignore nans - it is due to too little statistics in a bin
+    if e_sigma != e_sigma:
+        sigma = np.nan
+    
+    return {'sigma': sigma, 'e_sigma': e_sigma}
 
 def find_best_model_pars(model_dir):
     '''Scans through saved model parameters in a model directory and returns the parameter-file of the best model.
@@ -1060,10 +1101,11 @@ def inverse_transform(data, model_dir):
             # * The reshape is required for scikit to function...
             else: 
                 # * Input might be given as a dictionary of lists
+                # * The squeeze is to ensure a shape of (N,)
                 try: 
-                    transformed[key] = transformers[key].inverse_transform(data[key].reshape(-1, 1))
+                    transformed[key] = np.squeeze(transformers[key].inverse_transform(data[key].reshape(-1, 1)))
                 except AttributeError: 
-                    transformed[key] = transformers[key].inverse_transform(np.array(data[key]).reshape(-1, 1))
+                    transformed[key] = np.squeeze(transformers[key].inverse_transform(np.array(data[key]).reshape(-1, 1)))
 
     return transformed
 
@@ -1435,35 +1477,35 @@ def read_predicted_h5_data(file_address, keys, data_pars, true_keys):
     
     return preds_sorted, truths_sorted
 
-def read_pickle_predicted_h5_data(file_address, keys, data_pars, true_keys):
-    """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
+# def read_pickle_predicted_h5_data(file_address, keys, data_pars, true_keys):
+#     """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
     
-    Arguments:
-        file_address {str} -- absolute path to predictions-file.
-        keys {list} -- names of datasets to read in predictions-file
-        data_pars {dict} -- dictionary containing data-parameters of the model.
-        true_keys {list} -- names of datasets to read in raw data-files.
+#     Arguments:
+#         file_address {str} -- absolute path to predictions-file.
+#         keys {list} -- names of datasets to read in predictions-file
+#         data_pars {dict} -- dictionary containing data-parameters of the model.
+#         true_keys {list} -- names of datasets to read in raw data-files.
     
-    Returns:
-        dicts -- predictions_dict, raw_dict
-    """    
+#     Returns:
+#         dicts -- predictions_dict, raw_dict
+#     """    
 
-    data_dir = data_pars['data_dir']
-    prefix = 'transform'+str(data_pars['file_keys']['transform'])
+#     data_dir = data_pars['data_dir']
+#     prefix = 'transform'+str(data_pars['file_keys']['transform'])
 
-    preds = {key: [] for key in keys}
-    preds['indices'] = []
+#     preds = {key: [] for key in keys}
+#     preds['indices'] = []
 
-    # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
-    with h5.File(file_address, 'r') as f:
-        preds['indices'] = f['index'][:]
-        for key in keys:
-            preds[key] = f[key][:]
+#     # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
+#     with h5.File(file_address, 'r') as f:
+#         preds['indices'] = f['index'][:]
+#         for key in keys:
+#             preds[key] = f[key][:]
     
-    # * Now read the matching true values
-    truths = read_pickle_data(data_dir, preds['indices'], true_keys, prefix=prefix)
+#     # * Now read the matching true values
+#     truths = read_pickle_data(data_dir, preds['indices'], true_keys, prefix=prefix)
     
-    return preds, truths
+#     return preds, truths
 
 def read_pickle_predicted_h5_data_v2(file_address, keys):
     """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
@@ -1483,9 +1525,10 @@ def read_pickle_predicted_h5_data_v2(file_address, keys):
 
     # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
     with h5.File(file_address, 'r') as f:
-        preds['indices'] = f['index'][:]
+        preds['indices'] = np.squeeze(f['index'][:])
+        
         for key in keys:
-            preds[key] = f[key][:]
+            preds[key] = np.squeeze(f[key][:])
     
     return preds
 
@@ -1528,6 +1571,7 @@ def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
         for d in dicts_list:
             for key, items in d.items():
                 final_dict[key].extend(items)
+        
     else:
         raise ValueError('read_pickle_data: Only a multiprocessing solution is implemented.')
     

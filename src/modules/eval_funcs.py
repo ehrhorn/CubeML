@@ -250,7 +250,7 @@ def get_retro_crs_prefit_relE_error(retro_dict, true_dict):
 
     return relE_error
     
-def vertex_t_error(pred, truth):
+def vertex_t_error(pred, truth, reporting=False):
     """Calculates the error on the t-coordinate prediction of the neutrino interaction vertex.
     
     Arguments:
@@ -273,15 +273,16 @@ def vertex_t_error(pred, truth):
         raise KeyError('Wrong dictionary given to vertex_t_error!')
     
     t_pred = pred[t_key]
-    t_true = truth[t_key]
-
-    t_pred = torch.tensor(t_pred)
-    t_truth = torch.tensor(t_true, dtype=t_pred.dtype)
+    t_truth = truth[t_key]
+    
+    if not reporting:
+        t_pred = torch.tensor(t_pred)
+        t_truth = torch.tensor(t_truth, dtype=t_pred.dtype)
 
     diff = t_pred - t_truth
     return diff
 
-def vertex_x_error(pred, truth):
+def vertex_x_error(pred, truth, reporting=False):
     """Calculates the error on the x-coordinate prediction of the neutrino interaction vertex.
     
     Arguments:
@@ -304,15 +305,16 @@ def vertex_x_error(pred, truth):
         raise KeyError('Wrong dictionary given to vertex_x_error!')
     
     x_pred = pred[x_key]
-    x_true = truth[x_key]
-
-    x_pred = torch.tensor(x_pred)
-    x_truth = torch.tensor(x_true, dtype=x_pred.dtype)
-
+    x_truth = truth[x_key]
+    if not reporting:
+        x_pred = torch.tensor(x_pred)
+        x_truth = torch.tensor(x_truth, dtype=x_pred.dtype)
+    
     diff = x_pred - x_truth
+
     return diff
 
-def vertex_y_error(pred, truth):
+def vertex_y_error(pred, truth, reporting=False):
     """Calculates the error on the y-coordinate prediction of the neutrino interaction vertex.
     
     Arguments:
@@ -335,15 +337,16 @@ def vertex_y_error(pred, truth):
         raise KeyError('Wrong dictionary given to vertex_y_error!')
     
     y_pred = pred[y_key]
-    y_true = truth[y_key]
+    y_truth = truth[y_key]
 
-    y_pred = torch.tensor(y_pred)
-    y_truth = torch.tensor(y_true, dtype=y_pred.dtype)
+    if not reporting:
+        y_pred = torch.tensor(y_pred)
+        y_truth = torch.tensor(y_truth, dtype=y_pred.dtype)
 
     diff = y_pred - y_truth
     return diff
 
-def vertex_z_error(pred, truth):
+def vertex_z_error(pred, truth, reporting=False):
     """Calculates the error on the z-coordinate prediction of the neutrino interaction vertex.
     
     Arguments:
@@ -366,10 +369,11 @@ def vertex_z_error(pred, truth):
         raise KeyError('Wrong dictionary given to vertex_z_error!')
     
     z_pred = pred[z_key]
-    z_true = truth[z_key]
+    z_truth = truth[z_key]
 
-    z_pred = torch.tensor(z_pred)
-    z_truth = torch.tensor(z_true, dtype=z_pred.dtype)
+    if not reporting:
+        z_pred = torch.tensor(z_pred)
+        z_truth = torch.tensor(z_truth, dtype=z_pred.dtype)
 
     diff = z_pred - z_truth
     return diff

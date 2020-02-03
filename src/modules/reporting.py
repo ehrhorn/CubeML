@@ -158,7 +158,7 @@ class Performance:
         energy_transformed = inverse_transform(energy_dict, get_project_root() + self.model_dir)
         energy = convert_to_proper_list(energy_transformed[self._energy_key[0]])
         self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
-
+        
         # * Calculate performance for our predictions
         for key, data in pred_dict.items():
             print('')
@@ -167,12 +167,7 @@ class Performance:
             print(get_time(), 'Calculation finished!')
             setattr(self, key+'_sigma', sigma)
             setattr(self, key+'_sigmaerr', sigmaerr)
-
-            # * DEBUG 
-            d = {'data': [np.clip(data, -3, 3)]}
-            d['savefig'] = get_project_root()+self.model_dir+'/figures/'+key+'_HISTOGRAM.png'
-            _ = make_plot(d)
-
+        
         # * Calculate performance for Icecubes predictions
         # * Ensure keys are proper so the error calculations work
         conversion_keys_crs = self._get_conversion_keys_crs()
@@ -183,8 +178,7 @@ class Performance:
         true_transformed = convert_keys(true_transformed, self._true_keys, conversion_keys_true)
 
         for i_var, key in enumerate(conversion_keys_crs):
-            error = error_funcs[i_var](crs_dict, true_transformed)
-            print('')
+            error = error_funcs[i_var](crs_dict, true_transformed, reporting=True)
             print(get_time(), 'Calculating %s performance...'%(self._reco_keys[i_var]))
             sigma, sigmaerr = calc_perf2_as_fn_of_energy(energy, error, self.bin_edges)
             print(get_time(), 'Calculation finished!')
@@ -234,11 +228,12 @@ class Performance:
         full_pred_address = self._get_pred_path()
         data_dir = self.data_pars['data_dir']
         prefix = 'transform'+str(self.data_pars['file_keys']['transform'])
-        
+        print(get_time(), 'Loading predictions...')
         pred_dict = read_pickle_predicted_h5_data_v2(full_pred_address, self._pred_keys)
         energy_dict = read_pickle_data(data_dir, pred_dict['indices'], self._energy_key, prefix=prefix)
         crs_dict = read_pickle_data(data_dir, pred_dict['indices'], self._reco_keys, prefix=prefix)
         true_dict = read_pickle_data(data_dir, pred_dict['indices'], self._true_keys, prefix=prefix)
+        print(get_time(), 'Predictions loaded!')
 
         # * Indices have done, what we wanted them to do - delete them
         del pred_dict['indices']
@@ -275,11 +270,14 @@ class Performance:
         
         return funcs
 
-    def _get_perf_dict(self, key):
-        sigma = getattr(self, key+'_sigma')
-        sigmaerr = getattr(self, key+'_sigmaerr')
-        label = self._get_ylabel(key)
-        return {'edges': [self.bin_edges], 'y': [sigma], 'yerr': [sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False}
+    def _get_perf_dict(self, model_key, reco_key):
+        sigma = getattr(self, model_key+'_sigma')
+        reco_sigma = getattr(self, reco_key+'_sigma')
+        sigmaerr = getattr(self, model_key+'_sigmaerr')
+        reco_sigmaerr = getattr(self, reco_key+'_sigmaerr')
+
+        label = self._get_ylabel(model_key)
+        return {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False}
 
     def _get_performance_keys(self):
         if self.meta_pars['group'] == 'vertex_reg':
@@ -335,7 +333,7 @@ class Performance:
         rel_imp = getattr(self, key+'_RI')
         rel_imp_err = getattr(self, key+'_RIerr')
 
-        return {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
+        return {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2, 'yrange': [-0.5, 0.5]}
 
     def _get_ylabel(self, key):
         
@@ -351,9 +349,9 @@ class Performance:
 
     def save(self):
         
-        for pred_key in self._performance_keys:
+        for pred_key, reco_key in zip(self._performance_keys, self._reco_keys):
             img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_performance.png'
-            d = self._get_perf_dict(pred_key)
+            d = self._get_perf_dict(pred_key, reco_key)
         
             if self._reco_keys:
                 h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
@@ -493,19 +491,20 @@ def log_operation_plots(model_dir, wandb_ID=None):
     with open(lr_list, 'rb') as f:
         lr_list = pickle.load(f)
     
-    img_address = model_dir+'/figures/train_val_error.png'
-    _ = make_plot({'x': [epochs, epochs], 'y': [train_error, val_error], 'label': ['train error', 'val. error'], 'xlabel': 'Events processed', 'ylabel': 'Loss', 'savefig': img_address})
+    # ! FOR NOW DONT PLOT - IT IS ALL ON WANDB!
+    # img_address = model_dir+'/figures/train_val_error.png'
+    # _ = make_plot({'x': [epochs, epochs], 'y': [train_error, val_error], 'label': ['train error', 'val. error'], 'xlabel': 'Events processed', 'ylabel': 'Loss', 'savefig': img_address})
     
-    if wandb_ID is not None:
-        im = PIL.Image.open(img_address)
-        wandb.log({'Train and val. error': wandb.Image(im, caption='Train and val. error')}, commit = False)
+    # if wandb_ID is not None:
+    #     im = PIL.Image.open(img_address)
+    #     wandb.log({'Train and val. error': wandb.Image(im, caption='Train and val. error')}, commit = False)
     
-    img_address = model_dir+'/figures/lr_vs_epoch.png'
-    _ = make_plot({'x': [epochs], 'y': [lr_list], 'xlabel': 'Events processed', 'ylabel': 'Learning rate', 'savefig': img_address})
+    # img_address = model_dir+'/figures/lr_vs_epoch.png'
+    # _ = make_plot({'x': [epochs], 'y': [lr_list], 'xlabel': 'Events processed', 'ylabel': 'Learning rate', 'savefig': img_address})
     
-    if wandb_ID is not None:
-        im = PIL.Image.open(img_address)
-        wandb.log({'Learning rate vs epoch': wandb.Image(im, caption='Learning rate vs epoch')}, commit = False)
+    # if wandb_ID is not None:
+    #     im = PIL.Image.open(img_address)
+    #     wandb.log({'Learning rate vs epoch': wandb.Image(im, caption='Learning rate vs epoch')}, commit = False)
 
 def log_performance_plots(model_dir, wandb_ID=None):
     """Creates and logs performance plots relevant to the regression model by calling special classes
@@ -519,33 +518,10 @@ def log_performance_plots(model_dir, wandb_ID=None):
     
     _, _, _, meta_pars = load_model_pars(model_dir)
     
-    print(strftime("%d/%m %H:%M", localtime()), ': Logging plots...')
+    print(get_time(), 'Evaluation of model performance initiated.')
     performance = Performance(model_dir, wandb_ID=wandb_ID)
     performance.save()
-    # if meta_pars['group'] == 'direction_reg':
-
-    #     #* Plot and save azi- and polarplots
-    #     azi_polar = AziPolarHists(model_dir, wandb_ID=wandb_ID)
-    #     azi_polar.save()
-
-    #     azi_polar_perf = AziPolarPerformance(model_dir, wandb_ID=wandb_ID)
-    #     azi_polar_perf.save()
-
-    #     # #* Plot and save directional error performance
-    #     # # * Nah, deprecated?
-    #     # perf = DirErrorPerformance(model_dir, wandb_ID=wandb_ID)
-    #     # perf.save()
-
-    # elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
-    #     vertex_perf = VertexPerformance(model_dir, wandb_ID=wandb_ID)
-    #     vertex_perf.save()
-    
-    # elif meta_pars['group'] == 'energy_reg':
-    #     perf = EnergyPerformance(model_dir, wandb_ID=wandb_ID)
-    #     perf.save()
-    # else:
-    #     print('Unknown regression type - no plots have been produced.')
-    print(strftime("%d/%m %H:%M", localtime()), ': Logging finished!')
+    print(get_time(), 'Evaluation of performance finished!')
 
 def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 0.775, 0.77]):
     """A custom plot function using PyPlot. If 'x' AND 'y' are in plot_dict, a xy-graph is returned, if 'data' is given, a histogram is returned.
@@ -794,25 +770,6 @@ def summarize_model_performance(model_dir, wandb_ID=None):
     except AttributeError:
         print('\nNO ONE-NUMBER PERFORMANCE MEASURE DEFINED. RETURNING -1\n')
         onenum_performance = -1
-
-    # if meta_pars['group'] == 'direction_reg':
-    #     direrr_path = model_dir + '/data/AziPolarPerformance.pickle'
-    #     direrrperf_class = pickle.load( open( direrr_path, "rb" ) )
-
-    #     onenum_performance = direrrperf_class.median_direrr
-    
-    # elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
-    #     vertex_err_path = model_dir + '/data/VertexPerformance.pickle'
-    #     vertex_err_perf_class = pickle.load( open( vertex_err_path, "rb" ) )
-
-    #     onenum_performance = vertex_err_perf_class.median_len_error
-    
-    # elif meta_pars['group'] == 'energy_reg':
-    #     path = model_dir + '/data/EnergyPerformance.pickle'
-    #     perf_class = pickle.load( open( path, "rb" ) )
-
-    #     onenum_performance = perf_class.onenum_performance
-
     
     if wandb_ID is not None:
         wandb.config.update({'Performance': onenum_performance}, allow_val_change=True)
