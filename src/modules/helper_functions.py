@@ -271,7 +271,6 @@ def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
 
     returns: lists of edges, Median Absolute errors and interquartile errors.
     '''
-
     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
     
@@ -1465,6 +1464,30 @@ def read_pickle_predicted_h5_data(file_address, keys, data_pars, true_keys):
     truths = read_pickle_data(data_dir, preds['indices'], true_keys, prefix=prefix)
     
     return preds, truths
+
+def read_pickle_predicted_h5_data_v2(file_address, keys):
+    """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
+    
+    Arguments:
+        file_address {str} -- absolute path to predictions-file.
+        keys {list} -- names of datasets to read in predictions-file
+        data_pars {dict} -- dictionary containing data-parameters of the model.
+        true_keys {list} -- names of datasets to read in raw data-files.
+    
+    Returns:
+        dicts -- predictions_dict, raw_dict
+    """    
+
+    preds = {key: [] for key in keys}
+    preds['indices'] = []
+
+    # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
+    with h5.File(file_address, 'r') as f:
+        preds['indices'] = f['index'][:]
+        for key in keys:
+            preds[key] = f[key][:]
+    
+    return preds
 
 def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
     """Given a dataset, indices to load and which attributes from each event to load, a dictionary is created with wanted attributes in same order as indices is given.

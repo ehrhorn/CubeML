@@ -96,529 +96,7 @@ class AziPolarHists:
                 im = PIL.Image.open(img_address)
                 wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit = False)
 
-class AziPolarPerformance:
-    """A class to create and save performance plots for azimuthal and polar predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. Furthermore, the median of the directional error is logged as a one-number performance measure.  
-    
-    Raises:
-        KeyError: If an unknown dataset is encountered.
-    
-    Returns:
-        [type] -- Instance of class.
-    """    
-
-    def __init__(self, model_dir, wandb_ID=None):
-        _, data_pars, _, meta_pars = load_model_pars(model_dir)
-        prefix = 'transform'+str(data_pars['file_keys']['transform'])
-        from_frac = data_pars['train_frac']
-        to_frac = data_pars['train_frac'] + data_pars['val_frac']
-
-        self.model_dir = get_path_from_root(model_dir)
-        self.data_dir = data_pars['data_dir']
-        self.data_pars = data_pars
-        self.meta_pars = meta_pars
-        self.prefix = prefix
-        self._energy_key = self._get_energy_key()
-        self._reco_keys, self._true_xyz = self._get_reco_keys()
-        self._pred_keys = self._get_pred_keys()
-
-        self.from_frac = from_frac
-        self.to_frac = to_frac
-        self.wandb_ID = wandb_ID
-
-        pred_dict, true_dict = self._get_data_dicts()
-        self._calculate(pred_dict, true_dict)
-        self._save_onenum_perf(pred_dict)
-
-    def _get_data_dicts(self):
-        full_pred_address = self._get_pred_path()
-        true_keys = self._energy_key + self._reco_keys + self._true_xyz
-        pred_dict, true_dict = read_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
-        return pred_dict, true_dict
-
-    def _get_energy_key(self):
-        dataset_name = get_dataset_name(self.data_dir)
-
-        if dataset_name == 'MuonGun_Level2_139008':
-            energy_key = ['true_muon_energy']
-        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            energy_key = ['true_primary_energy']
-        else:
-            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
-        
-        return energy_key
-        
-    def _get_pred_path(self):
-        path_to_data = get_project_root() + self.model_dir + '/data'
-        for file in Path(path_to_data).iterdir():
-            if file.suffix == '.h5':
-                path = str(file)
-        return path
-    
-    def _get_pred_keys(self):
-        funcs = get_eval_functions(self.meta_pars)
-        keys = []
-
-        for func in funcs:
-            keys.append(func.__name__)
-        return keys
-
-    def _get_reco_keys(self):
-        dataset_name = get_dataset_name(self.data_dir)
-
-        if dataset_name == 'MuonGun_Level2_139008':
-            reco_keys = None
-        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            reco_keys = ['retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
-            true_xyz = ['true_primary_direction_x', 'true_primary_direction_y',  'true_primary_direction_z']
-        else:
-            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
-        
-        return reco_keys, true_xyz
-
-    def _calculate(self, pred_dict, true_dict):
-        #* Transform back and extract values into list
-        # * Our predictions have already been converted in predict()
-        true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
-        energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
-        self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
-        
-        polar_error = pred_dict['polar_error']
-        print('\nCalculating polar performance...')
-        self.polar_sigmas, self.polar_errors = calc_perf2_as_fn_of_energy(energy, polar_error, self.bin_edges)
-        print('Calculation finished!')
-
-        azi_error = pred_dict['azi_error']
-        print('\nCalculating azimuthal performance...')
-        self.azi_sigmas, self.azi_errors = calc_perf2_as_fn_of_energy(energy, azi_error, self.bin_edges)
-        print('Calculation finished!')
-
-        # * If an I3-reconstruction exists, get it
-        if self._reco_keys:
-            # * Ensure keys are proper so the angle calculations work
-            # * Our predictions have already been converted in predict()
-            pred_crs = {key: true_transformed[key] for key in self._reco_keys}
-            pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['azi', 'zen'])
-            
-            true = {key: true_transformed[key] for key in self._true_xyz}
-            true = convert_keys(true, [key for key in true], ['x', 'y', 'z'])
-
-            azi_crs_error = get_retro_crs_prefit_azi_error(pred_crs, true)
-            polar_crs_error = get_retro_crs_prefit_polar_error(pred_crs, true)
-
-            print('\nCalculating crs polar performance...')
-            self.polar_crs_sigmas, self.polar_crs_errors = calc_perf2_as_fn_of_energy(energy, polar_crs_error, self.bin_edges)
-            print('Calculation finished!')
-
-            print('\nCalculating crs azimuthal performance...')
-            self.azi_crs_sigmas, self.azi_crs_errors = calc_perf2_as_fn_of_energy(energy, azi_crs_error, self.bin_edges)
-            print('Calculation finished!')            
-
-            #* Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive result
-            a, b = calc_relative_error(self.polar_crs_sigmas, self.polar_sigmas, self.polar_crs_errors, self.polar_errors)
-            self.polar_relative_improvements, self.polar_sigma_improvements = -a, b
-            a, b = calc_relative_error(self.azi_crs_sigmas, self.azi_sigmas, self.azi_crs_errors, self.azi_errors)
-            self.azi_relative_improvements, self.azi_sigma_improvements = -a, b
-        else:
-            self.polar_relative_improvements = None
-            self.polar_sigma_improvements = None
-            self.azi_relative_improvements = None
-            self.azi_sigma_improvements = None
-
-    def _save_onenum_perf(self, pred_dict):
-
-        self.median_direrr = np.nanpercentile(pred_dict['directional_error'], 50)
-
-    def get_azi_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.azi_sigmas], 'yerr': [self.azi_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [Deg]', 'grid': False}
-    
-    def get_energy_dict(self):
-        return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
-
-    def get_polar_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.polar_sigmas], 'yerr': [self.polar_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [Deg]', 'grid': False}
-
-    def get_rel_azi_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.azi_relative_improvements], 'yerr': [self.azi_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
-
-    def get_rel_polar_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.polar_relative_improvements], 'yerr': [self.polar_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
-
-    def save(self):
-
-        #* Save Azi first
-        perf_savepath = get_project_root()+self.model_dir+'/data/AziErrorPerformance.pickle'
-        img_address = get_project_root()+self.model_dir+'/figures/AziErrorPerformance.png'
-        d = self.get_azi_dict()
-        h_fig = make_plot(d)
-        
-        if self._reco_keys:
-            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
-            d = self.get_rel_azi_dict()
-            d['subplot'] = True
-            d['axhline'] = [0.0]
-            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-        else:
-            h_fig = make_plot(d)
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-
-        #* Load img with PIL - this format can be logged
-        if self.wandb_ID is not None:
-            im = PIL.Image.open(img_address)
-            wandb.log({'AziErrorPerformance': wandb.Image(im, caption='AziErrorPerformance')}, commit = False)
-        
-        #* Save polar next
-        perf_savepath = get_project_root() + self.model_dir + '/data/PolarErrorPerformance.pickle'
-        img_address = get_project_root() + self.model_dir + '/figures/PolarErrorPerformance.png'
-        d = self.get_polar_dict()
-        h_fig = make_plot(d)
-        
-        if self._reco_keys:
-            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
-            d = self.get_rel_polar_dict()
-            d['subplot'] = True
-            d['axhline'] = [0.0]
-            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-        else:
-            h_fig = make_plot(d)
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-
-        #* Load img with PIL - this format can be logged
-        if self.wandb_ID is not None:
-            im = PIL.Image.open(img_address)
-            wandb.log({'PolarErrorPerformance': wandb.Image(im, caption='PolarErrorPerformance')}, commit = False)
-
-        perf_savepath = get_project_root() + self.model_dir + '/data/AziPolarPerformance.pickle'
-        with open(perf_savepath, 'wb') as f:
-            pickle.dump(self, f)
-
-class EnergyPerformance:
-    """A class to create and save performance plots for energy predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. Furthermore, the median of the relative error is logged as a one-number performance measure.  
-    
-    Raises:
-        KeyError: If an unknown dataset is encountered.
-    
-    Returns:
-        [type] -- Instance of class.
-    """    
-
-    def __init__(self, model_dir, wandb_ID=None):
-        _, data_pars, _, meta_pars = load_model_pars(model_dir)
-        prefix = 'transform'+str(data_pars['file_keys']['transform'])
-        from_frac = data_pars['train_frac']
-        to_frac = data_pars['train_frac'] + data_pars['val_frac']
-
-        self.model_dir = get_path_from_root(model_dir)
-        self.data_dir = data_pars['data_dir']
-        self.data_pars = data_pars
-        self.meta_pars = meta_pars
-        self.prefix = prefix
-        self._energy_key = self._get_energy_key()
-        self._reco_keys= self._get_reco_keys()
-        self._pred_keys = self._get_pred_keys()
-
-        self.from_frac = from_frac
-        self.to_frac = to_frac
-        self.wandb_ID = wandb_ID
-
-        pred_dict, true_dict = self._get_data_dicts()
-        self._calculate(pred_dict, true_dict)
-        self._save_onenum_perf(pred_dict)
-
-    def _get_data_dicts(self):
-        full_pred_address = self._get_pred_path()
-        true_keys = self._energy_key + self._reco_keys
-        if self.data_pars['dataloader'] == 'PickleLoader':
-            pred_dict, true_dict = read_pickle_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
-        else:
-            pred_dict, true_dict = read_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
-        return pred_dict, true_dict
-
-    def _get_energy_key(self):
-        dataset_name = get_dataset_name(self.data_dir)
-
-        if dataset_name == 'MuonGun_Level2_139008':
-            energy_key = ['true_muon_energy']
-        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            energy_key = ['true_primary_energy']
-        else:
-            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
-        
-        return energy_key
-        
-    def _get_pred_path(self):
-        path_to_data = get_project_root() + self.model_dir + '/data'
-        for file in Path(path_to_data).iterdir():
-            if file.suffix == '.h5':
-                path = str(file)
-        return path
-    
-    def _get_pred_keys(self):
-        funcs = get_eval_functions(self.meta_pars)
-        keys = []
-
-        for func in funcs:
-            keys.append(func.__name__)
-        return keys
-
-    def _get_reco_keys(self):
-        dataset_name = get_dataset_name(self.data_dir)
-
-        if dataset_name == 'MuonGun_Level2_139008':
-            reco_keys = None
-        elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
-            reco_keys = ['retro_crs_prefit_energy']
-        else:
-            raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
-        
-        return reco_keys
-
-    def _calculate(self, pred_dict, true_dict):
-
-        #* Transform back and extract values into list
-        # * Our predictions have already been converted in predict()
-        true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
-        energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
-        self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
-        
-        relE_error = pred_dict['relative_E_error']
-        print('\nCalculating energy performance...')
-        self.relE_sigmas, self.relE_errors = calc_perf2_as_fn_of_energy(energy, relE_error, self.bin_edges)
-        print('Calculation finished!')
-
-        # * If an I3-reconstruction exists, get it
-        if self._reco_keys:
-            # * Ensure keys are proper so the angle calculations work
-            # * Our predictions have already been converted in predict()
-            pred_crs = {key: true_transformed[key] for key in self._reco_keys}
-            pred_crs = convert_keys(pred_crs, [key for key in pred_crs], ['E'])
-            
-            true = {key: true_transformed[key] for key in self._energy_key}
-            true = convert_keys(true, [key for key in true], ['logE'])
-
-            relE_crs_error = get_retro_crs_prefit_relE_error(pred_crs, true)
-
-            print('\nCalculating crs energy performance...')
-            self.relE_crs_sigmas, self.relE_crs_errors = calc_perf2_as_fn_of_energy(energy, relE_crs_error, self.bin_edges)
-            print('Calculation finished!')
-
-            #* Calculate the relative improvement - e_diff/retro_error. Report decrease in error as a positive result
-            a, b = calc_relative_error(self.relE_crs_sigmas, self.relE_sigmas, self.relE_crs_errors, self.relE_errors)
-            self.relE_relative_improvements, self.relE_sigma_improvements = -a, b
-        else:
-            self.relE_relative_improvements = None
-            self.relE_sigma_improvements = None
-
-    def _save_onenum_perf(self, pred_dict):
-        # * Report the average sigma.
-        avg = np.nansum(self.counts*self.relE_sigmas)/np.nansum(self.counts)
-        self.onenum_performance = avg
-
-    def get_energy_dict(self):
-        return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
-    
-    def get_relE_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.relE_sigmas], 'yerr': [self.relE_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Relative Error', 'grid': False}
-    
-    def get_rel_relE_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.relE_relative_improvements], 'yerr': [self.relE_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': False}
-
-    def save(self):
-
-        #* Save Azi first
-        perf_savepath = get_project_root()+self.model_dir+'/data/EnergyPerformance.pickle'
-        img_address = get_project_root()+self.model_dir+'/figures/EnergyPerformance.png'
-        d = self.get_relE_dict()
-        h_fig = make_plot(d)
-        
-        if self._reco_keys:
-            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
-            d = self.get_rel_relE_dict()
-            d['subplot'] = True
-            d['axhline'] = [0.0]
-            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-        else:
-            h_fig = make_plot(d)
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-
-        #* Load img with PIL - this format can be logged
-        if self.wandb_ID is not None:
-            im = PIL.Image.open(img_address)
-            wandb.log({'EnergyPerformance': wandb.Image(im, caption='EnergyPerformance')}, commit=False)
-        
-        # * Save the class instance
-        perf_savepath = get_project_root() + self.model_dir + '/data/EnergyPerformance.pickle'
-        with open(perf_savepath, 'wb') as f:
-            pickle.dump(self, f)
-
-class IceCubePerformance:
-
-    def __init__(self, dataset_name, n_data=50000):
-        """A class to create and hold histogram-data for the resolution of Icecubes own algorithms. The error-histograms can be plotted by passing dictionaries (IceCubePerformance.get_x_dict etc.) to make_graph.
-        
-        Arguments:
-            dataset_name {str} -- the name of the directory containing the dataset-files.
-        
-        Keyword Arguments:
-            n_data {int} -- How many reconstructions to calculate the Icecube performance from (default: {50000})
-        """        
-
-        self.dataset_name = '/data/'+dataset_name
-        self.n_data = n_data
-        self._calculate_histograms()
-
-    
-    def _calculate_histograms(self):
-        
-        if self.dataset_name == '/data/oscnext-genie-level5-v01-01-pass2':
-            vertex_reg_keys = get_target_keys({'data_dir': self.dataset_name}, {'group': 'vertex_reg'})
-            dir_reg_keys = get_target_keys({'data_dir': self.dataset_name}, {'group': 'direction_reg'})
-            i3_reco = get_retro_crs_prefit_vertex_keys()
-            self._save_vertex_histograms(vertex_reg_keys, i3_reco)
-            
-        else:
-            raise ValueError('Unknown dataset (%s) given!'%(self.dataset_name))
-    
-    def _save_vertex_histograms(self, keys, i3_reco_keys):
-        path_to_data = get_project_root() + self.dataset_name
-        n_events = 0
-        true = {key: np.array([]) for key in keys}
-        pred = {key: np.array([]) for key in i3_reco_keys}
-
-        # * Read the data
-        while n_events < self.n_data:
-            for file in Path(path_to_data).iterdir():
-                if file.suffix == '.h5':
-                    
-                    for key in keys:
-                        true[key] = np.append(true[key], read_h5_dataset(str(file), key))
-                    for key in i3_reco_keys:
-                        pred[key] = np.append(pred[key], read_h5_dataset(str(file), key))
-
-                    n_events = pred[key].shape[0]
-
-            # * Exit when all files read
-            break
-        
-        # * Calculate error
-        errors = {'x_error': np.array([]), 'y_error': np.array([]), 'z_error': np.array([]), 't_error': np.array([])}
-        for true_key, pred_key, error_key in zip(true, pred, errors):
-            errors[error_key] = pred[pred_key]-true[true_key]
-        
-        # * Bin and save
-        self.x_count, self.x_edges = np.histogram(errors['x_error'], bins='fd')
-        self.y_count, self.y_edges = np.histogram(errors['y_error'], bins='fd')
-        self.z_count, self.z_edges = np.histogram(errors['z_error'], bins='fd')
-        self.t_count, self.t_edges = np.histogram(errors['t_error'], bins='fd')
-
-    
-    def get_x_dict(self):
-        d = {'data': [self.x_edges[:-1]], 'bins': [self.x_edges], 'weights': [self.x_count]}
-        return d
-    
-    def get_y_dict(self):
-        d = {'data': [self.y_edges[:-1]], 'bins': [self.y_edges], 'weights': [self.y_count]}
-        return d
-    
-    def get_z_dict(self):
-        d = {'data': [self.z_edges[:-1]], 'bins': [self.z_edges], 'weights': [self.z_count]}
-        return d
-    
-    def get_t_dict(self):
-        d = {'data': [self.t_edges[:-1]], 'bins': [self.t_edges], 'weights': [self.t_count]}
-        return d
-    
-    def save(self):
-        print('NOT MADE YET')
-        pass
-
-class DirErrorPerformance:
-    '''A class to calculate and save performance wrt directional error
-
-    Saves calculated histograms as self.edges, self.maes, self.errors.
-    '''
-
-    def __init__(self, model_dir, n_bins=15, wandb_ID=None):
-
-        _, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
-        prefix = 'transform'+str(data_pars['file_keys']['transform'])
-        from_frac = data_pars['train_frac']
-        to_frac = data_pars['train_frac'] + data_pars['val_frac']
-
-        self.model_dir = get_path_from_root(model_dir)
-        self.data_dir = data_pars['data_dir']
-        self.predictor_keys = ['directional_error']
-        self.prefix = prefix
-        self.from_frac = from_frac
-        self.to_frac = to_frac
-        self.wandb_ID = wandb_ID
-
-        self.calculate()
-
-    def calculate(self):
-        # Read data
-        try:
-            energy = read_h5_directory(self.data_dir, ['true_neutrino_energy'], self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf))
-        except KeyError:
-            energy = read_h5_directory(self.data_dir, ['true_muon_energy'], self.prefix, from_frac=self.from_frac, to_frac=self.to_frac, n_wanted=self.data_pars.get('n_predictions_wanted', np.inf))
-        
-        # Transform back and extract values into list
-        energy = inverse_transform(energy, get_project_root() + self.model_dir)
-        energy = [y for _, y in energy.items()]
-        energy = [x[0] for x in energy[0]]
-
-        # Get path to predictions
-        path = self.get_predictions_path()
-
-        # Read prediction
-        best_pred = read_predicted_h5_data(path, self.predictor_keys)
-
-        # Convert to list
-        best_pred = [y for _, y in best_pred.items()][0]
-        self.median = np.nanpercentile(best_pred, 50)
-
-        # Make performance histogram
-        self.edges, self.maes, self.errors = calc_perf_as_fn_of_energy(energy, best_pred)
-        self.n_events = len(energy)
-
-    def get_predictions_path(self):
-        path = get_project_root()+self.model_dir+'/data/'
-        for obj in Path(path).iterdir():
-            if obj.suffix == '.h5':
-                return str(obj)
-
-    def get_dict(self):
-        return {'edges': [self.edges], 'y': [self.maes], 'yerr': [self.errors], 'xlabel': r'log(E) [GeV]', 'ylabel': 'Error [Deg]'}
-    
-    def save(self):
-        perf_savepath = get_project_root()+self.model_dir+'/data/DirErrorPerformance.pickle'
-        img_address = get_project_root()+self.model_dir+'/figures/DirErrorPerformance.png'
-        figure = make_plot(self.get_dict())
-        figure.savefig(img_address)
-
-        # * Load img with PIL - this format can be logged
-        if self.wandb_ID is not None:
-            im = PIL.Image.open(img_address)
-            wandb.log({'DirErrorPerformance': wandb.Image(im, caption='DirErrorPerformance')}, commit = False)
-
-        with open(perf_savepath, 'wb') as f:
-            pickle.dump(self, f)
-
-class VertexPerformance:
+class Performance:
     """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
     Raises:
         KeyError: If an unknown dataset is encountered.
@@ -636,30 +114,140 @@ class VertexPerformance:
         self.model_dir = get_path_from_root(model_dir)
         self.data_pars = data_pars
         self.meta_pars = meta_pars
+        self.keyword = meta_pars['group']
         self.prefix = prefix
         
         self._energy_key = self._get_energy_key()
         self._pred_keys = self._get_prediction_keys()
         self._reco_keys = self._get_reco_keys()
-        self._true_xyzt_keys = get_target_keys(data_pars, meta_pars)
+        self._performance_keys = self._get_performance_keys()
+        self._true_keys = get_target_keys(data_pars, meta_pars)
 
         self.from_frac = from_frac
         self.to_frac = to_frac
         self.wandb_ID = wandb_ID
 
-        pred_dict, true_dict = self._get_data_dicts()
-        self._create_performance_plots(pred_dict, true_dict)
-        self._calculate_onenum_performance(pred_dict)
+        energy_dict, pred_dict, crs_dict, true_dict = self._get_data_dicts()
+        self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict)
+        self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
 
+    def _calculate_onenum_performance(self, data_dict):
+       
+        if self.meta_pars['group'] == 'vertex_reg' or self.meta_pars['group'] == 'vertex_reg_no_time':
+            x_error = data_dict['vertex_x_error']
+            y_error = data_dict['vertex_y_error']
+            z_error = data_dict['vertex_z_error']
+
+            len_error = np.sqrt(x_error**2 + y_error**2 + z_error**2)
+            one_num = np.nanpercentile(len_error, 50)
+        
+        elif self.meta_pars['group'] == 'direction_reg':
+            one_num = np.nanpercentile(data_dict['directional_error'], 50)
+
+        elif self.meta_pars['group'] == 'energy_reg':
+            # * Report the average sigma.
+            key = self._performance_keys[0]
+            one_num = np.nansum(self.counts*getattr(self, key+'_sigma'))/np.nansum(self.counts)
+        
+        return one_num
+
+    def _calculate_performance(self, energy_dict, pred_dict, crs_dict, true_dict):
+        
+        # * Transform back and extract values into list
+        true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
+        energy_transformed = inverse_transform(energy_dict, get_project_root() + self.model_dir)
+        energy = convert_to_proper_list(energy_transformed[self._energy_key[0]])
+        self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
+
+        # * Calculate performance for our predictions
+        for key, data in pred_dict.items():
+            print('')
+            print(get_time(), 'Calculating %s performance...'%(key))
+            sigma, sigmaerr = calc_perf2_as_fn_of_energy(energy, data, self.bin_edges)
+            print(get_time(), 'Calculation finished!')
+            setattr(self, key+'_sigma', sigma)
+            setattr(self, key+'_sigmaerr', sigmaerr)
+
+            # * DEBUG 
+            d = {'data': [np.clip(data, -3, 3)]}
+            d['savefig'] = get_project_root()+self.model_dir+'/figures/'+key+'_HISTOGRAM.png'
+            _ = make_plot(d)
+
+        # * Calculate performance for Icecubes predictions
+        # * Ensure keys are proper so the error calculations work
+        conversion_keys_crs = self._get_conversion_keys_crs()
+        conversion_keys_true = self._get_conversion_keys_true()
+        error_funcs = self._get_error_funcs()
+        
+        crs_dict = convert_keys(crs_dict, self._reco_keys, conversion_keys_crs)
+        true_transformed = convert_keys(true_transformed, self._true_keys, conversion_keys_true)
+
+        for i_var, key in enumerate(conversion_keys_crs):
+            error = error_funcs[i_var](crs_dict, true_transformed)
+            print('')
+            print(get_time(), 'Calculating %s performance...'%(self._reco_keys[i_var]))
+            sigma, sigmaerr = calc_perf2_as_fn_of_energy(energy, error, self.bin_edges)
+            print(get_time(), 'Calculation finished!')
+            setattr(self, self._reco_keys[i_var]+'_sigma', sigma)
+            setattr(self, self._reco_keys[i_var]+'_sigmaerr', sigmaerr)
+
+        # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
+        for model_key, retro_key in zip(self._performance_keys, self._reco_keys):
+            retro_sigma = getattr(self, retro_key+'_sigma')
+            model_sigma = getattr(self, model_key+'_sigma')
+            retro_sigmaerr = getattr(self, retro_key+'_sigmaerr')
+            model_sigmaerr = getattr(self, model_key+'_sigmaerr')
+
+            rel_e, sigma_rel = calc_relative_error(retro_sigma, model_sigma, retro_sigmaerr, model_sigmaerr)
+            setattr(self, model_key+'_RI', -rel_e)
+            setattr(self, model_key+'_RIerr', sigma_rel)
+
+    def _get_conversion_keys_crs(self):
+        if self.meta_pars['group'] == 'vertex_reg':
+            keys = ['x', 'y', 'z', 't']
+        elif self.meta_pars['group'] == 'vertex_reg_no_time':
+            keys = ['x', 'y', 'z']
+        elif self.meta_pars['group'] == 'direction_reg':
+            keys = ['azi', 'zen']
+        elif self.meta_pars['group'] == 'energy_reg':
+            keys = ['E']
+        else:
+            raise KeyError('PerformanceClass: Unknown regression type encountered!')
+        
+        return keys
+    
+    def _get_conversion_keys_true(self):
+        if self.meta_pars['group'] == 'vertex_reg':
+            keys = ['x', 'y', 'z', 't']
+        elif self.meta_pars['group'] == 'vertex_reg_no_time':
+            keys = ['x', 'y', 'z']
+        elif self.meta_pars['group'] == 'direction_reg':
+            keys = ['x', 'y', 'z']
+        elif self.meta_pars['group'] == 'energy_reg':
+            keys = ['logE']
+        else:
+            raise KeyError('PerformanceClass: Unknown regression type encountered!')
+        
+        return keys
+    
     def _get_data_dicts(self):
         full_pred_address = self._get_pred_path()
-        true_keys = self._energy_key + self._reco_keys + self._true_xyzt_keys
-        if self.data_pars['dataloader'] == 'PickleLoader':
-            pred_dict, true_dict = read_pickle_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
-        else:
-            pred_dict, true_dict = read_predicted_h5_data(full_pred_address, self._pred_keys, self.data_pars, true_keys)
-        return pred_dict, true_dict
+        data_dir = self.data_pars['data_dir']
+        prefix = 'transform'+str(self.data_pars['file_keys']['transform'])
+        
+        pred_dict = read_pickle_predicted_h5_data_v2(full_pred_address, self._pred_keys)
+        energy_dict = read_pickle_data(data_dir, pred_dict['indices'], self._energy_key, prefix=prefix)
+        crs_dict = read_pickle_data(data_dir, pred_dict['indices'], self._reco_keys, prefix=prefix)
+        true_dict = read_pickle_data(data_dir, pred_dict['indices'], self._true_keys, prefix=prefix)
 
+        # * Indices have done, what we wanted them to do - delete them
+        del pred_dict['indices']
+
+        return energy_dict, pred_dict, crs_dict, true_dict
+    
+    def _get_energy_dict(self):
+        return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+    
     def _get_energy_key(self):
         dataset_name = get_dataset_name(self.data_pars['data_dir'])
 
@@ -672,6 +260,41 @@ class VertexPerformance:
         
         return energy_key
     
+    def _get_error_funcs(self):
+
+        if self.meta_pars['group'] == 'vertex_reg':
+            funcs = [vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error]
+        elif self.meta_pars['group'] == 'vertex_reg_no_time':
+            funcs = [vertex_x_error, vertex_y_error, vertex_z_error]
+        elif self.meta_pars['group'] == 'direction_reg':
+            funcs = [get_retro_crs_prefit_azi_error, get_retro_crs_prefit_polar_error]
+        elif self.meta_pars['group'] == 'energy_reg':
+            funcs = [get_retro_crs_prefit_relE_error]
+        else:
+            raise KeyError('PerformanceClass: Unknown regression type encountered!')
+        
+        return funcs
+
+    def _get_perf_dict(self, key):
+        sigma = getattr(self, key+'_sigma')
+        sigmaerr = getattr(self, key+'_sigmaerr')
+        label = self._get_ylabel(key)
+        return {'edges': [self.bin_edges], 'y': [sigma], 'yerr': [sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False}
+
+    def _get_performance_keys(self):
+        if self.meta_pars['group'] == 'vertex_reg':
+            keys = self._get_prediction_keys()
+        elif self.meta_pars['group'] == 'vertex_reg_no_time':
+            keys = self._get_prediction_keys()
+        elif self.meta_pars['group'] == 'direction_reg':
+            keys = ['azi_error', 'polar_error']
+        elif self.meta_pars['group'] == 'energy_reg':
+            keys = self._get_prediction_keys()
+        else:
+            raise KeyError('PerformanceClass: Unknown regression type encountered!')
+        
+        return keys
+
     def _get_pred_path(self):
         path_to_data = get_project_root() + self.model_dir + '/data'
         for file in Path(path_to_data).iterdir():
@@ -697,244 +320,62 @@ class VertexPerformance:
                 reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
             elif self.meta_pars['group'] == 'vertex_reg_no_time':
                 reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
+            elif self.meta_pars['group'] == 'direction_reg':
+                reco_keys = ['retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
+            elif self.meta_pars['group'] == 'energy_reg':
+                reco_keys = ['retro_crs_prefit_energy']
+            else:
+                raise KeyError('Unknown reco_keys requested in Performance!')
         else:
             raise KeyError('Unknown dataset encountered (%s)'%(dataset_name))
         
         return reco_keys
     
-    def _create_performance_plots(self, pred_dict, true_dict):
-        # * Transform back and extract values into list
-        true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
-        energy = convert_to_proper_list(true_transformed[self._energy_key[0]])
-    
-        self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
+    def _get_rel_perf_dict(self, key):
+        rel_imp = getattr(self, key+'_RI')
+        rel_imp_err = getattr(self, key+'_RIerr')
+
+        return {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
+
+    def _get_ylabel(self, key):
         
-        x_error = pred_dict['vertex_x_error']
-        print('\nCalculating x performance...')
-        self.x_sigmas, self.x_errors = calc_perf2_as_fn_of_energy(energy, x_error, self.bin_edges)
-        print('Calculation finished!')
-
-        y_error = pred_dict['vertex_y_error']
-        print('\nCalculating y performance...')
-        self.y_sigmas, self.y_errors = calc_perf2_as_fn_of_energy(energy, y_error, self.bin_edges)
-        print('Calculation finished!')
-
-        z_error = pred_dict['vertex_z_error']
-        print('\nCalculating z performance...')
-        self.z_sigmas, self.z_errors = calc_perf2_as_fn_of_energy(energy, z_error, self.bin_edges)
-        print('Calculation finished!')
-
-        try:
-            t_error = pred_dict['vertex_t_error']
-            print('\nCalculating time performance...')
-            self.t_sigmas, self.t_errors = calc_perf2_as_fn_of_energy(energy, t_error, self.bin_edges)
-            print('Calculation finished!')
-        except KeyError:
-            pass
-
-        # * If an I3-reconstruction exists, get it
-        if self._reco_keys:
-            # * Ensure keys are proper so the angle calculations work
-            pred_crs = {key: true_transformed[key] for key in self._reco_keys}
-            if self.meta_pars['group'] == 'vertex_reg':
-                vertex_keys = ['x', 'y', 'z', 't']
-            elif self.meta_pars['group'] == 'vertex_reg_no_time':
-                vertex_keys = ['x', 'y', 'z']
-
-            pred_crs = convert_keys(pred_crs, self._reco_keys, vertex_keys)
-
-            true = {key: true_transformed[key] for key in self._true_xyzt_keys}
-            true = convert_keys(true, self._true_xyzt_keys, vertex_keys)
-            true = { key: convert_to_proper_list(item) for key, item in true.items() }
-
-            x_crs_error = vertex_x_error(pred_crs, true)
-            y_crs_error = vertex_y_error(pred_crs, true)
-            z_crs_error = vertex_z_error(pred_crs, true)
-            try:
-                t_crs_error = vertex_t_error(pred_crs, true)
-            except KeyError:
-                pass
-
-            print('\nCalculating crs x performance...')
-            self.x_crs_sigmas, self.x_crs_errors = calc_perf2_as_fn_of_energy(energy, x_crs_error, self.bin_edges)
-            print('Calculation finished!')
-
-            print('\nCalculating crs y performance...')
-            self.y_crs_sigmas, self.y_crs_errors = calc_perf2_as_fn_of_energy(energy, y_crs_error, self.bin_edges)
-            print('Calculation finished!')
-
-            print('\nCalculating crs z performance...')
-            self.z_crs_sigmas, self.z_crs_errors = calc_perf2_as_fn_of_energy(energy, z_crs_error, self.bin_edges)
-            print('Calculation finished!')
-            
-            try:
-                print('\nCalculating crs time performance...')
-                self.t_crs_sigmas, self.t_crs_errors = calc_perf2_as_fn_of_energy(energy, t_crs_error, self.bin_edges)
-                print('Calculation finished!')
-            except UnboundLocalError:
-                pass
-
-            # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive result
-            rel_e, sigma_rel = calc_relative_error(self.x_crs_sigmas, self.x_sigmas, self.x_crs_errors, self.x_errors)
-            self.x_relative_improvements, self.x_sigma_improvements = -rel_e, sigma_rel
-
-            rel_e, sigma_rel = calc_relative_error(self.y_crs_sigmas, self.y_sigmas, self.y_crs_errors, self.y_errors)
-            self.y_relative_improvements, self.y_sigma_improvements = -rel_e, sigma_rel
-
-            rel_e, sigma_rel = calc_relative_error(self.z_crs_sigmas, self.z_sigmas, self.z_crs_errors, self.z_errors)
-            self.z_relative_improvements, self.z_sigma_improvements = -rel_e, sigma_rel
-
-            try:
-                rel_e, sigma_rel = calc_relative_error(self.t_crs_sigmas, self.t_sigmas, self.t_crs_errors, self.t_errors)
-                self.t_relative_improvements, self.t_sigma_improvements = -rel_e, sigma_rel
-            except AttributeError:
-                pass
-        
+        if self.meta_pars['group'] == 'vertex_reg' or 'vertex_reg_no_time':
+            if key == 'vertex_t_error':
+                label = 'Error [ns]'
+            else:
+                label = 'Error [m]'
         else:
-            self.x_relative_improvements = None
-            self.x_sigma_improvements = None
-            self.y_relative_improvements = None
-            self.y_sigma_improvements = None
-            self.z_relative_improvements = None
-            self.z_sigma_improvements = None
-            self.t_relative_improvements = None
-            self.t_sigma_improvements = None
-    
-    def _calculate_onenum_performance(self, data_dict):
+            raise KeyError('PerformanceClass._get_ylabel: Unknown key (%s)given!'%(key))
 
-        x_error = data_dict['vertex_x_error']
-        y_error = data_dict['vertex_y_error']
-        z_error = data_dict['vertex_z_error']
-
-        len_error = np.sqrt(x_error**2 + y_error**2 + z_error**2)
-        self.median_len_error = np.nanpercentile(len_error, 50)
-
-    def get_energy_dict(self):
-        return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
-
-    def get_x_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.x_sigmas], 'yerr': [self.x_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
-    def get_y_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.y_sigmas], 'yerr': [self.y_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
-    def get_z_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.z_sigmas], 'yerr': [self.z_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [m]', 'grid': False}
-    def get_t_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.t_sigmas], 'yerr': [self.t_errors], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Error [ns]', 'grid': False}
-
-    def get_rel_x_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.x_relative_improvements], 'yerr': [self.x_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
-    def get_rel_y_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.y_relative_improvements], 'yerr': [self.y_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
-    def get_rel_z_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.z_relative_improvements], 'yerr': [self.z_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
-    def get_rel_t_dict(self):
-        return {'edges': [self.bin_edges], 'y': [self.t_relative_improvements], 'yerr': [self.t_sigma_improvements], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
+        return label
 
     def save(self):
-
-        # * Save x first
-        img_address = get_project_root()+self.model_dir+'/figures/xVertexPerformance.png'
-        d = self.get_x_dict()
         
-        if self._reco_keys:
-            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
-            d = self.get_rel_x_dict()
-            d['subplot'] = True
-            d['axhline'] = [0.0]
-            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-        else:
-            h_fig = make_plot(d)
-            d_energy = self.get_energy_dict()
-            # d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-
-        #* Load img with PIL - this format can be logged
-        if self.wandb_ID is not None:
-            im = PIL.Image.open(img_address)
-            wandb.log({'xVertexPerformance': wandb.Image(im, caption='xVertexPerformance')}, commit = False)
-
-    
-        # * Save y next
-        img_address = get_project_root()+self.model_dir+'/figures/yVertexPerformance.png'
-        d = self.get_y_dict()
+        for pred_key in self._performance_keys:
+            img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_performance.png'
+            d = self._get_perf_dict(pred_key)
         
-        if self._reco_keys:
-            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
-            d = self.get_rel_y_dict()
-            d['subplot'] = True
-            d['axhline'] = [0.0]
-            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-        else:
-            h_fig = make_plot(d)
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-
-        #* Load img with PIL - this format can be logged
-        if self.wandb_ID is not None:
-            im = PIL.Image.open(img_address)
-            wandb.log({'yVertexPerformance': wandb.Image(im, caption='yVertexPerformance')}, commit = False)
-        
-
-        # * Save z
-        img_address = get_project_root()+self.model_dir+'/figures/zVertexPerformance.png'
-        d = self.get_z_dict()
-        
-        if self._reco_keys:
-            h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
-            d = self.get_rel_z_dict()
-            d['subplot'] = True
-            d['axhline'] = [0.0]
-            h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-        else:
-            h_fig = make_plot(d)
-            d_energy = self.get_energy_dict()
-            d_energy['savefig'] = img_address
-            _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-
-        #* Load img with PIL - this format can be logged
-        if self.wandb_ID is not None:
-            im = PIL.Image.open(img_address)
-            wandb.log({'zVertexPerformance': wandb.Image(im, caption='zVertexPerformance')}, commit = False)
-        
-
-        # * Save time last
-        try:
-            img_address = get_project_root()+self.model_dir+'/figures/tVertexPerformance.png'
-            d = self.get_t_dict()
-            
             if self._reco_keys:
                 h_fig = make_plot(d, position=[0.125, 0.26, 0.775, 0.62])
-                d = self.get_rel_t_dict()
+                d = self._get_rel_perf_dict(pred_key)
                 d['subplot'] = True
                 d['axhline'] = [0.0]
                 h_fig = make_plot(d, h_figure=h_fig, position=[0.125, 0.11, 0.775, 0.15])
-                d_energy = self.get_energy_dict()
+                d_energy = self._get_energy_dict()
                 d_energy['savefig'] = img_address
                 _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
             else:
                 h_fig = make_plot(d)
-                d_energy = self.get_energy_dict()
+                d_energy = self._get_energy_dict()
                 d_energy['savefig'] = img_address
                 _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
 
-            #* Load img with PIL - this format can be logged
+            # * Load img with PIL - this format can be logged
             if self.wandb_ID is not None:
                 im = PIL.Image.open(img_address)
-                wandb.log({'tVertexPerformance': wandb.Image(im, caption='tVertexPerformance')}, commit = False)
-        except AttributeError:
-            pass
+                wandb.log({pred_key+'_performance': wandb.Image(im, caption=pred_key+'_performance')}, commit=False)
 
-        perf_savepath = get_project_root() + self.model_dir + '/data/VertexPerformance.pickle'
+        perf_savepath = get_project_root() + self.model_dir + '/data/Performance.pickle'
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
 
@@ -1078,31 +519,32 @@ def log_performance_plots(model_dir, wandb_ID=None):
     
     _, _, _, meta_pars = load_model_pars(model_dir)
     
-
     print(strftime("%d/%m %H:%M", localtime()), ': Logging plots...')
-    if meta_pars['group'] == 'direction_reg':
+    performance = Performance(model_dir, wandb_ID=wandb_ID)
+    performance.save()
+    # if meta_pars['group'] == 'direction_reg':
 
-        #* Plot and save azi- and polarplots
-        azi_polar = AziPolarHists(model_dir, wandb_ID=wandb_ID)
-        azi_polar.save()
+    #     #* Plot and save azi- and polarplots
+    #     azi_polar = AziPolarHists(model_dir, wandb_ID=wandb_ID)
+    #     azi_polar.save()
 
-        azi_polar_perf = AziPolarPerformance(model_dir, wandb_ID=wandb_ID)
-        azi_polar_perf.save()
+    #     azi_polar_perf = AziPolarPerformance(model_dir, wandb_ID=wandb_ID)
+    #     azi_polar_perf.save()
 
-        # #* Plot and save directional error performance
-        # # * Nah, deprecated?
-        # perf = DirErrorPerformance(model_dir, wandb_ID=wandb_ID)
-        # perf.save()
+    #     # #* Plot and save directional error performance
+    #     # # * Nah, deprecated?
+    #     # perf = DirErrorPerformance(model_dir, wandb_ID=wandb_ID)
+    #     # perf.save()
 
-    elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
-        vertex_perf = VertexPerformance(model_dir, wandb_ID=wandb_ID)
-        vertex_perf.save()
+    # elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
+    #     vertex_perf = VertexPerformance(model_dir, wandb_ID=wandb_ID)
+    #     vertex_perf.save()
     
-    elif meta_pars['group'] == 'energy_reg':
-        perf = EnergyPerformance(model_dir, wandb_ID=wandb_ID)
-        perf.save()
-    else:
-        print('Unknown regression type - no plots have been produced.')
+    # elif meta_pars['group'] == 'energy_reg':
+    #     perf = EnergyPerformance(model_dir, wandb_ID=wandb_ID)
+    #     perf.save()
+    # else:
+    #     print('Unknown regression type - no plots have been produced.')
     print(strftime("%d/%m %H:%M", localtime()), ': Logging finished!')
 
 def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 0.775, 0.77]):
@@ -1157,7 +599,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
             d = {'linewidth': 1.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
-            plt.plot(plot_dict['x'][i_set], dataset, **d)
+            # plt.plot(plot_dict['x'][i_set], dataset, **d)
+            h_axis.plot(plot_dict['x'][i_set], dataset, **d)
             
             if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
             if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
@@ -1181,7 +624,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
             
-            plt.hist(data, **d)
+            # plt.hist(data, **d)
+            h_axis.hist(data, **d)
 
             if 'label' in plot_dict: h_axis.legend()
         
@@ -1342,28 +786,33 @@ def summarize_model_performance(model_dir, wandb_ID=None):
     """    
     
     _, _, _, meta_pars = load_model_pars(model_dir)
+    path = model_dir + '/data/Performance.pickle'
+    perf_class = pickle.load(open(path,"rb"))
 
-    if meta_pars['group'] == 'direction_reg':
-        direrr_path = model_dir + '/data/AziPolarPerformance.pickle'
-        direrrperf_class = pickle.load( open( direrr_path, "rb" ) )
-
-        onenum_performance = direrrperf_class.median_direrr
-    
-    elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
-        vertex_err_path = model_dir + '/data/VertexPerformance.pickle'
-        vertex_err_perf_class = pickle.load( open( vertex_err_path, "rb" ) )
-
-        onenum_performance = vertex_err_perf_class.median_len_error
-    
-    elif meta_pars['group'] == 'energy_reg':
-        path = model_dir + '/data/EnergyPerformance.pickle'
-        perf_class = pickle.load( open( path, "rb" ) )
-
-        onenum_performance = perf_class.onenum_performance
-
-    else:
+    try:
+        onenum_performance = perf_class.onenumber_performance
+    except AttributeError:
         print('\nNO ONE-NUMBER PERFORMANCE MEASURE DEFINED. RETURNING -1\n')
         onenum_performance = -1
+
+    # if meta_pars['group'] == 'direction_reg':
+    #     direrr_path = model_dir + '/data/AziPolarPerformance.pickle'
+    #     direrrperf_class = pickle.load( open( direrr_path, "rb" ) )
+
+    #     onenum_performance = direrrperf_class.median_direrr
+    
+    # elif meta_pars['group'] == 'vertex_reg' or meta_pars['group'] == 'vertex_reg_no_time':
+    #     vertex_err_path = model_dir + '/data/VertexPerformance.pickle'
+    #     vertex_err_perf_class = pickle.load( open( vertex_err_path, "rb" ) )
+
+    #     onenum_performance = vertex_err_perf_class.median_len_error
+    
+    # elif meta_pars['group'] == 'energy_reg':
+    #     path = model_dir + '/data/EnergyPerformance.pickle'
+    #     perf_class = pickle.load( open( path, "rb" ) )
+
+    #     onenum_performance = perf_class.onenum_performance
+
     
     if wandb_ID is not None:
         wandb.config.update({'Performance': onenum_performance}, allow_val_change=True)
