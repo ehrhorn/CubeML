@@ -694,6 +694,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
     mask_names = data_pars['masks']
     weights = data_pars['weights']
+    dom_mask = data_pars['dom_mask']
     
     if keyword == 'train':
         drop_last = True
@@ -721,7 +722,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
         prefix = 'transform'+str(file_keys['transform'])
         if file_keys['transform'] == -1:
             prefix = 'raw'
-        dataloader = PickleLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix, n_events_wanted=n_events_wanted, masks=mask_names, weights=weights)
+        dataloader = PickleLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix, n_events_wanted=n_events_wanted, masks=mask_names, weights=weights, dom_mask=dom_mask)
     else:
         raise ValueError('Unknown data loader requested!')
     

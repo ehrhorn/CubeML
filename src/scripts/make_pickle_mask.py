@@ -24,6 +24,9 @@ def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf, min
     if mask_name == 'dom_interval':
         mask_path = make_dom_interval_mask(data_path, dirs, min_doms, max_doms)
     
+    if mask_name == 'dom_interval_SRTInIcePulses':
+        mask_path = make_dom_interval_mask(data_path, dirs, min_doms, max_doms, dom_mask='SRTInIcePulses')
+
     elif mask_name == 'all':
         mask_path = make_all_mask(data_path, dirs)
     
@@ -35,7 +38,7 @@ def make_mask(data_path, dirs, mask_name='all', min_doms=0, max_doms=np.inf, min
 
     return mask_path
 
-def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=True):
+def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=True, dom_mask='SplitInIcePulses'):
     
     # * Split the candidates into chunks for multiprocessing
     if multiprocess:
@@ -43,7 +46,9 @@ def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=Tru
         dirs_chunked = np.array_split(dirs, available_cores)
         min_doms_list = [min_doms]*len(dirs_chunked)
         max_doms_list = [max_doms]*len(dirs_chunked)
-        packed = zip(dirs_chunked, min_doms_list, max_doms_list)
+        dom_mask_list = [dom_mask]*len(dirs_chunked)
+        subprocess_ids = np.arange(len(dirs_chunked))
+        packed = zip(dirs_chunked, min_doms_list, max_doms_list, dom_mask_list, subprocess_ids)
         
         with Pool(available_cores) as p:
             accepted_lists = p.map(find_dom_interval_passed_cands, packed)
@@ -55,7 +60,7 @@ def make_dom_interval_mask(data_path, dirs, min_doms, max_doms, multiprocess=Tru
         raise ValueError('make_dom_interval_mask: Only multiprocessing solution implemented')
     
     # * save it
-    mask_path = data_path+'/masks/dom_interval_min%d_max%d.pickle'%(min_doms, max_doms)
+    mask_path = data_path+'/masks/dom_interval_%s_min%d_max%d.pickle'%(dom_mask, min_doms, max_doms)
     pickle.dump(mask, open(mask_path, 'wb'))
     
     return mask_path
@@ -113,7 +118,7 @@ def make_particle_mask(data_path, dirs, particle, multiprocess=True):
 
 def find_dom_interval_passed_cands(pack):
     # * Unpack
-    dirs, min_doms, max_doms = pack
+    dirs, min_doms, max_doms, dom_mask, process_ID = pack
     
     accepted = []
     i_file = 0
@@ -126,14 +131,16 @@ def find_dom_interval_passed_cands(pack):
             
             # * Check each file.
             event = pickle.load(open(file, "rb" ))
-            n_doms = event['raw']['dom_charge'].shape[0]
+            dom_indices = event['masks'][dom_mask]
+            
+            n_doms = event['raw']['dom_charge'][dom_indices].shape[0]
             if min_doms <= n_doms <= max_doms:
                 accepted.append(int(file.stem))
 
             # * Print for sanity
             i_file += 1
             if (i_file)%PRINT_EVERY == 0:
-                print(get_time(), 'Subprocess: Processed %d'%(i_file))
+                print(get_time(), 'Subprocess %d: Processed %d'%(process_ID, i_file))
                 sys.stdout.flush()
 
     return accepted
@@ -206,7 +213,6 @@ def make_all_mask(data_path, dirs):
     pickle.dump(mask, open(mask_path, 'wb'))
     
     return mask_path
-
 
 if __name__ == '__main__':
     data_dir = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'

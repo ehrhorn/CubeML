@@ -24,6 +24,8 @@ parser.add_argument('--regression', default='None', type=str, help='Sets the reg
 parser.add_argument('--loss', default='None', type=str, help='Sets the loss function to use. Options: "angle_loss", "L1", "L2", "Huber", "angle_squared_loss"')
 parser.add_argument('--masks', nargs='+', default='None', type=str, help='Sets the masks to choose data. Options: "dom_interval_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
 parser.add_argument('--weights', default='None', type=str, help='Sets the weights to use. Options: "geomean_energy_entry", "None"')
+parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, help='Sets the DOM mask to use. Options: "SplitInIcePulses", "dom_interval_SRTInIcePulses"')
+
 
 args = parser.parse_args()
 
@@ -64,7 +66,7 @@ if __name__ == '__main__':
     project = 'cubeml_test' if args.dev else 'cubeml'
 
     dataset = data_dir.split('/')[-1]
-    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names],
+    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names, args.weights],
                 'group':                regression_type,
                 'project':              project,
                 'objective':            objective,
@@ -100,6 +102,7 @@ if __name__ == '__main__':
                 'masks':         mask_names,
                 'particle':      particle,
                 'weights':       args.weights,
+                'dom_mask':      args.dom_mask,
                 'seq_feat':    ['dom_charge', 
                                 'dom_x', 
                                 'dom_y', 
