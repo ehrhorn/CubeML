@@ -149,7 +149,7 @@ def get_eval_functions(meta_pars):
 
     return eval_funcs
 
-def directional_error_from_cartesian(pred, truth, units = 'degrees'):
+def directional_error_from_cartesian(pred, truth, units='degrees'):
     '''Calculates the directional difference in degrees or radians. Expects dictionaries with keys x, y, z
     '''
 
@@ -233,7 +233,7 @@ def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
     
     return diff
 
-def get_retro_crs_prefit_relE_error(retro_dict, true_dict):
+def get_retro_crs_prefit_relE_error(retro_dict, true_dict, reporting=False):
     """Calculates the relative error (E_pred-E_true)/E_true in energy from Icecube's predictions.
     
     Arguments:

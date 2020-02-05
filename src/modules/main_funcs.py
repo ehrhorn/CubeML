@@ -53,11 +53,13 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN
     
     lr = []
     loss_vals= []
-
+    LOG_EVERY = 200000
     def log_lr(engine, lr, loss_vals, optimizer, scheduler, n_steps):
         loss_vals.append(engine.state.output)
         lr.append(get_lr(optimizer))
         scheduler.step()
+        if engine.state.iteration%(int(LOG_EVERY/BATCH_SIZE)) == 0:
+            print('\nEvent %d completed'%(trainer.state.iteration*BATCH_SIZE),strftime("%d/%m %H:%M", localtime()))
     lr_trainer.add_event_handler(Events.ITERATION_COMPLETED, log_lr, lr, loss_vals, optimizer, scheduler, n_steps)
     
     print(strftime("%d/%m %H:%M", localtime()), ': LR-scan begun.')
@@ -81,9 +83,10 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
     #* ======================================================================== #
 
     if wandb_ID is not None:
-        
+        hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
         WANDB_DIR = get_project_root()+'/models'
-        wandb.init(resume=True, id=wandb_ID, dir=WANDB_DIR)
+        PROJECT = meta_pars['project']
+        wandb.init(resume=True, id=wandb_ID, dir=WANDB_DIR, project=PROJECT)
 
         # * Add to .gitignore - every time an evaluation is initiated, wandb creates a new directory.
         WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
@@ -122,15 +125,15 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
     with open(model_dir+'/meta_pars.json', 'w') as fp:
         json.dump(meta_pars, fp)
     
-    # * Make a .dvc-file to track the model
-    path_to_model_dir = Path(model_dir).resolve().parent
-    model_name = model_dir.split('/')[-1]
-    subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
+    # # * Make a .dvc-file to track the model
+    # path_to_model_dir = Path(model_dir).resolve().parent
+    # model_name = model_dir.split('/')[-1]
+    # subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
     
-    # * Make a wandb-.dvc-file aswell if predictions are logged.
-    if wandb_ID is not None:
-        WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
-        subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
+    # # * Make a wandb-.dvc-file aswell if predictions are logged.
+    # if wandb_ID is not None:
+    #     WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
+    #     subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
 
     # * Close all open figures
     plt.close('all')
@@ -172,9 +175,6 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     # * Initialize model and log it - use GPU if available
     model, optimizer, device = initiate_model_and_optimizer(None, hyper_pars, data_pars, architecture_pars, meta_pars)
 
-    # # * Get type of scheduler, since different schedulers need different kinds of updating
-    # lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, BATCH_SIZE, N_TRAIN)
-    # type_lr_scheduler = type(lr_scheduler)
     loss = get_loss_func(architecture_pars['loss_func'])
 
     # * Setup generators - make a generator for training, validation on trainset and validation on test set
@@ -182,18 +182,9 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     train_generator = data.DataLoader(train_set, **dataloader_params_train, collate_fn=collate_fn)#, pin_memory=True)
     
     # * Use IGNITE to train
-    # trainer = create_supervised_trainer(model, optimizer, loss, device=device)
-
     pretrain_hyper_pars = hyper_pars['optimizer'].copy()
     pretrain_hyper_pars['lr'] = start_lr
     lr, loss_vals = calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
-    
-    # lr_model = MakeModel(architecture_pars, device)
-    # lr_model = lr_model.float()
-    # lr_model = lr_model.to(device)
-
-    # pretrain_optimizer = get_optimizer(lr_model.parameters(), pretrain_hyper_pars)
-    # lr, loss_vals = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
 
     #* ======================================================================== 
     #* SAVE RELEVANT THINGS
@@ -216,11 +207,11 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     with open(lr_dir+'/architecture_pars.json', 'w') as fp:
         json.dump(architecture_pars, fp)
 
-    # * Make sure it isn't logged to Github
-    # * Make a .dvc-file to track the model - it automatically adds the path to .gitignore
-    path_to_model_dir = Path(lr_dir).resolve().parent
-    model_name = lr_dir.split('/')[-1]
-    subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
+    # # * Make sure it isn't logged to Github
+    # # * Make a .dvc-file to track the model - it automatically adds the path to .gitignore
+    # path_to_model_dir = Path(lr_dir).resolve().parent
+    # model_name = lr_dir.split('/')[-1]
+    # subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
 
 def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars):
     device = get_device()
@@ -606,7 +597,6 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     # * Only calculate train error on a fraction of the training data - a fraction equal to val. frac.
     data_pars_copy = data_pars.copy()
     hyper_pars_copy = hyper_pars.copy()
-    # data_pars_copy['train_frac'] = data_pars['val_frac']
     data_pars_copy['n_train_events_wanted'] = data_pars.get('n_val_events_wanted', np.inf)
     hyper_pars_copy['batch_size'] = data_pars['val_batch_size']
     
@@ -907,15 +897,15 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
         with open(save_dir+'/meta_pars.json', 'w') as fp:
             json.dump(meta_pars, fp)
 
-        # * Add to .gitignore immediately
-        gitignore_model_path = '/'.join(save_dir.split('/')[:-1]) + '/.gitignore'
-        with open(gitignore_model_path,'a') as f:
-            f.write('/%s\n'%(MODEL_NAME))
+        # # * Add to .gitignore immediately
+        # gitignore_model_path = '/'.join(save_dir.split('/')[:-1]) + '/.gitignore'
+        # with open(gitignore_model_path,'a') as f:
+        #     f.write('/%s\n'%(MODEL_NAME))
         
-        WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
-        gitignore_wandb_path = WANDB_DIR+'/wandb/.gitignore'
-        with open(gitignore_wandb_path,'a') as f:
-            f.write('/%s\n'%(WANDB_NAME_IN_WANDB_DIR))
+        # WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
+        # gitignore_wandb_path = WANDB_DIR+'/wandb/.gitignore'
+        # with open(gitignore_wandb_path,'a') as f:
+        #     f.write('/%s\n'%(WANDB_NAME_IN_WANDB_DIR))
 
     else:
         print('Logging turned off.')

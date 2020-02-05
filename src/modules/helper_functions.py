@@ -169,6 +169,18 @@ def calc_bin_centers(edges):
 
     return centers
 
+def calc_geometric_mean(data):
+    """Calculates the geometric mean of a data series
+    
+    Arguments:
+        data {array-like} -- Datavalues
+    
+    Returns:
+        float -- The geometric mean
+    """    
+    array = np.array(data)
+    return array.prod()**(1.0/array.shape[0])
+
 def calc_histogram(sorted_data, n_bins=10, mode='equal_amount'):
     '''Calculates the histogram with n_bins from a sorted list. Mode can be either equal_amount or same_width - equal_amount puts same, given number in each bin, whereas same_width gives every bin the same width
 
@@ -877,8 +889,25 @@ def get_n_events_per_dir(data_dir):
     Returns:
         int -- Events per subdirectory
     """    
+    data_dir = get_project_root() + get_path_from_root(data_dir)
     return len([event for event in Path(data_dir+'/pickles/0').iterdir()])
 
+def get_n_tot_pickles(dataset):
+    """Loops over <DATASET>/pickles/ to find total amount of events.
+    
+    Arguments:
+        dataset {str} -- Path to dataset
+    
+    Returns:
+        int -- Number of events.
+    """    
+    path = get_project_root() + get_path_from_root(dataset)
+    n_events_per_dir = get_n_events_per_dir(path)
+    n_dirs = len([directory for directory in Path(path+'/pickles').iterdir() if directory.is_dir()])
+    n_last_dir = len([event for event in Path(path+'/pickles/' + str(n_dirs-1)).iterdir()])
+    n_tot = n_events_per_dir*(n_dirs-1)+n_last_dir
+    
+    return n_tot
 
 def get_n_train_val_test(n_data, train_frac, val_frac, test_frac):
     if train_frac+val_frac+test_frac > 1.0:
@@ -1177,8 +1206,9 @@ def load_pickle_mask(data_dir, masknames):
     masks_path = data_dir + '/masks/'
     list_of_masks = []
     for maskname in masknames:
-        mask = pickle.load(open(masks_path+maskname+'.pickle', 'rb'))
-        list_of_masks.append(mask)
+        with open(masks_path+maskname+'.pickle', 'rb') as f:
+            mask = pickle.load(f)
+            list_of_masks.append(mask)
     
     # * Find intersection using sets
     mask = set(list_of_masks[0])
@@ -1550,7 +1580,7 @@ def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
     Returns:
         dict -- A dictionary with keys corresponding to the desired properties.
     """    
-    path = get_project_root() + data_dir
+    path = get_project_root() + get_path_from_root(data_dir)
     n_events_per_dir = get_n_events_per_dir(path)
     
     if multiprocess:

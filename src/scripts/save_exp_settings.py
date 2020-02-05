@@ -15,12 +15,15 @@ parser.add_argument('-t', '--test', action='store_true', help='Initiates testmod
 parser.add_argument('-d', '--dev', action='store_true', help='Initiates developermode - Logging is done at CubeML_test.')
 parser.add_argument('-e', '--explore_lr', action='store_true', help='Performs a learning rate exploration.')
 parser.add_argument('-s', '--scan_lr', action='store_true', help='Performs a learning rate scan before training.')
+parser.add_argument('--max_lr', default=5e-3, type=float, help='Sets the maximum learning rate for the OneCycle learning rate schedule.')
+parser.add_argument('--min_lr', default=1e-4, type=float, help='Sets the minimum learning rate for the OneCycle learning rate schedule.')
 parser.add_argument('--start_lr', default=1e-6, type=float, help='Sets the start learning rate for the learning rate finder.')
 parser.add_argument('--end_lr', default=0.1, type=float, help='Sets the end learning rate for the learning rate finder.')
 parser.add_argument('--lr_finder_epochs', default=1, type=int, help='Sets the number of epochs the learning rate finder should run.')
 parser.add_argument('--regression', default='None', type=str, help='Sets the regression type to run. Options: "full_reg", "direction_reg", "vertex_reg", "vertex_reg_no_time", "energy_reg"')
 parser.add_argument('--loss', default='None', type=str, help='Sets the loss function to use. Options: "angle_loss", "L1", "L2", "Huber", "angle_squared_loss"')
 parser.add_argument('--masks', nargs='+', default='None', type=str, help='Sets the masks to choose data. Options: "dom_interval_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
+parser.add_argument('--weights', default='None', type=str, help='Sets the weights to use. Options: "geomean_energy_entry", "None"')
 
 args = parser.parse_args()
 
@@ -79,8 +82,8 @@ if __name__ == '__main__':
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR' if not args.dev else None,
-                                        'max_lr':          5e-3,
-                                        'min_lr':          1e-4,
+                                        'max_lr':          args.max_lr,
+                                        'min_lr':          args.min_lr,
                                         'frac_up':         0.02,
                                         'frac_down':       1-0.02,
                                         'schedule':        'inverse',
@@ -94,27 +97,28 @@ if __name__ == '__main__':
 
 
     data_pars = {'data_dir':     data_dir,
-                'masks':          mask_names,
+                'masks':         mask_names,
                 'particle':      particle,
+                'weights':       args.weights,
                 'seq_feat':    ['dom_charge', 
                                 'dom_x', 
                                 'dom_y', 
                                 'dom_z', 
-                                'dom_time'], 
-                                # 'dom_charge_significance',
-                                # 'dom_frac_of_n_doms',
-                                # 'dom_d_to_prev',
-                                # 'dom_v_from_prev',
-                                # 'dom_d_minkowski_to_prev',
-                                # 'dom_d_closest',
-                                # 'dom_d_minkowski_closest',
-                                # 'dom_d_vertex',
-                                # 'dom_d_minkowski_vertex',
-                                # 'dom_charge_over_vertex',
-                                # 'dom_charge_over_vertex_sqr'], 
+                                'dom_time', 
+                                'dom_charge_significance',
+                                'dom_frac_of_n_doms',
+                                'dom_d_to_prev',
+                                'dom_v_from_prev',
+                                'dom_d_minkowski_to_prev',
+                                'dom_d_closest',
+                                'dom_d_minkowski_closest',
+                                'dom_d_vertex',
+                                'dom_d_minkowski_vertex',
+                                'dom_charge_over_vertex',
+                                'dom_charge_over_vertex_sqr'], 
                                 
-                'scalar_feat': ['dom_timelength_fwhm'],
-                                # 'tot_charge'],
+                'scalar_feat': ['dom_timelength_fwhm',
+                                'tot_charge'],
                                 
                 'n_val_events_wanted':   100000 if not args.dev else 100,# np.inf,
                 'n_train_events_wanted': np.inf if not args.dev else 100,
@@ -144,13 +148,13 @@ if __name__ == '__main__':
                                                 #                     'LayerNorm':          True},},
                                                 {'LstmBlock':        {'n_in':               n_seq_feat,
                                                                      'n_out':               256,
-                                                                     'n_parallel':          1,
+                                                                     'n_parallel':          2,
                                                                      'n_stacks':            2,
                                                                      'residual':            False}},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

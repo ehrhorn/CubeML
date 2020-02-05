@@ -59,29 +59,9 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
 #     event = pickle.load(open(path, "rb"))
 
 #     print(event['meta']['file'], event['meta']['index'])
-model = '2020-01-30-14.12.49'
-model_path = get_project_root() + '/models/oscnext-genie-level5-v01-01-pass2/regression/energy_reg/'+model+'/data/predictions.h5'
-data = {}
-stds = {}
-with h5.File(model_path, 'r') as f:
-    for key in f:
-        data[key] = f[key][:]
-        stds[key] = hf.calc_iqr(data[key])/1.349
-# %%
-for key in data:
-    print('%s: %.3f'%(key, stds[key]))
 
-clip_val = 4
-data_clipped = {}
-data_clipped['relative_E_error'] = np.clip(data['relative_E_error'], -clip_val, clip_val)
-# %%
-
-model2 = '/home/bjoernhm/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/energy_reg/2020-01-20-09.42.49/data/predict_model_126_Loss=0.0503042.h5'
-with h5.File(model2, 'r') as f:
-    d2 = np.array([])
-    for key in f:
-        d2 = np.append(d2, np.clip(f[key+'/relative_E_error'][:], -clip_val, clip_val))
-
-# **
-d ={'data': [data_clipped['relative_E_error'], d2]}
-fig = rpt.make_plot(d)
+# api = wandb.Api()
+# wandb_path = 'cubeml/cubeml/2020-01-31-21.20.38'
+# run = api.run(wandb_path)
+# for file in run.files():
+#     print(file)

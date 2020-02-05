@@ -147,6 +147,37 @@ class angle_squared_loss_with_L2_TEST(torch.nn.Module):
         L2_mean = torch.mean(L2)
 
         return loss_mean + self._alpha*L2_mean#mult_factor*(loss_mean + alpha*L2_mean)    
+
+class L2(torch.nn.Module):
+ 
+    def __init__(self):
+        super(L2, self).__init__()
+
+    def forward(self, x, y):
+        """Computes L2-loss with weights
+        
+        Arguments:
+            x {torch.Tensor} -- Predictions of shape (B, F), where F is number of targets
+            y {tuple} -- (targets, weights), where targets is of shape (B, F) and weights of shape (F)
+        
+        Returns:
+            [torch.Tensor] -- Averaged, weighted loss over batch.
+        """      
+          
+        # * Unpack into targets and weights
+        targets, weights = y
+
+        # * Calculate actual loss
+        L2 = torch.mean((x-targets)*(x-targets), dim=-1)
+
+        # * Now weigh it
+        L2_weighted = L2*weights
+        
+        # * Mean over the batch
+        L2_mean = torch.mean(L2_weighted)
+
+        return L2_mean
+
 def get_loss_func(name):
     if name == 'L1': 
         return torch.nn.L1Loss()
@@ -155,7 +186,7 @@ def get_loss_func(name):
     elif name == 'Huber':
         return torch.nn.SmoothL1Loss()
     elif name == 'L2':
-        return torch.nn.MSELoss()
+        return L2()
     elif name == 'angle_squared_loss':
         return angle_squared_loss()
     elif name == 'angle_squared_loss_with_L2':

@@ -158,7 +158,8 @@ class Performance:
         energy_transformed = inverse_transform(energy_dict, get_project_root() + self.model_dir)
         energy = convert_to_proper_list(energy_transformed[self._energy_key[0]])
         self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
-        
+        self.bin_centers = calc_bin_centers(self.bin_edges)
+
         # * Calculate performance for our predictions
         for key, data in pred_dict.items():
             print('')
@@ -349,6 +350,10 @@ class Performance:
 
     def save(self):
         
+        perf_savepath = get_project_root() + self.model_dir + '/data/Performance.pickle'
+        with open(perf_savepath, 'wb') as f:
+            pickle.dump(self, f)
+
         for pred_key, reco_key in zip(self._performance_keys, self._reco_keys):
             img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_performance.png'
             d = self._get_perf_dict(pred_key, reco_key)
@@ -373,9 +378,14 @@ class Performance:
                 im = PIL.Image.open(img_address)
                 wandb.log({pred_key+'_performance': wandb.Image(im, caption=pred_key+'_performance')}, commit=False)
 
-        perf_savepath = get_project_root() + self.model_dir + '/data/Performance.pickle'
-        with open(perf_savepath, 'wb') as f:
-            pickle.dump(self, f)
+                # * Log the data for nice plotting on W&B
+                for num1, num2 in zip(getattr(self, pred_key+'_sigma'), self.bin_centers):
+                    wandb.log({pred_key+'_sigma': num1, pred_key+'_bincenter': num2})
+                
+                # * Save the performance class-instance for easy transfers between local and cloud
+                wandb.save(perf_savepath)
+
+
 
 #* ======================================================================== 
 #* PERFORMANCE FUNCTIONS
@@ -578,9 +588,6 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
             # plt.plot(plot_dict['x'][i_set], dataset, **d)
             h_axis.plot(plot_dict['x'][i_set], dataset, **d)
             
-            if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
-            if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
-            
         if 'label' in plot_dict: h_axis.legend()
         
     elif 'data' in plot_dict:
@@ -605,9 +612,6 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
 
             if 'label' in plot_dict: h_axis.legend()
         
-        if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
-        if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
-
     elif 'hist2d' in plot_dict:
 
         if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
@@ -702,9 +706,6 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
             
             plt.errorbar(x, y, yerr=yerr, xerr=xerr, fmt='.', **d)
             
-        if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
-        if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
-
         if 'label' in plot_dict: h_axis.legend()
 
     else:
@@ -742,10 +743,15 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         bottom = plot_dict['yrange'][0]
         top = plot_dict['yrange'][1]
         h_axis.set_ylim(bottom=bottom, top=top)
+    
+    if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
+    if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
+    
 
     if 'savefig' in plot_dict: 
         h_figure.savefig(plot_dict['savefig'])
-        print('\nFigure saved at:')
+        print('')
+        print(get_time(), 'Figure saved at:')
         print(plot_dict['savefig'])
     
 

@@ -520,7 +520,8 @@ class PadSequence:
     def __call__(self, batch):
         # * Inference and training is handled differently - therefore a keyword is passed along
         # * During inference, the true index of the event is passed aswell as 4th entry - see what PickleLoader returns 
-        keyword = batch[0][3]
+        # * The structure of batch is a list of (seq_array, scalar_array, targets_array, weight, self.type, true_index)
+        keyword = batch[0][4]
 
         # * Each element in "batch" is a tuple (sequentialdata, scalardata, label).
         # * Each instance of data is an array of shape (5, *), where 
@@ -532,6 +533,7 @@ class PadSequence:
         sequences = [torch.tensor(np.transpose(x[0])) for x in sorted_batch]
         scalar_vars = torch.Tensor([x[1] for x in sorted_batch])
         targets = torch.Tensor([x[2] for x in sorted_batch])
+        weights = torch.Tensor([x[3] for x in sorted_batch])
 
         # * permute-mode is used for permutation importance
         if self._mode == 'permute':
@@ -550,7 +552,7 @@ class PadSequence:
         else:
             pack = (sequences_padded.float(), lengths, scalar_vars.float())
         
-        return pack, targets.float()
+        return pack, (targets.float(), weights.float())
 
         def _permute(self, seqs, scalars):
             pass
@@ -562,7 +564,7 @@ class PickleLoader(data.Dataset):
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and an optional datapoints_wanted.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, prefix=None, masks=['all'], n_events_wanted=np.inf):
+    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, prefix=None, masks=['all'], n_events_wanted=np.inf, weights='None', dom_mask='SplitInIcePulses'):
 
         self.directory = get_project_root() + directory
 
@@ -582,6 +584,11 @@ class PickleLoader(data.Dataset):
         self.masks = masks
         self.n_events_wanted = n_events_wanted
 
+        # * 'SplitInIcePulses' corresponds to all DOMs
+        # * 'SRTInIcePulses' corresponds to Icecubes cleaned doms
+        self.dom_mask = dom_mask
+
+        self.weights = weights # * To be determined in get_meta_information
         self.len = None # * To be determined in get_meta_information
         self.indices = None # * To be determined in get_meta_information
         self._n_events_per_dir = None # * To be determined in get_meta_information
@@ -591,22 +598,25 @@ class PickleLoader(data.Dataset):
     def __getitem__(self, index):
         # * Find path
         true_index = self.indices[index]
+        weight = self.weights[index]
         filename = str(true_index) + '.pickle'
         path = self.directory + '/pickles/' + str(true_index//self._n_events_per_dir) + '/' + str(true_index) + '.pickle'
         
         # * Load event
-        event = pickle.load(open(path, "rb"))
-        
+        with open(path, 'rb') as f:
+            event = pickle.load(f)
+
         # * Extract relevant data
-        seq_len = event[self.prefix][self.seq_features[0]].shape[0]
+        dom_indices = event['masks'][self.dom_mask]
+        seq_len = event[self.prefix][self.seq_features[0]][dom_indices].shape[0]
         seq_array = np.empty((self.n_seq_features, seq_len))
 
         # * Sequential data
         for i, key in enumerate(self.seq_features):
             try:        
-                seq_array[i, :] = event[self.prefix][key]
+                seq_array[i, :] = event[self.prefix][key][dom_indices]
             except KeyError:
-                seq_array[i, :] = event['raw'][key]
+                seq_array[i, :] = event['raw'][key][dom_indices]
 
         # * Scalar data
         scalar_array = np.empty(self.n_scalar_features)    
@@ -626,9 +636,9 @@ class PickleLoader(data.Dataset):
         
         # * Tuple is now passed to collate_fn - handle training and predicting differently. We need the name of the event for prediction to log which belongs to which
         if self.type == 'predict':
-            pack = (seq_array, scalar_array, targets_array, self.type, true_index)
+            pack = (seq_array, scalar_array, targets_array, weight, self.type, true_index)
         else:
-            pack = (seq_array, scalar_array, targets_array, self.type)
+            pack = (seq_array, scalar_array, targets_array, weight, self.type)
         
         return pack
 
@@ -656,7 +666,9 @@ class PickleLoader(data.Dataset):
         from_frac, to_frac = self._get_from_to()
         indices = get_indices_from_fraction(n_events, from_frac, to_frac)
         
+        # * Get weights
         self.indices = mask_all[indices]
+        self.weights = load_pickle_weights(self.directory, self.weights)[self.indices]
         self.len = min(self.n_events_wanted, len(self.indices))
 
         # * Now get the number of events per event directory
@@ -681,6 +693,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     test_frac = data_pars['test_frac'] # * how much data should be used for training
     file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
     mask_names = data_pars['masks']
+    weights = data_pars['weights']
     
     if keyword == 'train':
         drop_last = True
@@ -708,7 +721,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
         prefix = 'transform'+str(file_keys['transform'])
         if file_keys['transform'] == -1:
             prefix = 'raw'
-        dataloader = PickleLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix, n_events_wanted=n_events_wanted, masks=mask_names)
+        dataloader = PickleLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix, n_events_wanted=n_events_wanted, masks=mask_names, weights=weights)
     else:
         raise ValueError('Unknown data loader requested!')
     
@@ -806,6 +819,26 @@ def sort_indices(dataset, data_pars, dataloader_params=None):
         raise ValueError('Unknown sort function requested!')
 
     return indices
+
+def load_pickle_weights(dataset, weights):
+    """Small function to load weights for a dataloader.
+    
+    Arguments:
+        dataset {str} -- path to dataset
+        weights {str} -- name of weights.
+    
+    Returns:
+        array -- weights
+    """    
+    path = get_project_root()+get_path_from_root(dataset)+'/weights/'+weights+'.pickle'
+    
+    if weights == 'None':
+        weights = [1]*get_n_tot_pickles(dataset)
+    else:
+        with open(path, 'rb') as f:
+            weights = pickle.load(f)['weights']
+    
+    return np.array(weights)
 
 #*======================================================================== 
 #* MODELS

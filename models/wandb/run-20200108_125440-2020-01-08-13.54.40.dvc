@@ -1,7 +1,0 @@
-md5: 7468e70f8909d0548bba59494b86faf4
-outs:
-- md5: d84f28781df1214eb752a6be6e8afdbe.dir
-  path: run-20200108_125440-2020-01-08-13.54.40
-  cache: true
-  metric: false
-  persist: false
