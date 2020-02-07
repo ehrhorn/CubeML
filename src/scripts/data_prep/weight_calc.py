@@ -22,6 +22,15 @@ import sys
 N_BINS_WEIGHTS = 24
 PRINT_EVERY = 100000
 
+def calc_weights(name, masks, dataset_path, from_frac=from_frac, to_frac=to_frac):
+    print(from_frac)
+    if name == 'geomean_muon_energy_entry':
+        weights, interpolator = geomean_muon_energy_entry_weights(masks, dataset_path, from_frac=from_frac, to_frac=to_frac)
+    elif name == 'inverse_performance_muon_energy':
+        weights, interpolator = inverse_performance_muon_energy(masks, dataset_path, from_frac=from_frac, to_frac=to_frac)
+
+    return weights, interpolator 
+
 def calc_weights_multiprocess(pack):
     indices, interpolator, key, path, n_per_dir, subprocess_id = pack
   
@@ -41,7 +50,7 @@ def calc_weights_multiprocess(pack):
     
     return weights
 
-def geomean_energy_entry_weights(masks, dataset_path, multiprocess=True, from_frac=0.0, to_frac=1.0):
+def geomean_muon_energy_entry_weights(masks, dataset_path, multiprocess=True, from_frac=0.0, to_frac=1.0):
     """Given a pickled dataset, a weight is calculated for each event. The weight is calculated (using a quadratic spline) as 
 
     w = (n_events*icecube_performance)**-0.5.
@@ -123,13 +132,16 @@ def geomean_energy_entry_weights(masks, dataset_path, multiprocess=True, from_fr
     
     return weights_list, interpolator_quadratic
 
+def inverse_performance_muon_energy(masks, dataset_path, multiprocess=True, from_frac=0.0, to_frac=1.0):
+    print('whatup')
+
 if __name__ == '__main__':
     # ! Can use 2*n_cpus - only ~45 % of processors are used
-    
+    print('WHATUP')
     # * Choose dataset, masks and size of subset to calculate weights from
     dataset_path = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
     masks = ['muon_neutrino']
-    name = 'geomean_muon_energy_entry.pickle'
+    name = 'inverse_performance_muon_energy'
 
     # * Ensure weight directory exists
     weights_dir = dataset_path+'/weights/'
@@ -137,10 +149,11 @@ if __name__ == '__main__':
         Path(weights_dir).mkdir()
 
     # * from and to are used for spline calculation
-    from_, to_ = 0.8, 1.0
-    weights, interpolator = geomean_energy_entry_weights(masks, dataset_path, from_frac=from_, to_frac=to_)
+    from_frac, to_frac = 0.8, 1.0
+    print(from_frac)
+    weights, interpolator = make_weights(name, masks, dataset_path, from_frac=from_frac, to_frac=to_frac)
 
     # * Save weights as a pickle
     weight_d = {'masks': masks, 'weights': weights, 'interpolator': interpolator}
-    pickle.dump(weight_d, open(weights_dir+name, 'wb'))
+    pickle.dump(weight_d, open(weights_dir+name+'.pickle', 'wb'))
 
