@@ -278,7 +278,7 @@ class Performance:
         reco_sigmaerr = getattr(self, reco_key+'_sigmaerr')
 
         label = self._get_ylabel(model_key)
-        return {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False}
+        return {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube']}
 
     def _get_performance_keys(self):
         if self.meta_pars['group'] == 'vertex_reg':
@@ -380,7 +380,7 @@ class Performance:
 
                 # * Log the data for nice plotting on W&B
                 for num1, num2 in zip(getattr(self, pred_key+'_sigma'), self.bin_centers):
-                    wandb.log({pred_key+'_sigma': num1, pred_key+'_bincenter': num2})
+                    wandb.log({pred_key+'_sigma': num1, pred_key+'_bincenter2': num2})
                 
                 # * Save the performance class-instance for easy transfers between local and cloud
                 wandb.save(perf_savepath)

@@ -178,6 +178,35 @@ class L2(torch.nn.Module):
 
         return L2_mean
 
+class logcosh(torch.nn.Module):
+    def __init__(self):
+        super(logcosh, self).__init__()
+
+    def forward(self, x, y):
+        """Computes logcosh-loss with weights
+        
+        Arguments:
+            x {torch.Tensor} -- Predictions of shape (B, F), where F is number of targets
+            y {tuple} -- (targets, weights), where targets is of shape (B, F) and weights of shape (F)
+        
+        Returns:
+            [torch.Tensor] -- Averaged, weighted loss over batch.
+        """      
+          
+        # * Unpack into targets and weights
+        targets, weights = y
+
+        # * Calculate actual loss
+        ave_logcosh = torch.mean(torch.log(torch.cosh(x-targets)), dim=-1)
+
+        # * Now weigh it
+        loss_weighted = weights*ave_logcosh
+        
+        # * Mean over the batch
+        mean_loss = torch.mean(loss_weighted)
+
+        return mean_loss
+
 def get_loss_func(name):
     if name == 'L1': 
         return torch.nn.L1Loss()
@@ -187,6 +216,8 @@ def get_loss_func(name):
         return torch.nn.SmoothL1Loss()
     elif name == 'L2':
         return L2()
+    elif name == 'logcosh':
+        return logcosh()
     elif name == 'angle_squared_loss':
         return angle_squared_loss()
     elif name == 'angle_squared_loss_with_L2':

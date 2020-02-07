@@ -48,20 +48,10 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
     # print(seq_features)
     # print(scalar_features)
 
-# path = '/home/bjoernhm/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/energy_reg/2020-01-30-20.10.15'
-# calc_permutation_importance(path)
-# data_path = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2/pickles/'
-# from_ = 0
-# indices = np.arange(from_, from_+100)
-# for index in indices:
-#     subdir = str(index//10000)
-#     path = data_path + subdir + '/'+str(index) +'.pickle'
-#     event = pickle.load(open(path, "rb"))
 
-#     print(event['meta']['file'], event['meta']['index'])
-
-# api = wandb.Api()
-# wandb_path = 'cubeml/cubeml/2020-01-31-21.20.38'
-# run = api.run(wandb_path)
-# for file in run.files():
-#     print(file)
+x = torch.linspace(-4, 4, 200).unsqueeze(1)
+y = torch.linspace(0.0, 0.0, 200).unsqueeze(1)
+weights = torch.linspace(1.0, 1.0, 200)
+ave_logcosh = torch.mean(torch.log(torch.cosh(x-y)), dim=-1)
+d = {'x': [x], 'y': [ave_logcosh]}
+fig = rpt.make_plot(d)

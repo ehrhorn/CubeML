@@ -608,7 +608,7 @@ def flatten_list_of_lists(l):
     """    
     return [item for sublist in l for item in sublist]
 
-def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=None):
+def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=None, drop_last=True):
     """A helper function for initializing of dataloader - the different dataloaders require different settings
     
     Arguments:
@@ -626,7 +626,7 @@ def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=N
     if dataloader == 'FullBatchLoader':
         dataloader_params = {'batch_size': None, 'shuffle': False, 'num_workers': num_workers}
     else:
-        dataloader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
+        dataloader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers, 'drop_last': drop_last}
     
     return dataloader_params
 

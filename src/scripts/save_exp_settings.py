@@ -21,10 +21,11 @@ parser.add_argument('--start_lr', default=1e-6, type=float, help='Sets the start
 parser.add_argument('--end_lr', default=0.1, type=float, help='Sets the end learning rate for the learning rate finder.')
 parser.add_argument('--lr_finder_epochs', default=1, type=int, help='Sets the number of epochs the learning rate finder should run.')
 parser.add_argument('--regression', default='None', type=str, help='Sets the regression type to run. Options: "full_reg", "direction_reg", "vertex_reg", "vertex_reg_no_time", "energy_reg"')
-parser.add_argument('--loss', default='None', type=str, help='Sets the loss function to use. Options: "angle_loss", "L1", "L2", "Huber", "angle_squared_loss"')
-parser.add_argument('--masks', nargs='+', default='None', type=str, help='Sets the masks to choose data. Options: "dom_interval_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
+parser.add_argument('--loss', default='None', type=str, help='Sets the loss function to use. Options: "L2", "logcosh"')
+parser.add_argument('--masks', nargs='+', default='None', type=str, help='Sets the masks to choose data. Options: "dom_interval_SplitInIcePulses_min0_max200", "dom_interval_SRTInIcePulses_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
 parser.add_argument('--weights', default='None', type=str, help='Sets the weights to use. Options: "geomean_energy_entry", "None"')
 parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, help='Sets the DOM mask to use. Options: "SplitInIcePulses", "dom_interval_SRTInIcePulses"')
+parser.add_argument('--gpu', nargs='+', default='0', type=str, help='Sets the IDs of the GPUs to use')
 
 
 args = parser.parse_args()
@@ -49,7 +50,7 @@ if __name__ == '__main__':
     if args.explore_lr:
         objective = 'explore_lr'
 
-    # * Options: 'angle_loss', 'L1', 'L2', 'Huber', 'angle_squared_loss'
+    # * Options: 'angle_loss', 'L1', 'L2', 'logcosh', 'angle_squared_loss'
     error_func = args.loss
     if error_func == 'None':
         raise KeyError('A loss function must be chosen! Use flag --loss')
@@ -64,20 +65,21 @@ if __name__ == '__main__':
 
     # * Set project
     project = 'cubeml_test' if args.dev else 'cubeml'
-
+    
     dataset = data_dir.split('/')[-1]
-    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names, args.weights],
+    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names, args.weights, args.dom_mask],
                 'group':                regression_type,
                 'project':              project,
                 'objective':            objective,
                 'pretrained_path':      pretrained_path,
                 'log_every':            500000 if not args.dev else 50,
-                'lr_scan':              args.scan_lr 
+                'lr_scan':              args.scan_lr, 
+                'gpu':                  args.gpu
                 }
 
     hyper_pars = {'batch_size':        128 if not args.dev else 21,
                 'max_epochs':          10 if not args.dev else 2,
-                'early_stop_patience': 20,
+                'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
@@ -147,17 +149,17 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 512],
+                        'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                 #                     'LayerNorm':          True},},
                                                 {'LstmBlock':        {'n_in':               n_seq_feat,
                                                                      'n_out':               256,
-                                                                     'n_parallel':          2,
+                                                                     'n_parallel':          1,
                                                                      'n_stacks':            2,
                                                                      'residual':            False}},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [512+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 

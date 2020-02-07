@@ -48,7 +48,7 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN
     lambda1 = lambda step: gamma**step
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
     
-    device = get_device()
+    device = get_device(gpus[0])
     lr_trainer = create_supervised_trainer(model, optimizer, loss, device=device)
     
     lr = []
@@ -214,21 +214,22 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     # subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
 
 def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars):
-    device = get_device()
+    gpus =  meta_pars['gpu']
+    device = get_device(gpus[0])
     model = MakeModel(architecture_pars, device)
 
     # * If several GPU's are available, use them all!
     print('')
     n_devices = torch.cuda.device_count()
     meta_pars['n_devices'] = n_devices
-    if n_devices > 1:
+    if n_devices > 1 and len(gpus) > 1:
         model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
         print('Used devices:')
         for device_id in range(n_devices):
             name = torch.cuda.get_device_name(device=get_device(device_id))
             print(name)
     else:
-        print('Used device:', get_device())
+        print('Used device:', get_device(gpus[0]))
 
     # * Makes model parameters to float precision
     model = model.float()
@@ -271,7 +272,7 @@ def calc_predictions(save_dir, wandb_ID=None):
     '''
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
     particle_code = get_particle_code(data_pars['particle'])
-    device = get_device()
+    device = get_device(gpus[0])
 
     model_dir = save_dir+'/checkpoints'
     
@@ -393,7 +394,8 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
     LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
     VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
-    device = get_device()
+    gpus = meta_pars['gpu']
+    device = get_device(gpus[0])
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
     val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
     collate_fn = get_collate_fn(data_pars)
@@ -401,7 +403,7 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     N_VAL = get_set_length(val_set)
     
     # * Run evaluator!
-    predictions, truths, indices = run_pickle_evaluator(model, val_generator, val_set.targets, 
+    predictions, truths, indices = run_pickle_evaluator(model, val_generator, val_set.targets, gpus, 
         LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL)
 
     # * Run predictions through desired functions - transform back to 'true' values, if transformed
@@ -450,9 +452,9 @@ def pickle_evaluator(model, device, non_blocking=False):
     def _inference(engine, batch):
         model.eval()
         with torch.no_grad():
-            x, y, indices = _prepare_batch(batch, device=device, non_blocking=non_blocking)
+            x, y_target, indices = _prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x)
-            return (y, y_pred, indices)
+            return (y_pred, y_target, indices)
 
     engine = Engine(_inference)
     
@@ -507,7 +509,7 @@ def run_experiments(log=True):
         exps = Path(exp_dir).glob('*.json')
         n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
 
-def run_pickle_evaluator(model, val_generator, targets, LOG_EVERY=50000, VAL_BATCH_SIZE=1028, N_VAL=np.inf):
+def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, VAL_BATCH_SIZE=1028, N_VAL=np.inf):
     """Runs inference with a trained model over a dataset.
     
     Arguments:
@@ -528,12 +530,14 @@ def run_pickle_evaluator(model, val_generator, targets, LOG_EVERY=50000, VAL_BAT
     predictions = {key: [] for key in targets}
     truths = {key: [] for key in targets}
     indices_PadSequence_sorted = []
-    device = get_device()
+    device = get_device(gpus[0])
 
     # * The handler saving predictions
     def log_prediction(engine):
         # * The indices returned by the Ignite Engine defined in pickle_evaluator sorts the indices for us        
-        pred, truth, indices = engine.state.output
+        pred, target, indices = engine.state.output
+        truth = target[0]
+        weights = target[1]
         indices_PadSequence_sorted.extend(indices)
         for i_batch in range(pred.shape[0]):
             for i_key, key in enumerate(predictions):
@@ -855,7 +859,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     group = meta_pars['group'] # * under which dir to save?
     project = meta_pars['project']
     particle = data_pars.get('particle', 'any')
-
+    
 
     # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
     if meta_pars['objective'] == 'continue_training':
@@ -876,11 +880,13 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
         WANDB_NAME = save_dir.split('/')[-1]
         MODEL_NAME = save_dir.split('/')[-1]
         WANDB_DIR = get_project_root()+'/models'
+        n_seq_feats = len(data_pars['seq_feat'])
 
         wandb.init(project=meta_pars['project'], name=WANDB_NAME, tags=meta_pars['tags'], id=wandb_ID, reinit=True, dir=WANDB_DIR)
         wandb.config.update(hyper_pars)
         wandb.config.update(data_pars)
         wandb.config.update(architecture_pars)
+        wandb.config.update({'n_seq_feats': n_seq_feats})
 
         with open(save_dir+'/hyper_pars.json', 'w') as fp:
             json.dump(hyper_pars, fp)

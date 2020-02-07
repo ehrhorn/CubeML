@@ -113,7 +113,7 @@ def geomean_energy_entry_weights(masks, dataset_path, multiprocess=True, from_fr
         packed = zip(chunks, interpolator_list, keys_list, paths, n_per_dir_list, subprocess_id)
         
         # * Multiprocess and recombine
-        with Pool(available_cores) as p:
+        with Pool(int(2*available_cores)) as p:
             weights = p.map(calc_weights_multiprocess, packed)
         weights_combined = flatten_list_of_lists(weights)
         
@@ -121,13 +121,15 @@ def geomean_energy_entry_weights(masks, dataset_path, multiprocess=True, from_fr
         weights_list = np.array([np.nan]*n_tot)
         weights_list[mask_all] = np.array(weights_combined)
     
-    return weights_list
+    return weights_list, interpolator_quadratic
 
 if __name__ == '__main__':
+    # ! Can use 2*n_cpus - only ~45 % of processors are used
+    
     # * Choose dataset, masks and size of subset to calculate weights from
     dataset_path = get_project_root() + '/data/oscnext-genie-level5-v01-01-pass2'
-    masks = ['muon_neutrino', 'dom_interval_min0_max200']
-    name = 'geomean_energy_entry.pickle'
+    masks = ['muon_neutrino']
+    name = 'geomean_muon_energy_entry.pickle'
 
     # * Ensure weight directory exists
     weights_dir = dataset_path+'/weights/'
@@ -136,9 +138,9 @@ if __name__ == '__main__':
 
     # * from and to are used for spline calculation
     from_, to_ = 0.8, 1.0
-    weights = geomean_energy_entry_weights(masks, dataset_path, from_frac=from_, to_frac=to_)
+    weights, interpolator = geomean_energy_entry_weights(masks, dataset_path, from_frac=from_, to_frac=to_)
 
     # * Save weights as a pickle
-    weight_d = {'masks': masks, 'weights': weights}
+    weight_d = {'masks': masks, 'weights': weights, 'interpolator': interpolator}
     pickle.dump(weight_d, open(weights_dir+name, 'wb'))
 

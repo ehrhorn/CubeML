@@ -547,7 +547,7 @@ class PadSequence:
         sequences_padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
         
         if keyword == 'predict':
-            true_indices = [batch[4] for batch in sorted_batch]
+            true_indices = [batch[5] for batch in sorted_batch]
             pack = (sequences_padded.float(), lengths, scalar_vars.float(), true_indices)
         else:
             pack = (sequences_padded.float(), lengths, scalar_vars.float())
@@ -693,8 +693,8 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     test_frac = data_pars['test_frac'] # * how much data should be used for training
     file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
     mask_names = data_pars['masks']
-    weights = data_pars['weights']
-    dom_mask = data_pars['dom_mask']
+    weights = data_pars.get('weights', 'None')
+    dom_mask = data_pars.get('dom_mask', 'SplitInIcePulses')
     
     if keyword == 'train':
         drop_last = True
@@ -1286,7 +1286,7 @@ def load_best_model(save_dir):
     
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
     particle_code = get_particle_code(data_pars['particle'])
-    device = get_device()
+    device = get_device(meta_pars['gpu'][0])
     model_dir = save_dir+'/checkpoints'
     best_pars = find_best_model_pars(model_dir)
     n_devices = meta_pars.get('n_devices', 0)
