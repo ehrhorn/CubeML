@@ -49,9 +49,12 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
     # print(scalar_features)
 
 
-x = torch.linspace(-4, 4, 200).unsqueeze(1)
-y = torch.linspace(0.0, 0.0, 200).unsqueeze(1)
-weights = torch.linspace(1.0, 1.0, 200)
-ave_logcosh = torch.mean(torch.log(torch.cosh(x-y)), dim=-1)
-d = {'x': [x], 'y': [ave_logcosh]}
+weights = '/groups/hep/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/weights/inverse_performance_muon_energy.pickle'
+weights = pickle.load(open(weights, 'rb'))
+interpolator = weights['interpolator']
+x = np.linspace(0.0, 3.0, 200)
+y = interpolator(x)
+
+d = {'x': [x], 'y': [y]}
+d['savefig'] = get_project_root()+'/WEIGHT_TEST.png'
 fig = rpt.make_plot(d)
