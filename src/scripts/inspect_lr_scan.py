@@ -26,7 +26,7 @@ if __name__ == '__main__':
             model = path
             break
 
-    from_lr, to_lr = args.max_lr, args.min_lr
+    from_lr, to_lr = args.min_lr, args.max_lr
     lrs = pickle.load(open(model+'/lr.pickle', 'rb'))
     losses = pickle.load(open(model+'/loss_vals.pickle', 'rb'))
     indices = [index for index in range(len(lrs)) if from_lr <= lrs[index] <= to_lr]

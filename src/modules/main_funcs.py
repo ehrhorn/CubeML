@@ -21,7 +21,7 @@ from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 from src.modules.reporting import *
 
-def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=1, start_lr=0.000001, end_lr=0.1):
+def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, gpus, n_epochs=1, start_lr=0.000001, end_lr=0.1):
     '''Performs a scan over a learning rate-interval of interest with an exponentially increasing learning rate.
 
     Input: 
@@ -59,7 +59,7 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN
         lr.append(get_lr(optimizer))
         scheduler.step()
         if engine.state.iteration%(int(LOG_EVERY/BATCH_SIZE)) == 0:
-            print('\nEvent %d completed'%(trainer.state.iteration*BATCH_SIZE),strftime("%d/%m %H:%M", localtime()))
+            print('\nEvent %d completed'%(engine.state.iteration*BATCH_SIZE),strftime("%d/%m %H:%M", localtime()))
     lr_trainer.add_event_handler(Events.ITERATION_COMPLETED, log_lr, lr, loss_vals, optimizer, scheduler, n_steps)
     
     print(strftime("%d/%m %H:%M", localtime()), ': LR-scan begun.')
@@ -164,6 +164,7 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     start_lr = hyper_pars['lr_finder']['start_lr']
     end_lr = hyper_pars['lr_finder']['end_lr'] 
     hyper_pars['optimizer']['lr'] = start_lr
+    gpus = meta_pars['gpu']
 
     #* ======================================================================== 
     #* MAKE LR SCAN
@@ -184,7 +185,7 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     # * Use IGNITE to train
     pretrain_hyper_pars = hyper_pars['optimizer'].copy()
     pretrain_hyper_pars['lr'] = start_lr
-    lr, loss_vals = calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
+    lr, loss_vals = calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, gpus, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
 
     #* ======================================================================== 
     #* SAVE RELEVANT THINGS
@@ -699,7 +700,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
         lr_model = lr_model.to(device)
 
         pretrain_optimizer = get_optimizer(lr_model.parameters(), pretrain_hyper_pars)
-        pretrain_lr, pretrain_losses = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, start_lr=pretrain_hyper_pars['lr'])
+        pretrain_lr, pretrain_losses = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, gpus, start_lr=pretrain_hyper_pars['lr'])
 
         vlines = []
         if 'base_lr' in hyper_pars['lr_schedule']:

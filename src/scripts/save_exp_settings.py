@@ -23,9 +23,11 @@ parser.add_argument('--lr_finder_epochs', default=1, type=int, help='Sets the nu
 parser.add_argument('--regression', default='None', type=str, help='Sets the regression type to run. Options: "full_reg", "direction_reg", "vertex_reg", "vertex_reg_no_time", "energy_reg"')
 parser.add_argument('--loss', default='None', type=str, help='Sets the loss function to use. Options: "L2", "logcosh"')
 parser.add_argument('--masks', nargs='+', default='None', type=str, help='Sets the masks to choose data. Options: "dom_interval_SplitInIcePulses_min0_max200", "dom_interval_SRTInIcePulses_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
-parser.add_argument('--weights', default='None', type=str, help='Sets the weights to use. Options: "geomean_energy_entry", "None"')
+parser.add_argument('--weights', default='None', type=str, help='Sets the weights to use. Options: "geomean_energy_entry", "inverse_performance_muon_energy", "None"')
 parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, help='Sets the DOM mask to use. Options: "SplitInIcePulses", "dom_interval_SRTInIcePulses"')
 parser.add_argument('--gpu', nargs='+', default='0', type=str, help='Sets the IDs of the GPUs to use')
+parser.add_argument('--batch_size', default=128, type=int, help='Sets batchsize.')
+
 
 
 args = parser.parse_args()
@@ -77,7 +79,7 @@ if __name__ == '__main__':
                 'gpu':                  args.gpu
                 }
 
-    hyper_pars = {'batch_size':        128 if not args.dev else 21,
+    hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
                 'max_epochs':          10 if not args.dev else 2,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
@@ -154,7 +156,7 @@ if __name__ == '__main__':
                                                 {'LstmBlock':        {'n_in':               n_seq_feat,
                                                                      'n_out':               256,
                                                                      'n_parallel':          1,
-                                                                     'n_stacks':            2,
+                                                                     'n_stacks':            1,
                                                                      'residual':            False}},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
                                                 #                    'dropout':             0.5,
