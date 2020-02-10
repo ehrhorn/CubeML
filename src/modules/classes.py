@@ -107,7 +107,6 @@ class PickleLoader(data.Dataset):
         with open(path, 'rb') as f:
             event = pickle.load(f)
 
-        print(event['raw']['true_primary_energy'], weight)
         # * Extract relevant data
         dom_indices = event['masks'][self.dom_mask]
         seq_len = event[self.prefix][self.seq_features[0]][dom_indices].shape[0]

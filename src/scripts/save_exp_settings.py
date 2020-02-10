@@ -80,7 +80,7 @@ if __name__ == '__main__':
                 }
 
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
-                'max_epochs':          10 if not args.dev else 2,
+                'max_epochs':          13 if not args.dev else 2,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
@@ -154,14 +154,14 @@ if __name__ == '__main__':
                         'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                 #                     'LayerNorm':          True},},
                                                 {'LstmBlock':        {'n_in':               n_seq_feat,
-                                                                     'n_out':               256,
+                                                                     'n_out':               128,
                                                                      'n_parallel':          1,
                                                                      'n_stacks':            1,
                                                                      'residual':            False}},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
-                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [128+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
