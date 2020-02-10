@@ -83,7 +83,7 @@ if __name__ == '__main__':
                 'max_epochs':          13 if not args.dev else 2,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-6,#0.00003,#0.001, 
+                                        'lr':             1e-6 if not args.dev else 1e-1,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
@@ -153,15 +153,15 @@ if __name__ == '__main__':
 
                         'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                 #                     'LayerNorm':          True},},
-                                                # {'LstmBlock':        {'n_in':               n_seq_feat,
-                                                #                      'n_out':               128,
-                                                #                      'n_parallel':          1,
-                                                #                      'n_stacks':            1,
-                                                #                      'residual':            False}},
+                                                {'LstmBlock':        {'n_in':               n_seq_feat,
+                                                                     'n_out':               n_seq_feat,
+                                                                     'n_parallel':          1,
+                                                                     'n_stacks':            1,
+                                                                     'residual':            False}},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
-                                                {'AveragePool':      {}},
+                                                {'ManyToOneAttention':{'n_in':             n_seq_feat}},
                                                 {'Linear':          {'input_sizes':        [n_seq_feat+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }

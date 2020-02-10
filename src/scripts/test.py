@@ -49,12 +49,23 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
     # print(scalar_features)
 
 
-weights = '/groups/hep/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/weights/inverse_performance_muon_energy.pickle'
-weights = pickle.load(open(weights, 'rb'))
-interpolator = weights['interpolator']
-x = np.linspace(0.0, 3.0, 200)
-y = interpolator(x)
+# weights = '/groups/hep/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/weights/inverse_performance_muon_energy.pickle'
+# weights = pickle.load(open(weights, 'rb'))
+# interpolator = weights['interpolator']
+# x = np.linspace(0.0, 3.0, 200)
+# y = interpolator(x)
 
-d = {'x': [x], 'y': [y]}
-d['savefig'] = get_project_root()+'/WEIGHT_TEST.png'
-fig = rpt.make_plot(d)
+# d = {'x': [x], 'y': [y]}
+# d['savefig'] = get_project_root()+'/WEIGHT_TEST.png'
+# fig = rpt.make_plot(d)
+n = 1000
+n_exp = 1000
+x = np.random.normal(size=(n,n_exp))
+y = np.random.normal(size=(n,n_exp))
+
+res = np.sum(x*y, axis=0)
+mean = np.mean(res)
+std = np.std(res)
+print('Sums: %d, experiments: %d'%(n, n_exp))
+print('Mean: %.2f, std: %.2f'%(mean, std))
+print('Divided by sqrt(n): Mean: %.2f, std: %.2f'%(mean/np.sqrt(n), std/np.sqrt(n)))
