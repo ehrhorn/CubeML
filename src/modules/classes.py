@@ -425,6 +425,10 @@ class MakeModel(nn.Module):
             elif layer_name == 'MaxPool':
                 x = entry(seq, lengths, device=device)
             
+            # * Same goes for average pool.
+            elif layer_name == 'AveragePool':
+                x = entry(seq, lengths, device=device)
+            
             elif layer_name == 'LstmBlock':
                 x = entry(seq, lengths, device=device)
 
@@ -658,6 +662,44 @@ class MaxPool(nn.Module):
             mask = mask.unsqueeze(2)
         return mask
 
+class AveragePool(nn.Module):
+    def __init__(self):
+                
+        super(AveragePool, self).__init__()
+        self._batch_first = True
+        # self.device = get_device()
+
+    def forward(self, seq, lengths, device=None):
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            max_length = seq.shape[1]
+        else:
+            max_length = seq.shape[0]
+
+        # * A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
+        # * Maxpooling is done over the second index
+        mask = self._get_mask(lengths, max_length, batch_first=True, device=device)
+        # * By masking with 0, it is ensured that DOMs that are actually not there do not have an influence on the sum. By dividing with sequence length, we get the true mean
+        seq = seq.masked_fill(~mask, 0.0)
+        if self._batch_first:
+            # * (B, L, *) --> (B, *)
+            seq = torch.sum(seq, dim=1)
+            bs, feats = seq.shape
+            # * Some view-acrobatics due to broadcasting semantics.
+            seq = (seq.view(feats, bs)/lengths).view(bs, feats)
+        else:
+            raise ValueError('Not sure when batch not first - AveragePool')
+
+        return seq
+
+    def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
+        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        if batch_first:
+            # * The 'None' is a placeholder so dimensions are matched.
+            mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
+            mask = mask.unsqueeze(2)
+        return mask
+
 #* ======================================================================== 
 #* MODEL FUNCTIONS
 #* ========================================================================
@@ -827,6 +869,8 @@ def make_model_architecture(arch_dict):
                 modules = add_AttentionBlock_modules(arch_dict, layer_dict, modules, mode='decoder')
             elif key == 'MaxPool':
                 modules.append(MaxPool())
+            elif key == 'AveragePool':
+                modules.append(AveragePool())
             elif key == 'LstmBlock':
                 modules.append(LstmBlock(**layer_dict))
             else: 
