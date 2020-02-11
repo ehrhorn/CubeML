@@ -164,11 +164,14 @@ class Performance:
         for key, data in pred_dict.items():
             print('')
             print(get_time(), 'Calculating %s performance...'%(key))
-            sigma, sigmaerr = calc_perf2_as_fn_of_energy(energy, data, self.bin_edges)
+            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_energy(energy, data, self.bin_edges)
             print(get_time(), 'Calculation finished!')
             setattr(self, key+'_sigma', sigma)
             setattr(self, key+'_sigmaerr', sigmaerr)
-        
+            setattr(self, key+'_50th', median)
+            setattr(self, key+'_84th', upper_perc)
+            setattr(self, key+'_16th', lower_perc)
+
         # * Calculate performance for Icecubes predictions
         # * Ensure keys are proper so the error calculations work
         conversion_keys_crs = self._get_conversion_keys_crs()
@@ -181,10 +184,13 @@ class Performance:
         for i_var, key in enumerate(conversion_keys_crs):
             error = error_funcs[i_var](crs_dict, true_transformed, reporting=True)
             print(get_time(), 'Calculating %s performance...'%(self._reco_keys[i_var]))
-            sigma, sigmaerr = calc_perf2_as_fn_of_energy(energy, error, self.bin_edges)
+            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_energy(energy, error, self.bin_edges)
             print(get_time(), 'Calculation finished!')
             setattr(self, self._reco_keys[i_var]+'_sigma', sigma)
             setattr(self, self._reco_keys[i_var]+'_sigmaerr', sigmaerr)
+            setattr(self, key+'_50th', median)
+            setattr(self, key+'_84th', upper_perc)
+            setattr(self, key+'_16th', lower_perc)
 
         # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._reco_keys):
