@@ -534,6 +534,7 @@ def log_performance_plots(model_dir, wandb_ID=None):
     
     _, _, _, meta_pars = load_model_pars(model_dir)
     
+    print('')
     print(get_time(), 'Evaluation of model performance initiated.')
     performance = Performance(model_dir, wandb_ID=wandb_ID)
     performance.save()
@@ -568,6 +569,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
 
         h_figure = plt.figure()
         h_axis = h_figure.add_axes(position)
+    else:
+        h_axis = h_figure.gca()
 
     if 'twinx' in plot_dict and h_figure != None:
         if plot_dict['twinx']:
@@ -586,7 +589,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
         
         for i_set, dataset in enumerate(plot_dict['y']):
-            plot_keys = ['label']
+            # * Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
+            plot_keys = ['label', 'drawstyle', 'color', 'zorder']
             #* Set baseline
             d = {'linewidth': 1.5}
             for key in plot_dict:
@@ -594,7 +598,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
             # plt.plot(plot_dict['x'][i_set], dataset, **d)
             h_axis.plot(plot_dict['x'][i_set], dataset, **d)
             
-        if 'label' in plot_dict: h_axis.legend()
+        if 'label' in plot_dict: 
+            h_axis.legend()
         
     elif 'data' in plot_dict:
         if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
@@ -637,7 +642,7 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         #* Rescale 
         widths1 = np.linspace(min(widths1), max(widths1), int(0.5 + widths1.shape[0]/4.0))
         widths2 = np.linspace(min(widths2), max(widths2), int(0.5 + widths2.shape[0]/4.0))
-        plt.hist2d(set1, set2, bins = [widths1, widths2])
+        plt.hist2d(set1, set2, bins=[widths1, widths2], zorder=plot_dict.get('zorder', 0), cmap='Oranges')
         plt.colorbar()
 
     elif 'hexbin' in plot_dict:
