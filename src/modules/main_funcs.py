@@ -12,6 +12,7 @@ import wandb
 import PIL
 import json
 import subprocess
+import multiprocessing
 
 # * Custom classes and functions
 import src.modules.loss_funcs
@@ -500,7 +501,9 @@ def run_experiments(log=True):
     exp_dir = get_project_root() + '/experiments'
     exps = Path(exp_dir).glob('*.json')
     n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
-
+    
+    # ! Someone online set to add next line to ensure CUDA works...
+    multiprocessing.set_start_method('spawn')
     while n_exps>0:
         
         for exp in exps:
@@ -860,7 +863,6 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     group = meta_pars['group'] # * under which dir to save?
     project = meta_pars['project']
     particle = data_pars.get('particle', 'any')
-    
 
     # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
     if meta_pars['objective'] == 'continue_training':
