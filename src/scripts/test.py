@@ -58,14 +58,41 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
 # d = {'x': [x], 'y': [y]}
 # d['savefig'] = get_project_root()+'/WEIGHT_TEST.png'
 # fig = rpt.make_plot(d)
-n = 1000
-n_exp = 1000
-x = np.random.normal(size=(n,n_exp))
-y = np.random.normal(size=(n,n_exp))
+intervals = np.linspace(0.0, 3.0, 19)
+lowers = intervals[:-1]
+uppers = intervals[1:]
+centers = (uppers+lowers)/2
+means = np.linspace(8.0, 10.0, 18)
+sigmas = np.linspace(3.0, 1.0, 18)
+n_events = np.arange(40000, 40018)
 
-res = np.sum(x*y, axis=0)
-mean = np.mean(res)
-std = np.std(res)
-print('Sums: %d, experiments: %d'%(n, n_exp))
-print('Mean: %.2f, std: %.2f'%(mean, std))
-print('Divided by sqrt(n): Mean: %.2f, std: %.2f'%(mean/np.sqrt(n), std/np.sqrt(n)))
+medians, upper_percs, lower_percs = [], [], []
+all_energy, all_errors = [], []
+
+for lower, upper, mean, sigma, events in zip(lowers, uppers, means, sigmas, n_events):
+    energy = np.random.uniform(low=lower, high=upper, size=(events,))
+    errors = np.random.normal(loc=mean, scale=sigma, size=(events,))
+
+    medians.append(np.percentile(errors, 50))
+    upper_percs.append(np.percentile(errors, 84))
+    lower_percs.append(np.percentile(errors, 16))
+
+    all_energy.extend(energy)
+    all_errors.extend(errors)
+# %%
+
+# fig = rpt.make_plot(d)
+
+d2 = {}
+d2['hist2d'] = [all_energy, all_errors]
+d2['zorder'] = 0
+f2 = rpt.make_plot(d2)
+#%%
+d = {}
+d['x'] = [centers, centers, centers]
+d['y'] = [upper_percs, medians, lower_percs]
+d['drawstyle'] = ['steps-mid', 'steps-mid', 'steps-mid']
+d['color'] = ['red','red', 'red']
+d['zorder'] = [1, 1, 1]
+d['savefig'] = get_project_root() + '/LOLOMG.png'
+f3 = rpt.make_plot(d, h_figure=f2)

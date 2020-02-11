@@ -255,36 +255,21 @@ def calc_MAEs(sorted_data, entries, error_measure='median'):
     
     return maes
 
-# def calc_perf_as_fn_of_energy(energy, predictor_vals, n_bins=15):
-#     '''Calculates error histograms as a function of energy.
+def calc_perf_as_fn_of_energy(energy, predictor_vals, bin_edges):
+    """Calculates performance measured as width of error histograms as a function of energy using multiprocessing.
+    
+    Arguments:
+        energy {list} -- Energy of event
+        predictor_vals {list} -- Prediction (typically some error measure)
+        bin_edges {list} -- Edges of each energy bin.
+    
+    Returns:
+        lists -- estimated sigma, estimated error on sigma, estimated 84th percentile and estimated 16th percentile
+    """  
 
-#     Input
-#     true: list of true values
-#     predictor_vals: list of predictions
-
-#     returns: lists of edges, Median Absolute errors and interquartile errors.
-#     '''
-
-#     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
-
-#     entries, edges = calc_histogram(energy_sorted, n_bins=n_bins)
-#     maes = calc_MAEs(predictor_vals_sorted, entries)
-#     widths_lower, widths_upper = calc_widths(predictor_vals_sorted, entries)
-
-#     return edges, maes, [widths_lower, widths_upper]
-
-def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
-    '''Calculates error histograms as a function of energy using multiprocessing.
-
-    Input
-    true: list of true values
-    predictor_vals: list of predictions
-
-    returns: lists of edges, Median Absolute errors and interquartile errors.
-    '''
     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
-    sigmas, e_sigmas = [], []
+    sigmas, e_sigmas, median, upper_perc, lower_perc = [], [], [], [], []
     
     # * Spread the job
     available_cores = cpu_count()
@@ -295,40 +280,12 @@ def calc_perf2_as_fn_of_energy(energy, predictor_vals, bin_edges):
     for d in dicts:
         sigmas.append(d['sigma'])
         e_sigmas.append(d['e_sigma'])
+        median.append(d['50th'])
+        upper_perc.append(d['84th'])
+        lower_perc.append(d['16th'])
 
-    return sigmas, e_sigmas
 
-# def calc_perf2_as_fn_of_energy_old(energy, predictor_vals, bin_edges):
-#     '''Calculates error histograms as a function of energy.
-
-#     Input
-#     true: list of true values
-#     predictor_vals: list of predictions
-
-#     returns: lists of edges, Median Absolute errors and interquartile errors.
-#     '''
-#     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
-#     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
-#     sigmas, e_sigmas = [], []
-#     for entry in predictor_bins:
-#         means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75])
-#         e_quartiles = []
-#         e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
-#         e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
-
-#         # * Assume errors are symmetric - which they look to be (quick inspection)
-#         # * Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
-#         sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
-        
-#         # * Ignore nans - it is due to too little statistics in a bin
-#         if e_sigma != e_sigma:
-#             sigma = np.nan
-            
-#         sigmas.append(sigma)
-#         e_sigmas.append(e_sigma)
-#     # return predictor_bins, energy_sorted
-
-#     return sigmas, e_sigmas
+    return sigmas, e_sigmas, median, upper_perc, lower_perc
 
 def calc_relative_error(l1, l2, e1=None, e2=None):
     """Calculates the relative error (l2-l1) / l1 wrt the values of l1 and propagates uncertainties if given.
@@ -528,12 +485,11 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
         
         try:    
             mean = bootstrap_samples[i_means[i], :]
-            means.append(np.mean(mean))
-
             plussigma = bootstrap_samples[i_plussigmas[i], :]
-            plussigmas.append(np.mean(plussigma))
-
             minussigma = bootstrap_samples[i_minussigmas[i], :]
+            
+            means.append(np.mean(mean))
+            plussigmas.append(np.mean(plussigma))
             minussigmas.append(np.mean(minussigma))
         except IndexError:
             means.append(np.nan)
@@ -543,8 +499,17 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
     return means, plussigmas, minussigmas
 
 def estimate_sigma_multiprocess(entry):
+    """Multiprocessing approach to calculating standard deviation, 16th and 84th percentiles of some given data.
+    
+    Arguments:
+        entry {array-like} -- Some dataset.
+    
+    Returns:
+        dict -- Dictionary with keys 'sigma', 'e_sigma', '16th' and '84th', corresponding to sigma, error on sigma, 16th percentile and 84th percentile.
+    """    
 
-    means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75])
+    # * 0.15865, 0.84135 corresponds to actual +- 1 sigma
+    means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75, 0.50, 0.15865, 0.84135])
     e_quartiles = []
     e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
     e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
@@ -552,12 +517,11 @@ def estimate_sigma_multiprocess(entry):
     # * Assume errors are symmetric - which they look to be (quick inspection)
     # * Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
     sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
-    
     # * Ignore nans - it is due to too little statistics in a bin
     if e_sigma != e_sigma:
         sigma = np.nan
     
-    return {'sigma': sigma, 'e_sigma': e_sigma}
+    return {'sigma': sigma, 'e_sigma': e_sigma, '50th': means[2], '16th': means[3], '84th': means[4]}
 
 def find_best_model_pars(model_dir):
     '''Scans through saved model parameters in a model directory and returns the parameter-file of the best model.

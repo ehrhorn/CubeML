@@ -901,7 +901,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
             json.dump(architecture_pars, fp)
         
         meta_pars['status'] = 'Failed'
-        n_devices = torch.cuda.device_count()
+        n_devices = len(meta_pars['gpu'])
         meta_pars['n_devices'] = n_devices
         with open(save_dir+'/meta_pars.json', 'w') as fp:
             json.dump(meta_pars, fp)
