@@ -172,6 +172,9 @@ class Performance:
             setattr(self, key+'_84th', upper_perc)
             setattr(self, key+'_16th', lower_perc)
 
+            # * We make the I3-plot here so we do not have to save all the data...
+            self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc)
+
         # * Calculate performance for Icecubes predictions
         # * Ensure keys are proper so the error calculations work
         conversion_keys_crs = self._get_conversion_keys_crs()
@@ -354,6 +357,36 @@ class Performance:
 
         return label
 
+    def _make_I3_perf_plot(self, key, energy, data, median, upper_perc, lower_perc):
+        if key == 'relative_E_error':
+            clip_val = 4.0
+        else:
+            clip_val = np.inf
+
+        d2 = {}
+        d2['hist2d'] = [energy, np.clip(data, -clip_val, clip_val)]
+        d2['zorder'] = 0
+        f2 = make_plot(d2)
+        
+        d = {}
+        d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers]
+        d['y'] = [upper_perc, median, lower_perc]
+        d['drawstyle'] = ['steps-mid', 'steps-mid', 'steps-mid']
+        d['linestyle'] = [':', ':', ':']
+        d['color'] = ['red','red', 'red']
+        d['zorder'] = [1, 1, 1]
+        img_address = get_project_root()+self.model_dir+'/figures/'+key+'_2DPerformance.png'
+        d['savefig'] = img_address
+        f3 = make_plot(d, h_figure=f2)
+
+        # * Load img with PIL - this format can be logged
+        if self.wandb_ID is not None:
+            im = PIL.Image.open(img_address)
+            wandb.log({key+'_2Dperformance': wandb.Image(im, caption=key+'_2Dperformance')}, commit=False)
+            
+            # * Save the performance class-instance for easy transfers between local and cloud
+            wandb.save(perf_savepath)
+
     def save(self):
         
         perf_savepath = get_project_root() + self.model_dir + '/data/Performance.pickle'
@@ -390,7 +423,6 @@ class Performance:
                 
                 # * Save the performance class-instance for easy transfers between local and cloud
                 wandb.save(perf_savepath)
-
 
 
 #* ======================================================================== 
@@ -590,7 +622,7 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         
         for i_set, dataset in enumerate(plot_dict['y']):
             # * Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
-            plot_keys = ['label', 'drawstyle', 'color', 'zorder']
+            plot_keys = ['label', 'drawstyle', 'color', 'zorder', 'linestyle']
             #* Set baseline
             d = {'linewidth': 1.5}
             for key in plot_dict:
