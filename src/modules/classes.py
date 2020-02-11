@@ -404,6 +404,7 @@ class MakeModel(nn.Module):
                     x = x.view(batch_size, entry.hidden_size)
             
             elif layer_name == 'Linear':
+
                 # * If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
                 if 'scalars' in locals(): 
                     if add_scalars: 
@@ -420,6 +421,10 @@ class MakeModel(nn.Module):
             
             elif layer_name == 'AttentionDecoder':
                 x = entry(seq, lengths, device=device)
+            
+            # * AttentionBlock2 is seq2seq
+            elif layer_name == 'AttentionBlock2':
+                seq = entry(seq, lengths, device=device)
             
             # * Many to one! Therefore outputs x
             elif layer_name == 'ManyToOneAttention':
@@ -556,6 +561,82 @@ class AttentionBlock(nn.Module):
             mask = mask.unsqueeze(1)
         return mask
 
+class AttentionBlock2(nn.Module):
+    """Implementation of Self Attention almost as described in 'Attention is All You Need'. Uses no value-vectors, but just the sequence itself. Furthermore, experimenting with only normalizing after nonlinearity.
+    
+    (or https://jalammar.github.io/illustrated-transformer/) - calculates query-, key- and valuevectors, softmaxes a padded sequence and scales the dotproducts and returns weighted sum of values vectors.
+    
+    Can work both as a seq2seq encoder or as a seq2vec decoder - in this case, the key-matrix produces one key only.
+    Returns:
+        nn.Module -- A Self-attention layer 
+    """
+    def __init__(self, arch_dict, layer_dict, n_in, n_out, batch_first=True):
+                
+        super(AttentionBlock2, self).__init__()
+        self.arch_dict = arch_dict
+        self.layer_dict = layer_dict
+        self.n_in = n_in
+        self.n_out = n_out
+        self._batch_first = batch_first
+
+        self.Q = nn.Linear(in_features=n_in, out_features=n_out)
+        self.K = nn.Linear(in_features=n_in, out_features=n_out)
+        init_weights(arch_dict, arch_dict['non_lin'], self.Q)
+        init_weights(arch_dict, arch_dict['non_lin'], self.K)
+
+        self.softmax = nn.Softmax(dim=-1)
+        self.linear_out = nn.Linear(in_features=n_out, out_features=n_out)
+        self.nonlin = add_non_lin(arch_dict, arch_dict['non_lin'])
+        if self.layer_dict.get('LayerNorm', False):
+            self.norm = nn.LayerNorm(n_out)
+        if self.layer_dict.get('Residual', False):
+            self.residual_connection = True
+        
+    
+    def forward(self, seq, lengths, device=None):
+        
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            max_length = seq.shape[1]
+        else:
+            max_length = seq.shape[0]
+
+        q = self.Q(seq)
+        k = self.K(seq)
+        
+        # * Attention -> potential norm and residual connection
+        post_attention = self._calc_self_attention(q, k, seq, lengths, max_length, batch_first=self._batch_first, device=device)
+        
+        # * linear layer -> nonlin -> potential norm and residual connection
+        output = self.nonlin(self.linear_out(post_attention))
+        if self.residual_connection:
+            output = output + post_attention
+        if self.norm:
+            output = self.norm(output)
+
+        return output
+
+    def _calc_self_attention(self, q, k, v, lengths, max_length, batch_first=False, device=None):
+        # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
+        # * The transpose means swap second to last and last dimension
+        # * masked_fill_ is in-place, masked_fill creates a new tensor
+        weights = torch.matmul(q, k.transpose(-2, -1)) / sqrt(self.n_out)
+        mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
+        weights = weights.masked_fill(~mask, float('-inf'))
+        weights = self.softmax(weights)
+        
+        # * Calculate weighted sum of v-vectors.
+        output = torch.matmul(weights, v)
+        
+        return output
+
+    def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
+        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        if batch_first:
+            mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
+            mask = mask.unsqueeze(1)
+        return mask
+
 class ManyToOneAttention(nn.Module):
     """Implementation of Self Attention almost as described in 'Attention is All You Need'.
     
@@ -577,15 +658,12 @@ class ManyToOneAttention(nn.Module):
         # * We will only have one keyvector - this is the one we want to learn.
         # * Instantiate with normally distributed numbers. The dotproduct of 2 vectors of dim N with normally distributed numbers will have a mean of 0 and variance of N. 
         self.k = nn.Parameter(torch.empty(self.n_in).normal_(mean=0,std=1.0), requires_grad=True)
-        self.test = nn.Parameter(torch.empty(1).normal_(mean=0,std=1.0))
-        # self.k = nn.Parameter(np.random.normal(size=(self.n_in,)), requires_grad=True)
         init_weights(arch_dict, arch_dict['non_lin'], self.Q)
 
         self.softmax = nn.Softmax(dim=-1)
         
     
     def forward(self, seq, lengths, device=None):
-        print(self.k)
         # * The max length is retrieved this way such that dataparallel works
         if self._batch_first:
             max_length = seq.shape[1]
@@ -598,34 +676,25 @@ class ManyToOneAttention(nn.Module):
         # * Attention -> potential norm and residual connection
         post_attention = self._calc_self_attention(q, seq, lengths, max_length, batch_first=self._batch_first, device=device)
         
-        return self.test*post_attention.squeeze(1)
+        return post_attention.squeeze(1)
 
     def _calc_self_attention(self, q, v, lengths, max_length, batch_first=False, device=None):
         
         # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
         # * The transpose means swap second to last and last dimension
         # * masked_fill_ is in-place, masked_fill creates a new tensor
-        # print(q.shape, self.k.shape, self.k.view(1, 1, -1).shape)
-        # prods = q*self.k.view(1, 1, -1)
-        # weights = torch.sum(prods, axis=-1) / sqrt(self.n_in)
-        # mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
-        # weights = weights.masked_fill(~mask, float('-inf'))
-        # weights = self.softmax(weights)
-        # shape = weights.shape
-        # output = torch.matmul(weights.view(shape[0], -1, shape[1]), v)
-        # # print(output.shape)
-        # return output
-
-        # print(output.shape)
-        # a+=1
+        
+        # * q: (B, L, F). k: (F, 1)
         weights = torch.matmul(q, self.k.view(self.n_in, -1)) / sqrt(self.n_in)
         mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
+        
+        # * weights: (B, L, 1)
         weights = weights.squeeze(-1).masked_fill(~mask, float('-inf'))
         weights = self.softmax(weights)
-        # print(self.k)
         
         # * Calculate weighted sum of v-vectors.
         shape = weights.shape
+        # * output becomes: (B, 1, F)
         output = torch.matmul(weights.view(shape[0], -1, shape[1]), v)
         
         return output
@@ -884,6 +953,13 @@ def add_AttentionBlock_modules(arch_dict, layer_dict, modules, mode=None):
     
     return modules
 
+def add_AttentionBlock2_modules(arch_dict, layer_dict, modules):
+
+    for n_in, n_out in zip(layer_dict['input_sizes'][:-1], layer_dict['input_sizes'][1:]):
+        modules.append(AttentionBlock2(arch_dict, layer_dict, n_in, n_out))
+    
+    return modules
+
 def init_weights(arch_dict, layer_dict, layer):
 
     if type(layer) == torch.nn.modules.linear.Linear:
@@ -953,6 +1029,8 @@ def make_model_architecture(arch_dict):
                 modules = add_AttentionBlock_modules(arch_dict, layer_dict, modules, mode='encoder')
             elif key == 'AttentionDecoder':
                 modules = add_AttentionBlock_modules(arch_dict, layer_dict, modules, mode='decoder')
+            elif key == 'AttentionBlock2':
+                modules = add_AttentionBlock2_modules(arch_dict, layer_dict, modules)
             elif key == 'ManyToOneAttention':
                 modules.append(ManyToOneAttention(arch_dict, layer_dict))
             elif key == 'MaxPool':
@@ -976,6 +1054,11 @@ def get_layer_names(arch_dict):
                 n_attention_modules = len(layer['AttentionBlock']['input_sizes'])-1
                 for nth_attention_layer in range(n_attention_modules):
                     layer_names.append(layer_name)
+            elif layer_name == 'AttentionBlock2':
+                n_attention_modules = len(layer['AttentionBlock2']['input_sizes'])-1
+                for nth_attention_layer in range(n_attention_modules):
+                    layer_names.append(layer_name)
             else:
                 layer_names.append(layer_name)
+    
     return layer_names
