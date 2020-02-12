@@ -154,9 +154,9 @@ if __name__ == '__main__':
                         'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                 #                     'LayerNorm':          True},},
                                                 {'BiLSTM':          {'n_in':               n_seq_feat,
-                                                                     'n_hidden':           n_seq_feat*2,
+                                                                     'n_hidden':           128,
                                                                      'residual':           False,
-                                                                     'learn_init':         True}},
+                                                                     'learn_init':         False}},
                                                 # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
                                                 #                       'LayerNorm':          True,
                                                 #                       'Residual':           True},},
@@ -164,7 +164,7 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'Linear':          {'input_sizes':        [2*2*n_seq_feat+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [2*128+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
