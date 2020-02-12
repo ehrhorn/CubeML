@@ -366,13 +366,15 @@ class Performance:
         d2 = {}
         d2['hist2d'] = [energy, np.clip(data, -clip_val, clip_val)]
         d2['zorder'] = 0
+        d2['xlabel'] = r'log(E) [E/GeV]' 
+        d2['ylabel'] = 'Rel. Imp.'
         f2 = make_plot(d2)
         
         d = {}
         d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers]
         d['y'] = [upper_perc, median, lower_perc]
         d['drawstyle'] = ['steps-mid', 'steps-mid', 'steps-mid']
-        d['linestyle'] = [':', ':', ':']
+        d['linestyle'] = ['--', '--', '--']
         d['color'] = ['red','red', 'red']
         d['zorder'] = [1, 1, 1]
         img_address = get_project_root()+self.model_dir+'/figures/'+key+'_2DPerformance.png'
@@ -383,9 +385,6 @@ class Performance:
         if self.wandb_ID is not None:
             im = PIL.Image.open(img_address)
             wandb.log({key+'_2Dperformance': wandb.Image(im, caption=key+'_2Dperformance')}, commit=False)
-            
-            # * Save the performance class-instance for easy transfers between local and cloud
-            wandb.save(perf_savepath)
 
     def save(self):
         
