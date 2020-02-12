@@ -647,6 +647,40 @@ class BiLSTM(nn.Module):
         return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
                 torch.zeros(num_dir, batch_size, hidden_size, device=device))
 
+class ResBlock(nn.Module):
+    """A Residual block as proposed in 'Identity Mappings in Deep Residual Networks'
+    """    
+    def __init__(self, arch_dict, layer_dict, n_in, n_out, norm=False, residual=False, batch_first=True):
+        super(ResBlock, self).__init__()
+        if n_in != n_out:
+            self.linear0 = nn.linear(in_features=n_in, out_features=n_out)
+
+        self.linear1 = nn.Linear(in_features=n_out, out_features=n_out)
+        init_weights(arch_dict, arch_dict['non_lin'], self.linear1)
+        self.non_lin1 = add_non_lin(arch_dict, arch_dict['non_lin'])
+
+        self.linear2 = nn.Linear(in_features=n_out, out_features=n_out)
+        init_weights(arch_dict, arch_dict['non_lin'], self.linear2)
+        self.non_lin2 = add_non_lin(arch_dict, arch_dict['non_lin'])
+
+        if norm:
+            self.norm1 = add_norm(arch_dict, layer_dict, n_out)
+            self.norm2 = add_norm(arch_dict, layer_dict, n_out)
+
+    def forward(self, seq, device=None):
+
+        if self.linear0:
+            seq = self.linear0(seq)
+        
+        res = self.linear1(self.non_lin1(self.norm1(seq)))
+        res = self.linear2(self.non_lin2(self.norm2(res)))
+
+        return seq+res
+
+
+
+
+
 class LstmBlock(nn.Module):
     
     def __init__(self, n_in, n_out, n_parallel, n_stacks, bidir=False, residual=True, batch_first=True):
@@ -1037,6 +1071,9 @@ def add_norm(arch_dict, layer_dict, n_features):
         else: eps = 1e-05
         
         return nn.BatchNorm1d(n_features, eps=eps, momentum=mom)
+    elif layer_dict['norm'] == 'LayerNorm':
+        return nn.LayerNorm(n_features)
+
     else: 
         raise ValueError('An unknown normalization could not be added in model generation.')
 
