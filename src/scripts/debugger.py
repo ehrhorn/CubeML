@@ -83,7 +83,7 @@ if __name__ == '__main__':
                 'max_epochs':          13 if not args.dev else 2,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-6 if not args.dev else 1e-1,#0.00003,#0.001, 
+                                        'lr':             1e-6 if not args.dev else 1e-3,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
@@ -152,13 +152,17 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':             [ {'ResBlock':        {'input_sizes':        [n_seq_feat, 64, 64, 64],
-                                                                     'norm':               'LayerNorm',
-                                                                     'type':               'seq'}},
-                                                {'BiLSTM':          {'n_in':               64,
-                                                                     'n_hidden':           128,
-                                                                     'residual':           False,
-                                                                     'learn_init':         False}},
+                        'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
+                                                #                     'LayerNorm':          True},},
+                                                # {'BiLSTM':          {'n_in':               n_seq_feat,
+                                                #                      'n_hidden':           128,
+                                                #                      'residual':           False,
+                                                #                      'learn_init':         False}},
+                                                {'LstmBlock':       {'n_in':              n_seq_feat,
+                                                                     'n_out':             128,
+                                                                     'n_parallel':        1,
+                                                                     'n_stacks':          2,
+                                                                     'residual':          False}},
                                                 # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
                                                 #                       'LayerNorm':          True,
                                                 #                       'Residual':           True},},
@@ -166,9 +170,11 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'ResBlock':        {'input_sizes':        [n, n, n],
+                                                {'ResBlock':        {'input_sizes':        [128+n_scalar_feat, 128+n_scalar_feat],
                                                                      'norm':               'BatchNorm1D',
-                                                                     'type':               'x'}},]
+                                                                     'type':               'x'}},
+                                                {'Linear':          {'input_sizes':        [128+n_scalar_feat, n_target],
+                                                                    'norm_before_nonlin':  True}}]
                         }
                                                 
 

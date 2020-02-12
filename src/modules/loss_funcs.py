@@ -31,8 +31,6 @@ class dir_reg_L1_like_loss(torch.nn.Module):
         super(dir_reg_L1_like_loss,self).__init__()
         
     def forward(self, x, y):
-        print(x.shape)
-        print(y.shape)
         alpha, beta = 1.0, 1.0
         
         e_dir = torch.acos((x[:, 0]*y[:, 0] + x[:, 1]*y[:, 1] + x[:, 2]*y[:, 2])/((x[:, 0]**2 + x[:, 1]**2 + x[:, 2]**2)**0.5))
@@ -163,7 +161,7 @@ class L2(torch.nn.Module):
         Returns:
             [torch.Tensor] -- Averaged, weighted loss over batch.
         """      
-          
+        
         # * Unpack into targets and weights
         targets, weights = y
 

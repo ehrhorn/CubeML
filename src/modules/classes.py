@@ -708,7 +708,6 @@ class LstmBlock(nn.Module):
             batch_size = seq.shape[1]
 
         # * Send through LSTMs! Prep for first layer.
-        print(seq.shape)
         seq = pack(seq, lengths, batch_first=self._batch_first)
         
         # * x is output - concatenate outputs of LSTMs in parallel
@@ -723,8 +722,6 @@ class LstmBlock(nn.Module):
             # * If residual connection, save the pre-LSTM version
             if self.residual:
                 seq_par_pre, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
-                print(seq_par_pre.shape)
-                a+=1
             for i_stack in range(1, len(stack)):
                 
                 h_par = self.init_hidden(batch_size, stack[i_stack], device)
