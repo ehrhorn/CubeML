@@ -153,19 +153,18 @@ if __name__ == '__main__':
 
                         'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                 #                     'LayerNorm':          True},},
-                                                # {'LstmBlock':        {'n_in':               n_seq_feat,
-                                                #                      'n_out':               n_seq_feat,
-                                                #                      'n_parallel':          1,
-                                                #                      'n_stacks':            1,
-                                                #                      'residual':            False}},
-                                                {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
-                                                                      'LayerNorm':          True,
-                                                                      'Residual':           True},},
+                                                {'BiLSTM':          {'n_in':               n_seq_feat,
+                                                                     'n_hidden':           n_seq_feat*2,
+                                                                     'residual':           False,
+                                                                     'learn_init':         True}},
+                                                # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
+                                                #                       'LayerNorm':          True,
+                                                #                       'Residual':           True},},
                                                 #{'LSTM':            {'input_sizes':        [64, 512],
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
-                                                {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'Linear':          {'input_sizes':        [n_seq_feat+n_scalar_feat, n_target],
+                                                # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
+                                                {'Linear':          {'input_sizes':        [2*2*n_seq_feat+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
                                                 
