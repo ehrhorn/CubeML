@@ -346,121 +346,43 @@ def load_pickle_weights(dataset, weights):
 #* MODELS
 #*========================================================================
 
-class MakeModel(nn.Module):
-    '''A modular PyTorch model builder
-    '''
-
-    def __init__(self, arch_dict, device):
-        super(MakeModel, self).__init__()
-        self.mods = make_model_architecture(arch_dict)
-        self.layer_names = get_layer_names(arch_dict)
-        self.arch_dict = arch_dict
-        self.device = device
-        self.count = 0
-
-    # * Input must be a tuple to be unpacked!
-    def forward(self, batch):
-        # * Get device on each forward-pass to be compatible with training on multiple GPUs. An error is raised if no GPU available --> use except
-        try:
-            device = get_device(torch.cuda.current_device())
-        except AssertionError:
-            device = None
-
-        # * For linear layers
-        if len(batch) == 1: 
-            x, = batch
-
-        # * For RNNs with additional scalar values
-        if len(batch) == 3: 
-            seq, lengths, scalars = batch
-            add_scalars = True 
-            batch_size = seq.shape[0]
-            longest_seq = seq.shape[1]
-            # * 'Reshape' input (batch first), torch wants a certain form..
-            # * seq = seq.view(batch_size, -1, n_seq_vars)
-        
-        for layer_name, entry in zip(self.layer_names, self.mods):
-            # * Handle different layers in different ways! 
-            if layer_name == 'LSTM':
-                # * A padded sequence is expected
-                # * Initialize hidden layer
-                h = self.init_hidden(batch_size, entry, device)
-
-                # * Send to LSTM!
-                seq = pack(seq, lengths, batch_first=True)
+class AveragePool(nn.Module):
+    def __init__(self):
                 
-                # ? No idea why this works, but an error is thrown when using DataParallel and not calling it, see
-                # ? https://discuss.pytorch.org/t/rnn-module-weights-are-not-part-of-single-contiguous-chunk-of-memory/6011/13
-                entry.flatten_parameters()
-                
-                seq, h = entry(seq, h)
-                x, _ = h
-                seq, lengths = unpack(seq, batch_first=True, total_length=longest_seq)
-                if entry.bidirectional:
-                    # * Add hidden states from forward and backward pass to encode information
-                    seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
-                    x = (x[0,:,:] + x[1,:,:]) 
-                else:
-                    x = x.view(batch_size, entry.hidden_size)
-            
-            elif layer_name == 'Linear':
+        super(AveragePool, self).__init__()
+        self._batch_first = True
+        # self.device = get_device()
 
-                # * If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
-                if 'scalars' in locals(): 
-                    if add_scalars: 
-                        x, add_scalars = self.concat_scalars(x, scalars)
-                
-                # * Send through layers!
-                x = entry(x)
-            
-            elif layer_name == 'Linear_embedder':
-                seq = entry(seq)
-            
-            elif layer_name == 'AttentionEncoder':
-                seq = entry(seq, lengths, device=device)
-            
-            elif layer_name == 'AttentionDecoder':
-                x = entry(seq, lengths, device=device)
-            
-            # * AttentionBlock2 is seq2seq
-            elif layer_name == 'AttentionBlock2':
-                seq = entry(seq, lengths, device=device)
-            
-            # * Many to one! Therefore outputs x
-            elif layer_name == 'ManyToOneAttention':
-                x = entry(seq, lengths, device=device)
-            
-            # * The MaxPool-layer is used after sequences have been treated -> prepare for linear decoding.
-            elif layer_name == 'MaxPool':
-                x = entry(seq, lengths, device=device)
-            
-            # * Same goes for average pool.
-            elif layer_name == 'AveragePool':
-                x = entry(seq, lengths, device=device)
-            
-            elif layer_name == 'LstmBlock':
-                x = entry(seq, lengths, device=device)
+    def forward(self, seq, lengths, device=None):
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            max_length = seq.shape[1]
+        else:
+            max_length = seq.shape[0]
 
-            else:
-                raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
+        # * A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
+        # * Maxpooling is done over the second index
+        mask = self._get_mask(lengths, max_length, batch_first=True, device=device)
+        # * By masking with 0, it is ensured that DOMs that are actually not there do not have an influence on the sum. By dividing with sequence length, we get the true mean
+        seq = seq.masked_fill(~mask, 0.0)
+        if self._batch_first:
+            # * (B, L, *) --> (B, *)
+            seq = torch.sum(seq, dim=1)
+            bs, feats = seq.shape
+            # * Some view-acrobatics due to broadcasting semantics.
+            seq = (seq.view(feats, bs)/lengths).view(bs, feats)
+        else:
+            raise ValueError('Not sure when batch not first - AveragePool')
 
-        return x
+        return seq
 
-    def init_hidden(self, batch_size, layer, device):
-        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
-        if layer.bidirectional: num_dir = 2
-        else: num_dir = 1
-
-        # * Initialize hidden and cell states - to either random nums or 0's
-        # * (num_layers * num_directions, batch, hidden_size)
-        return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
-                torch.zeros(num_dir, batch_size, hidden_size, device=device))
-        # * return (torch.randn(num_dir, batch_size, hidden_size, device=device),
-        # *         torch.randn(num_dir, batch_size, hidden_size, device=device))
-    
-    def concat_scalars(self, x, scalars):
-        # * x and scalars must be of shape (batch, features)
-        return torch.cat((x, scalars), 1), False
+    def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
+        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        if batch_first:
+            # * The 'None' is a placeholder so dimensions are matched.
+            mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
+            mask = mask.unsqueeze(2)
+        return mask
 
 class AttentionBlock(nn.Module):
     """Implementation of Self Attention almost as described in 'Attention is All You Need'.
@@ -637,6 +559,293 @@ class AttentionBlock2(nn.Module):
             mask = mask.unsqueeze(1)
         return mask
 
+class BiLSTM(nn.Module):
+    
+    def __init__(self, n_in, n_hidden, residual=False, batch_first=True, learn_init=False):
+                
+        super(BiLSTM, self).__init__()
+
+        self._batch_first = batch_first
+        self.n_in = n_in
+        self.n_hidden = n_hidden
+        self.residual = residual
+        self.fwrd = nn.LSTM(input_size=n_in, hidden_size=n_hidden, bidirectional=False, batch_first=batch_first)
+        self.bkwrd = nn.LSTM(input_size=n_in, hidden_size=n_hidden, bidirectional=False, batch_first=batch_first)
+        self.learn_init = learn_init
+        
+        if self.learn_init:
+            self.hidden_fwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
+            self.hidden_bkwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
+            self.state_fwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
+            self.state_bkwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
+
+    def forward(self, seq, lengths, device=None):
+       
+        # * The max length is retrieved this way such that dataparallel works
+        shape = seq.shape
+        if self._batch_first:
+            longest_seq = shape[1]
+            batch_size = shape[0]
+            feats = shape[2]
+            bk_seq = torch.zeros(batch_size, longest_seq, feats, device=device)
+        else:
+            longest_seq = shape[0]
+            batch_size = shape[1]
+        
+        # * Make a reversed sequence, but still padded
+        for i_batch, length in enumerate(lengths):
+            indices = list(reversed(range(length)))
+            bk_seq[i_batch,:length,:] = seq[i_batch,indices,:]
+        
+        # * Prep for lstm
+        seq = pack(seq, lengths, batch_first=self._batch_first)
+        bk_seq = pack(bk_seq, lengths, batch_first=self._batch_first)
+        
+        if self.learn_init:
+            hidden_fwrd = self.hidden_fwrd.view(1, 1, -1).expand(-1, batch_size, -1)
+            state_fwrd = self.state_fwrd.view(1, 1, -1).expand(-1, batch_size, -1)
+            hidden_bkwrd = self.hidden_bkwrd.view(1, 1, -1).expand(-1, batch_size, -1)
+            state_bkwrd = self.state_bkwrd.view(1, 1, -1).expand(-1, batch_size, -1)
+
+            h_fwrd = (hidden_fwrd, state_fwrd)
+            h_bkwrd = (hidden_bkwrd, state_bkwrd)
+        else:
+            h_fwrd = self.init_hidden(batch_size, self.fwrd, device)
+            h_bkwrd = self.init_hidden(batch_size, self.fwrd, device)
+        
+        self.fwrd.flatten_parameters()
+        self.bkwrd.flatten_parameters()
+
+        # * Send through LSTMs!
+        seq, h = self.fwrd(seq, h_fwrd)
+        bk_seq, bk_h = self.bkwrd(bk_seq, h_bkwrd)
+
+        # * Unpack
+        seq, _ = unpack(seq, batch_first=self._batch_first, total_length=longest_seq)
+        bk_seq, _ = unpack(bk_seq, batch_first=self._batch_first, total_length=longest_seq)
+        
+        # * reverse again
+        for i_batch, length in enumerate(lengths):
+            indices = list(reversed(range(length)))
+            bk_seq[i_batch,:length,:] = bk_seq[i_batch,indices,:]
+        
+        # * Combine. If decoding next, bk_h(t_end) and h(t_end) are catted instead of bk_h(0) and h(t_end)
+        # TODO: Implement option to either cat and add.
+        combined_seq = torch.cat((seq, bk_seq), dim=-1)
+        x = torch.cat((h[0], bk_h[0]), dim=-1).squeeze(0)
+        
+        return combined_seq, x
+        
+    def init_hidden(self, batch_size, layer, device):
+        
+        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
+        if layer.bidirectional: num_dir = 2
+        else: num_dir = 1
+
+        # * Initialize hidden and cell states - to either random nums or 0's
+        # * (num_layers * num_directions, batch, hidden_size)
+        return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
+                torch.zeros(num_dir, batch_size, hidden_size, device=device))
+
+class LstmBlock(nn.Module):
+    
+    def __init__(self, n_in, n_out, n_parallel, n_stacks, bidir=False, residual=True, batch_first=True):
+                
+        super(LstmBlock, self).__init__()
+
+        self._batch_first = batch_first
+        self.par_LSTMs = nn.ModuleList()
+        self.residual = residual
+        self.bidir = bidir
+        
+        for i_par in range(n_parallel):
+            par_module = nn.ModuleList()
+            par_module.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
+            for i_stack in range(n_stacks-1):
+                par_module.append(nn.LSTM(input_size=n_out, hidden_size=n_out, bidirectional=False, batch_first=batch_first))
+
+            self.par_LSTMs.append(par_module)
+
+    def forward(self, seq, lengths, device=None):
+        
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            longest_seq = seq.shape[1]
+            batch_size = seq.shape[0]
+        else:
+            longest_seq = seq.shape[0]
+            batch_size = seq.shape[1]
+
+        # * Send through LSTMs! Prep for first layer.
+        print(seq.shape)
+        seq = pack(seq, lengths, batch_first=self._batch_first)
+        
+        # * x is output - concatenate outputs of LSTMs in parallel
+        for i_par, stack in enumerate(self.par_LSTMs):
+            
+            # * Stack section.
+            # ? Maybe learn initial state?             
+            h_par = self.init_hidden(batch_size, stack[0], device)
+            stack[0].flatten_parameters()
+            seq_par, h_par = stack[0](seq, h_par)
+
+            # * If residual connection, save the pre-LSTM version
+            if self.residual:
+                seq_par_pre, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
+                print(seq_par_pre.shape)
+                a+=1
+            for i_stack in range(1, len(stack)):
+                
+                h_par = self.init_hidden(batch_size, stack[i_stack], device)
+                stack[i_stack].flatten_parameters()
+                seq_par, h_par = stack[i_stack](seq_par, h_par)
+                
+                # * Residual connection
+                # ? Maybe Add + Norm as in Attention?
+                if self.residual:
+                    seq_par_post, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
+                    seq_par_pre = seq_par_pre + seq_par_post
+                    seq_par = pack(seq_par_pre, lengths, batch_first=self._batch_first)
+
+            # * Define x on first parallel LSTM-module
+            if i_par == 0:
+                x, _ = h_par
+
+            # * Now keep cat'ing for each parallel stack
+            else:
+                x = torch.cat((x, h_par[0]), -1)
+        
+        return x.squeeze(0)
+        
+    def init_hidden(self, batch_size, layer, device):
+        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
+        if layer.bidirectional: num_dir = 2
+        else: num_dir = 1
+
+        # * Initialize hidden and cell states - to either random nums or 0's
+        # * (num_layers * num_directions, batch, hidden_size)
+        return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
+                torch.zeros(num_dir, batch_size, hidden_size, device=device))
+
+class MakeModel(nn.Module):
+    '''A modular PyTorch model builder
+    '''
+
+    def __init__(self, arch_dict, device):
+        super(MakeModel, self).__init__()
+        self.mods = make_model_architecture(arch_dict)
+        self.layer_names = get_layer_names(arch_dict)
+        self.arch_dict = arch_dict
+        self.device = device
+        self.count = 0
+
+    # * Input must be a tuple to be unpacked!
+    def forward(self, batch):
+        # * Get device on each forward-pass to be compatible with training on multiple GPUs. An error is raised if no GPU available --> use except
+        try:
+            device = get_device(torch.cuda.current_device())
+        except AssertionError:
+            device = None
+
+        # * For linear layers
+        if len(batch) == 1: 
+            x, = batch
+
+        # * For RNNs with additional scalar values
+        if len(batch) == 3: 
+            seq, lengths, scalars = batch
+            add_scalars = True 
+            batch_size = seq.shape[0]
+            longest_seq = seq.shape[1]
+            # * 'Reshape' input (batch first), torch wants a certain form..
+            # * seq = seq.view(batch_size, -1, n_seq_vars)
+        
+        for layer_name, entry in zip(self.layer_names, self.mods):
+            # * Handle different layers in different ways! 
+            if layer_name == 'LSTM':
+                # * A padded sequence is expected
+                # * Initialize hidden layer
+                h = self.init_hidden(batch_size, entry, device)
+
+                # * Send to LSTM!
+                seq = pack(seq, lengths, batch_first=True)
+                
+                # ? No idea why this works, but an error is thrown when using DataParallel and not calling it, see
+                # ? https://discuss.pytorch.org/t/rnn-module-weights-are-not-part-of-single-contiguous-chunk-of-memory/6011/13
+                entry.flatten_parameters()
+                
+                seq, h = entry(seq, h)
+                x, _ = h
+                seq, lengths = unpack(seq, batch_first=True, total_length=longest_seq)
+                if entry.bidirectional:
+                    # * Add hidden states from forward and backward pass to encode information
+                    seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
+                    x = (x[0,:,:] + x[1,:,:]) 
+                else:
+                    x = x.view(batch_size, entry.hidden_size)
+            
+            elif layer_name == 'Linear':
+
+                # * If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
+                if 'scalars' in locals(): 
+                    if add_scalars: 
+                        x, add_scalars = self.concat_scalars(x, scalars)
+                
+                # * Send through layers!
+                x = entry(x)
+            
+            elif layer_name == 'Linear_embedder':
+                seq = entry(seq)
+            
+            elif layer_name == 'AttentionEncoder':
+                seq = entry(seq, lengths, device=device)
+            
+            elif layer_name == 'AttentionDecoder':
+                x = entry(seq, lengths, device=device)
+            
+            # * AttentionBlock2 is seq2seq
+            elif layer_name == 'AttentionBlock2':
+                seq = entry(seq, lengths, device=device)
+            
+            # * Many to one! Therefore outputs x
+            elif layer_name == 'ManyToOneAttention':
+                x = entry(seq, lengths, device=device)
+            
+            # * The MaxPool-layer is used after sequences have been treated -> prepare for linear decoding.
+            elif layer_name == 'MaxPool':
+                x = entry(seq, lengths, device=device)
+            
+            # * Same goes for average pool.
+            elif layer_name == 'AveragePool':
+                x = entry(seq, lengths, device=device)
+            
+            elif layer_name == 'LstmBlock':
+                x = entry(seq, lengths, device=device)
+            
+            elif layer_name == 'BiLSTM':
+                seq, x = entry(seq, lengths, device=device)
+
+            else:
+                raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
+
+        return x
+
+    def init_hidden(self, batch_size, layer, device):
+        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
+        if layer.bidirectional: num_dir = 2
+        else: num_dir = 1
+
+        # * Initialize hidden and cell states - to either random nums or 0's
+        # * (num_layers * num_directions, batch, hidden_size)
+        return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
+                torch.zeros(num_dir, batch_size, hidden_size, device=device))
+        # * return (torch.randn(num_dir, batch_size, hidden_size, device=device),
+        # *         torch.randn(num_dir, batch_size, hidden_size, device=device))
+    
+    def concat_scalars(self, x, scalars):
+        # * x and scalars must be of shape (batch, features)
+        return torch.cat((x, scalars), 1), False
+
 class ManyToOneAttention(nn.Module):
     """Implementation of Self Attention almost as described in 'Attention is All You Need'.
     
@@ -707,83 +916,6 @@ class ManyToOneAttention(nn.Module):
 
         return mask
 
-class LstmBlock(nn.Module):
-    
-    def __init__(self, n_in, n_out, n_parallel, n_stacks, bidir=False, residual=True, batch_first=True):
-                
-        super(LstmBlock, self).__init__()
-
-        self._batch_first = batch_first
-        self.par_LSTMs = nn.ModuleList()
-        self.residual = residual
-        
-        for i_par in range(n_parallel):
-            par_module = nn.ModuleList()
-            par_module.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
-            for i_stack in range(n_stacks-1):
-                par_module.append(nn.LSTM(input_size=n_out, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
-
-            self.par_LSTMs.append(par_module)
-
-    def forward(self, seq, lengths, device=None):
-        
-        # * The max length is retrieved this way such that dataparallel works
-        if self._batch_first:
-            longest_seq = seq.shape[1]
-            batch_size = seq.shape[0]
-        else:
-            longest_seq = seq.shape[0]
-            batch_size = seq.shape[1]
-
-        # * Send through LSTMs! Prep for first layer.
-        seq = pack(seq, lengths, batch_first=self._batch_first)
-        
-        # * x is output - concatenate outputs of LSTMs in parallel
-        for i_par, stack in enumerate(self.par_LSTMs):
-            
-            # * Stack section.
-            # ? Maybe learn initial state?             
-            h_par = self.init_hidden(batch_size, stack[0], device)
-            stack[0].flatten_parameters()
-            seq_par, h_par = stack[0](seq, h_par)
-
-            # * If residual connection, save the pre-LSTM version
-            if self.residual:
-                seq_par_pre, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
-
-            for i_stack in range(1, len(stack)):
-                
-                h_par = self.init_hidden(batch_size, stack[i_stack], device)
-                stack[i_stack].flatten_parameters()
-                seq_par, h_par = stack[i_stack](seq_par, h_par)
-                
-                # * Residual connection
-                # ? Maybe Add + Norm as in Attention?
-                if self.residual:
-                    seq_par_post, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
-                    seq_par_pre = seq_par_pre + seq_par_post
-                    seq_par = pack(seq_par_pre, lengths, batch_first=self._batch_first)
-
-            # * Define x on first parallel LSTM-module
-            if i_par == 0:
-                x, _ = h_par
-
-            # * Now keep cat'ing for each parallel stack
-            else:
-                x = torch.cat((x, h_par[0]), -1)
-        
-        return x.squeeze(0)
-        
-    def init_hidden(self, batch_size, layer, device):
-        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
-        if layer.bidirectional: num_dir = 2
-        else: num_dir = 1
-
-        # * Initialize hidden and cell states - to either random nums or 0's
-        # * (num_layers * num_directions, batch, hidden_size)
-        return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
-                torch.zeros(num_dir, batch_size, hidden_size, device=device))
-
 class MaxPool(nn.Module):
     def __init__(self):
                 
@@ -807,44 +939,6 @@ class MaxPool(nn.Module):
             seq, _ = torch.max(seq, dim=1)
         else:
             raise ValueError('Not sure when batch not first - MaxPool')
-        return seq
-
-    def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
-        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
-        if batch_first:
-            # * The 'None' is a placeholder so dimensions are matched.
-            mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
-            mask = mask.unsqueeze(2)
-        return mask
-
-class AveragePool(nn.Module):
-    def __init__(self):
-                
-        super(AveragePool, self).__init__()
-        self._batch_first = True
-        # self.device = get_device()
-
-    def forward(self, seq, lengths, device=None):
-        # * The max length is retrieved this way such that dataparallel works
-        if self._batch_first:
-            max_length = seq.shape[1]
-        else:
-            max_length = seq.shape[0]
-
-        # * A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
-        # * Maxpooling is done over the second index
-        mask = self._get_mask(lengths, max_length, batch_first=True, device=device)
-        # * By masking with 0, it is ensured that DOMs that are actually not there do not have an influence on the sum. By dividing with sequence length, we get the true mean
-        seq = seq.masked_fill(~mask, 0.0)
-        if self._batch_first:
-            # * (B, L, *) --> (B, *)
-            seq = torch.sum(seq, dim=1)
-            bs, feats = seq.shape
-            # * Some view-acrobatics due to broadcasting semantics.
-            seq = (seq.view(feats, bs)/lengths).view(bs, feats)
-        else:
-            raise ValueError('Not sure when batch not first - AveragePool')
-
         return seq
 
     def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
@@ -1039,6 +1133,8 @@ def make_model_architecture(arch_dict):
                 modules.append(AveragePool())
             elif key == 'LstmBlock':
                 modules.append(LstmBlock(**layer_dict))
+            elif key == 'BiLSTM':
+                modules.append(BiLSTM(**layer_dict))
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 
