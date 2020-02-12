@@ -650,36 +650,33 @@ class BiLSTM(nn.Module):
 class ResBlock(nn.Module):
     """A Residual block as proposed in 'Identity Mappings in Deep Residual Networks'
     """    
-    def __init__(self, arch_dict, layer_dict, n_in, n_out, norm=False, residual=False, batch_first=True):
+    def __init__(self, arch_dict, layer_dict, n_in, n_out, norm=False):
         super(ResBlock, self).__init__()
+        self.n_in = n_in
+        self.n_out = n_out
         if n_in != n_out:
-            self.linear0 = nn.linear(in_features=n_in, out_features=n_out)
-
-        self.linear1 = nn.Linear(in_features=n_out, out_features=n_out)
-        init_weights(arch_dict, arch_dict['non_lin'], self.linear1)
-        self.non_lin1 = add_non_lin(arch_dict, arch_dict['non_lin'])
-
-        self.linear2 = nn.Linear(in_features=n_out, out_features=n_out)
-        init_weights(arch_dict, arch_dict['non_lin'], self.linear2)
-        self.non_lin2 = add_non_lin(arch_dict, arch_dict['non_lin'])
+            self.linear0 = nn.Linear(in_features=n_in, out_features=n_out)
 
         if norm:
             self.norm1 = add_norm(arch_dict, layer_dict, n_out)
+        self.non_lin1 = add_non_lin(arch_dict, arch_dict['non_lin'])
+        self.linear1 = nn.Linear(in_features=n_out, out_features=n_out)
+        init_weights(arch_dict, arch_dict['non_lin'], self.linear1)
+        if norm:
             self.norm2 = add_norm(arch_dict, layer_dict, n_out)
+        self.non_lin2 = add_non_lin(arch_dict, arch_dict['non_lin'])
+        self.linear2 = nn.Linear(in_features=n_out, out_features=n_out)
+        init_weights(arch_dict, arch_dict['non_lin'], self.linear2)
 
     def forward(self, seq, device=None):
 
-        if self.linear0:
+        if self.n_in != self.n_out:
             seq = self.linear0(seq)
         
         res = self.linear1(self.non_lin1(self.norm1(seq)))
         res = self.linear2(self.non_lin2(self.norm2(res)))
 
         return seq+res
-
-
-
-
 
 class LstmBlock(nn.Module):
     
@@ -796,6 +793,7 @@ class MakeModel(nn.Module):
         
         for layer_name, entry in zip(self.layer_names, self.mods):
             # * Handle different layers in different ways! 
+            
             if layer_name == 'LSTM':
                 # * A padded sequence is expected
                 # * Initialize hidden layer
@@ -858,6 +856,17 @@ class MakeModel(nn.Module):
             
             elif layer_name == 'BiLSTM':
                 seq, x = entry(seq, lengths, device=device)
+            
+            elif layer_name == 'ResBlock':
+                # * If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
+                if 'scalars' in locals(): 
+                    if add_scalars: 
+                        x, add_scalars = self.concat_scalars(x, scalars)
+
+                x = entry(x)
+            
+            elif layer_name == 'ResBlockSeq':
+                seq = entry(seq)
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -1004,13 +1013,24 @@ def add_linear_embedder(arch_dict, layer_dict):
     for i_layer in range(n_layers):
         isize = layer_dict['input_sizes'][i_layer]
         hsize = layer_dict['input_sizes'][i_layer+1]
-
+        
+        layers.append(ResBlock(arch_dict, layer_dict, ))
         # * Add a matrix to linearly 
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
         init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
         if layer_dict.get('LayerNorm', False):
             layers.append(nn.LayerNorm(hsize))
         layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
+    
+    return nn.Sequential(*layers)
+
+def add_ResBlock(arch_dict, layer_dict):
+    n_ins = layer_dict['input_sizes'][:-1]
+    n_outs = layer_dict['input_sizes'][1:]
+
+    layers = []
+    for n_in, n_out in zip(n_ins, n_outs):
+        layers.append(ResBlock(arch_dict, layer_dict, n_in, n_out, layer_dict.get('norm', False)))
     
     return nn.Sequential(*layers)
 
@@ -1147,7 +1167,9 @@ def make_model_architecture(arch_dict):
             # * key = name.split('_')[-1]
 
             # * Add modules of LSTMs, since we need to iterate over LSTM layers
-            if key == 'LSTM': 
+            if key == 'ResBlock':
+                modules.append(add_ResBlock(arch_dict, layer_dict))
+            elif key == 'LSTM': 
                 modules = add_LSTM_module(arch_dict, layer_dict, modules)
             # * Add a Sequential layer consisting of a linear block with normalization and nonlinearities
             elif key == 'Linear': 
@@ -1182,15 +1204,25 @@ def get_layer_names(arch_dict):
     '''
     layer_names = []
     for layer in arch_dict['layers']:
-        for layer_name in layer:
+        for layer_name, dicts in layer.items():
+            
             if layer_name == 'AttentionBlock':
                 n_attention_modules = len(layer['AttentionBlock']['input_sizes'])-1
                 for nth_attention_layer in range(n_attention_modules):
                     layer_names.append(layer_name)
+            
             elif layer_name == 'AttentionBlock2':
                 n_attention_modules = len(layer['AttentionBlock2']['input_sizes'])-1
                 for nth_attention_layer in range(n_attention_modules):
                     layer_names.append(layer_name)
+            
+            elif layer_name == 'ResBlock':
+                if dicts['type'] == 'seq':
+                    layer_names.append('ResBlockSeq')
+                elif dicts['type'] == 'x':
+                    layer_names.append('ResBlock')
+                else:
+                    raise KeyError('ResBlock: "type" MUST be supplied!')
             else:
                 layer_names.append(layer_name)
     

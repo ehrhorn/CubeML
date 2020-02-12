@@ -142,6 +142,7 @@ if __name__ == '__main__':
 
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
+    n = 256+n_scalar_feat
     n_target = len(get_target_keys(data_pars, meta_pars))
 
     arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
@@ -151,9 +152,10 @@ if __name__ == '__main__':
                         'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
                                                 'momentum':  0.9 },
 
-                        'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
-                                                #                     'LayerNorm':          True},},
-                                                {'BiLSTM':          {'n_in':               n_seq_feat,
+                        'layers':             [ {'ResBlock':        {'input_sizes':        [n_seq_feat, 64, 64, 64],
+                                                                     'norm':               'LayerNorm',
+                                                                     'type':               'seq'}},
+                                                {'BiLSTM':          {'n_in':               64,
                                                                      'n_hidden':           128,
                                                                      'residual':           False,
                                                                      'learn_init':         False}},
@@ -164,8 +166,9 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'Linear':          {'input_sizes':        [2*128+n_scalar_feat, n_target],
-                                                                    'norm_before_nonlin':  True}}]
+                                                {'ResBlock':        {'input_sizes':        [n, n, n],
+                                                                     'norm':               'BatchNorm1D',
+                                                                     'type':               'x'}},]
                         }
                                                 
 
