@@ -80,7 +80,7 @@ if __name__ == '__main__':
                 }
 
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
-                'max_epochs':          13 if not args.dev else 2,
+                'max_epochs':          15 if not args.dev else 2,
                 'early_stop_patience': 30,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
@@ -153,10 +153,15 @@ if __name__ == '__main__':
 
                         'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
                                                 #                     'LayerNorm':          True},},
-                                                {'BiLSTM':          {'n_in':               n_seq_feat,
-                                                                     'n_hidden':           128,
-                                                                     'residual':           False,
-                                                                     'learn_init':         False}},
+                                                # {'BiLSTM':          {'n_in':               n_seq_feat,
+                                                #                      'n_hidden':           128,
+                                                #                      'residual':           False,
+                                                #                      'learn_init':         False}},
+                                                {'LstmBlock':       {'n_in':              n_seq_feat,
+                                                                     'n_out':             256,
+                                                                     'n_parallel':        1,
+                                                                     'n_stacks':          2,
+                                                                     'residual':          False}},
                                                 # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
                                                 #                       'LayerNorm':          True,
                                                 #                       'Residual':           True},},
@@ -164,7 +169,10 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'Linear':          {'input_sizes':        [2*128+n_scalar_feat, n_target],
+                                                {'ResBlock':        {'input_sizes':        [256+n_scalar_feat, 256+n_scalar_feat],
+                                                                     'norm':               'BatchNorm1D',
+                                                                     'type':               'x'}},
+                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
 

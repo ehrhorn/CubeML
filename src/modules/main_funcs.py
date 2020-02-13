@@ -644,7 +644,8 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
             print(model, file=f)
         wandb.save(save_dir+'/model_arch.yml')
         wandb.config.update({'Model parameters': get_n_parameters(model)})
-
+    print('N_PARAMETERS:', get_n_parameters(model))
+    
     # * Get type of scheduler, since different schedulers need different kinds of updating
     lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, BATCH_SIZE, N_TRAIN)
     type_lr_scheduler = type(lr_scheduler)

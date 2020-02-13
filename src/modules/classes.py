@@ -806,7 +806,10 @@ class MakeModel(nn.Module):
                 seq, h = entry(seq, h)
                 x, _ = h
                 seq, lengths = unpack(seq, batch_first=True, total_length=longest_seq)
+                print(seq.shape, x.shape)
+
                 if entry.bidirectional:
+
                     # * Add hidden states from forward and backward pass to encode information
                     seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
                     x = (x[0,:,:] + x[1,:,:]) 
@@ -999,7 +1002,7 @@ def add_LSTM_module(arch_dict, layer_dict, modules):
     for i_neurons in range(n_neurons):
         isize = layer_dict['input_sizes'][i_neurons]
         hsize = layer_dict['input_sizes'][i_neurons+1]
-        bidir = layer_dict['bidirectional']
+        bidir = layer_dict['bidir']
         modules.append(nn.LSTM(input_size=isize, hidden_size=hsize, bidirectional=bidir, batch_first=True))
     return modules
 
