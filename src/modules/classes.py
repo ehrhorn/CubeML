@@ -678,24 +678,42 @@ class ResBlock(nn.Module):
 
         return seq+res
 
-class LstmBlock(nn.Module):
+class LstmBlock_old(nn.Module):
     
-    def __init__(self, n_in, n_out, n_parallel, n_stacks, bidir=False, residual=True, batch_first=True):
+    def __init__(self, n_in, n_out, n_parallel, n_stacks, bidir=False, residual=False, batch_first=True, learn_init=False):
                 
         super(LstmBlock, self).__init__()
 
         self._batch_first = batch_first
-        self.par_LSTMs = nn.ModuleList()
         self.residual = residual
         self.bidir = bidir
+        self.n_dirs = 2 if bidir else 1
+        self.learn_init = learn_init
+        self.par_LSTMs = nn.ModuleList()
+        if learn_init:
+            self.init_hidden_states = nn.ModuleList()
+            self.init_cell_states = nn.ModuleList()
         
         for i_par in range(n_parallel):
             par_module = nn.ModuleList()
             par_module.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
+            if self.learn_init:
+                hidden_module = nn.ModuleList()
+                cell_module = nn.ModuleList()
+                hidden_module.append(nn.Parameter(torch.empty(self.n_dirs*self.n_in).normal_(mean=0,std=1.0)))
+                cell_module.append(nn.Parameter(torch.empty(self.n_dirs*self.n_in).normal_(mean=0,std=1.0)))
+
             for i_stack in range(n_stacks-1):
-                par_module.append(nn.LSTM(input_size=n_out, hidden_size=n_out, bidirectional=False, batch_first=batch_first))
+                par_module.append(nn.LSTM(input_size=n_out, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
+                if self.learn_init:
+                    hidden_module.append(nn.Parameter(torch.empty(self.n_dirs*self.n_out).normal_(mean=0,std=1.0)))
+                    cell_module.append(nn.Parameter(torch.empty(self.n_dirs*self.n_out).normal_(mean=0,std=1.0)))
+
 
             self.par_LSTMs.append(par_module)
+            if self.learn_init:
+                self.init_hidden_states.append(hidden_module)
+                self.init_cell_states.append(cell_module)
 
     def forward(self, seq, lengths, device=None):
         
@@ -755,6 +773,93 @@ class LstmBlock(nn.Module):
         return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
                 torch.zeros(num_dir, batch_size, hidden_size, device=device))
 
+class LstmBlock(nn.Module):
+    
+    def __init__(self, n_in, n_out, n_parallel, num_layers, bidir=False, residual=False, batch_first=True, learn_init=False):
+                
+        super(LstmBlock, self).__init__()
+
+        self._batch_first = batch_first
+        self.hidden_size = n_out
+        self.n_in = n_in
+        self.residual = residual
+        self.bidir = bidir
+        self.n_dirs = 2 if bidir else 1
+        self.n_layers = num_layers
+        self.learn_init = learn_init
+        self.par_LSTMs = nn.ModuleList()
+        if learn_init:
+            self.init_hidden_states = nn.ParameterList()
+            self.init_cell_states = nn.ParameterList()
+        
+        for i_par in range(n_parallel):
+            self.par_LSTMs.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, 
+            num_layers=num_layers, batch_first=batch_first))
+            if self.learn_init:
+                n_parameters = self.n_dirs*self.hidden_size*self.n_layers
+                self.init_hidden_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
+                self.init_cell_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
+
+    def forward(self, seq, lengths, device=None):
+        
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            longest_seq = seq.shape[1]
+            batch_size = seq.shape[0]
+        else:
+            longest_seq = seq.shape[0]
+            batch_size = seq.shape[1]
+
+        # * Send through LSTMs! Prep for first layer.
+        seq_packed = pack(seq, lengths, batch_first=self._batch_first)
+        
+        # * x is output - concatenate outputs of LSTMs in parallel
+        for i_par in range(len(self.par_LSTMs)):
+            
+            # * Instantiate hidden and cell.
+            # ? Maybe learn initial state?
+            if self.learn_init:
+                hidden = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1)
+                cell = self.init_cell_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1)
+                h = (hidden, cell)
+            else:
+                h = self.init_hidden(batch_size, self.par_LSTMs[i_par], device)
+
+            # * Send through LSTM
+            self.par_LSTMs[i_par].flatten_parameters()
+            seq_par, h_par = self.par_LSTMs[i_par](seq_packed, h)
+            seq_par_post, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
+
+            # * when multiple directions and layers, h_out is weird - needs careful treatment
+            h_out = h_par[0].view(self.n_layers, self.n_dirs, batch_size, self.hidden_size)
+            if self.bidir:
+                h_out = torch.cat((h_out[self.n_layers-1, 0, :, :], h_out[self.n_layers-1, 1, :, :]), axis=-1)
+            else:
+                h_out = h_out[self.n_layers-1, 0, :, :]#torch.cat((, h_out[self.n_layers-1, 1, :, :]), axis=-1)
+
+            if self.residual:
+                seq_par_post = seq_par_post + seq
+            
+            # * Define x on first parallel LSTM-module
+            if i_par == 0:
+                x = h_out
+                seq_out = seq_par_post
+
+            # * Now keep cat'ing for each parallel stack
+            else:
+                x = torch.cat((x, h_out), -1)
+                seq_out = torch.cat((seq_out, seq_par_post), -1)
+        
+        return seq_out, x.squeeze(0)
+        
+    def init_hidden(self, batch_size, layer, device):
+        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
+
+        # * Initialize hidden and cell states - to either random nums or 0's
+        # * (num_layers * num_directions, batch, hidden_size)
+        return (torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device),
+                torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device))
+
 class MakeModel(nn.Module):
     '''A modular PyTorch model builder
     '''
@@ -806,8 +911,8 @@ class MakeModel(nn.Module):
                 seq, h = entry(seq, h)
                 x, _ = h
                 seq, lengths = unpack(seq, batch_first=True, total_length=longest_seq)
-                print(seq.shape, x.shape)
-
+                
+                # * See sidharthms' answer @ https://github.com/pytorch/pytorch/issues/3587 for how sequence is returned by bidir lstm
                 if entry.bidirectional:
 
                     # * Add hidden states from forward and backward pass to encode information
@@ -852,7 +957,7 @@ class MakeModel(nn.Module):
                 x = entry(seq, lengths, device=device)
             
             elif layer_name == 'LstmBlock':
-                x = entry(seq, lengths, device=device)
+                seq, x = entry(seq, lengths, device=device)
             
             elif layer_name == 'BiLSTM':
                 seq, x = entry(seq, lengths, device=device)
