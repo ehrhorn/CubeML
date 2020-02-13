@@ -160,8 +160,10 @@ if __name__ == '__main__':
                                                 {'LstmBlock':       {'n_in':              n_seq_feat,
                                                                      'n_out':             256,
                                                                      'n_parallel':        1,
-                                                                     'n_stacks':          2,
-                                                                     'residual':          False}},
+                                                                     'num_layers':        1,
+                                                                     'residual':          False,
+                                                                     'bidir':             True,
+                                                                     'learn_init':        True}},
                                                 # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
                                                 #                       'LayerNorm':          True,
                                                 #                       'Residual':           True},},
@@ -169,10 +171,10 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'ResBlock':        {'input_sizes':        [256+n_scalar_feat, 256+n_scalar_feat],
+                                                {'ResBlock':        {'input_sizes':        [2*256+n_scalar_feat, 2*256+n_scalar_feat],
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
-                                                {'Linear':          {'input_sizes':        [256+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [2*256+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
 
