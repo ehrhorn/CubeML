@@ -13,7 +13,7 @@ PRINT_EVERY = 10000
 
 description = 'Creates masks for pickled Icecube data.'
 parser = argparse.ArgumentParser(description=description)
-parser.add_argument('--name', default='None', type=str, help='Sets the name of the mask.')
+parser.add_argument('--name', default='None', type=str, help='Sets the name of the mask. Options: particle_name (e.g. muon_neutrino), dom_interval, energy_interval')
 
 args = parser.parse_args()
 
@@ -224,8 +224,8 @@ if __name__ == '__main__':
     min_doms = 0
     max_doms = 200
     
-    min_energy = 0.0
-    max_energy = 3.0
+    min_energy = 1.0
+    max_energy = 2.0
     mask_dict = {'mask_name': mask_name, 'min_doms':
         min_doms, 'max_doms': max_doms, 'min_energy': min_energy, 'max_energy': max_energy}
 
