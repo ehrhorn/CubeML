@@ -56,7 +56,7 @@ def energy_plot(models, perf_classes, title=None, savefig=None):
     return fig
 
 # * New model, suspecting something is off.
-models = ['2020-01-31-14.27.11', '2020-01-30-14.12.49']
+models = ['2020-02-13-22.48.36', '2020-01-30-14.12.49']
 
 # * Stacked LSTM 256 HUBER LOSS, L2 1024 LSTM, LSTM 512 HUBER LOSS
 #models = ['2020-01-19-22.00.11', '2020-01-17-02.06.38', '2020-01-30-11.17.16']#, '2020-01-17-13.35.31']

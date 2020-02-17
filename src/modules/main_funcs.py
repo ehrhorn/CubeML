@@ -633,9 +633,9 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     #* ======================================================================== #
 
     # * num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
-    dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
-    dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
-    dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
+    dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=5, shuffle=True, dataloader=data_pars['dataloader'])
+    dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=5, shuffle=False, dataloader=data_pars['dataloader'])
+    dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=5, shuffle=False, dataloader=data_pars['dataloader'])
     
     # * Initialize model and log it - use GPU if available
     model, optimizer, device = initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars)

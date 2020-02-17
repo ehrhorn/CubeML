@@ -358,23 +358,27 @@ class Performance:
         return label
 
     def _make_I3_perf_plot(self, key, energy, data, median, upper_perc, lower_perc):
+        d2 = {}
+        
         if key == 'relative_E_error':
             clip_val = 4.0
+            d2['ylabel'] = 'Relative error [%]'
+            d2['ylabel'] = r'$(\mathrm{E}_{reco}-\mathrm{E}_{true})/\mathrm{E}_{true}$ [%]'
+            d2['title'] = 'Reconstruction results'
         else:
             clip_val = np.inf
 
-        d2 = {}
         d2['hist2d'] = [energy, np.clip(data, -clip_val, clip_val)]
         d2['zorder'] = 0
         d2['xlabel'] = r'log(E) [E/GeV]' 
-        d2['ylabel'] = 'Rel. Imp.'
         f2 = make_plot(d2)
         
         d = {}
         d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers]
         d['y'] = [upper_perc, median, lower_perc]
         d['drawstyle'] = ['steps-mid', 'steps-mid', 'steps-mid']
-        d['linestyle'] = ['--', '--', '--']
+        d['linestyle'] = [':', '-', '--']
+        d['label'] = ['84th percentile', '50th percentile', '16th percentile']
         d['color'] = ['red','red', 'red']
         d['zorder'] = [1, 1, 1]
         img_address = get_project_root()+self.model_dir+'/figures/'+key+'_2DPerformance.png'
