@@ -819,8 +819,9 @@ class LstmBlock(nn.Module):
             # * Instantiate hidden and cell.
             # ? Maybe learn initial state?
             if self.learn_init:
-                hidden = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1)
-                cell = self.init_cell_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1)
+                # ? Dont know why, but the .contiguous call is needed, else an error is thrown
+                hidden = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
+                cell = self.init_cell_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
                 h = (hidden, cell)
             else:
                 h = self.init_hidden(batch_size, self.par_LSTMs[i_par], device)

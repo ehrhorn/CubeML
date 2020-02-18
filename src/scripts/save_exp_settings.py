@@ -28,8 +28,6 @@ parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, help='Se
 parser.add_argument('--gpu', nargs='+', default='0', type=str, help='Sets the IDs of the GPUs to use')
 parser.add_argument('--batch_size', default=128, type=int, help='Sets batchsize.')
 
-
-
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -80,8 +78,8 @@ if __name__ == '__main__':
                 }
 
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
-                'max_epochs':          15 if not args.dev else 2,
-                'early_stop_patience': 30,
+                'max_epochs':          17 if not args.dev else 2,
+                'early_stop_patience': 35,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
@@ -90,8 +88,8 @@ if __name__ == '__main__':
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR' if not args.dev else None,
                                         'max_lr':          args.max_lr,
                                         'min_lr':          args.min_lr,
-                                        'frac_up':         0.02,
-                                        'frac_down':       1-0.02,
+                                        'frac_up':         0.08,
+                                        'frac_down':       1-0.08,
                                         'schedule':        'inverse',
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
@@ -143,7 +141,8 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-
+    n1 = 128
+    n2 = 2*n1+n_scalar_feat
     arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
 
                         'loss_func':           error_func,#'L2_like_loss','dir_reg_L1_like_loss',
@@ -157,13 +156,26 @@ if __name__ == '__main__':
                                                 #                      'n_hidden':           128,
                                                 #                      'residual':           False,
                                                 #                      'learn_init':         False}},
+                                                # {'ResBlock':        {'input_sizes':       [n_seq_feat, n1//2, n1//2],
+                                                #                      'norm':              'LayerNorm',
+                                                #                      'type':              'seq'}},
                                                 {'LstmBlock':       {'n_in':              n_seq_feat,
-                                                                     'n_out':             256,
+                                                                     'n_out':             n1,
                                                                      'n_parallel':        1,
-                                                                     'num_layers':        1,
+                                                                     'num_layers':        2,
                                                                      'residual':          False,
                                                                      'bidir':             True,
                                                                      'learn_init':        True}},
+                                                # {'ResBlock':        {'input_sizes':       [2*n1, n1],
+                                                #                      'norm':              'LayerNorm',
+                                                #                      'type':              'seq'}},
+                                                # {'LstmBlock':       {'n_in':              n1,
+                                                #                      'n_out':             n1,
+                                                #                      'n_parallel':        1,
+                                                #                      'num_layers':        1,
+                                                #                      'residual':          False,
+                                                #                      'bidir':             True,
+                                                #                      'learn_init':        True}},
                                                 # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
                                                 #                       'LayerNorm':          True,
                                                 #                       'Residual':           True},},
@@ -171,10 +183,10 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'ResBlock':        {'input_sizes':        [2*256+n_scalar_feat, 2*256+n_scalar_feat],
+                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
-                                                {'Linear':          {'input_sizes':        [2*256+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [n2, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
 

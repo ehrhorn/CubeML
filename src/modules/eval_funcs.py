@@ -26,7 +26,7 @@ def relative_E_error(pred, truth):
 
         return rel_E_error
 
-def azi_error(pred, truth, units = 'degrees'):
+def azi_error(pred, truth, units='degrees'):
 
     # ensure cartesian coordinates are used
     if 'true_muon_direction_x' in pred and 'true_muon_direction_y' in pred and 'true_muon_direction_z' in pred:
@@ -58,7 +58,7 @@ def azi_error(pred, truth, units = 'degrees'):
     elif units == 'degrees':
         return true_diff*(180/3.14159)
 
-def polar_error(pred, truth, units = 'degrees'):
+def polar_error(pred, truth, units='degrees'):
     
     # ensure cartesian coordinates are used
     if 'true_muon_direction_x' in pred and 'true_muon_direction_y' in pred and 'true_muon_direction_z' in pred:
@@ -137,7 +137,7 @@ def get_eval_functions(meta_pars):
     if regression_type == 'direction_reg':
         eval_funcs = [directional_error, azi_error, polar_error]
     elif regression_type == 'full_reg':
-        eval_funcs = [relative_logE_error]
+        eval_funcs = [relative_E_error, vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error, azi_error, polar_error]
     elif regression_type == 'vertex_reg':
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error]
     elif regression_type == 'vertex_reg_no_time':
@@ -168,7 +168,7 @@ def directional_error_from_cartesian(pred, truth, units='degrees'):
     
     return angles
 
-def get_retro_crs_prefit_azi_error(retro_dict, true_dict, units='degrees'):
+def get_retro_crs_prefit_azi_error(retro_dict, true_dict, units='degrees', reporting=False):
     """Calculates the difference in zenith angle between retro_crs_prefit and true values.
     
     Arguments:
@@ -203,7 +203,7 @@ def get_retro_crs_prefit_azi_error(retro_dict, true_dict, units='degrees'):
     elif units == 'degrees':
         return true_diff*(180/pi)
 
-def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees'):
+def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees', reporting=False):
     """Calculates the difference in polar angle between retro_crs_prefit and true values.
     
     Arguments:
@@ -278,6 +278,9 @@ def vertex_t_error(pred, truth, reporting=False):
     if not reporting:
         t_pred = torch.tensor(t_pred)
         t_truth = torch.tensor(t_truth, dtype=t_pred.dtype)
+    else:
+        t_pred = np.array(t_pred)
+        t_truth = np.array(t_truth)
 
     diff = t_pred - t_truth
     return diff
@@ -306,9 +309,13 @@ def vertex_x_error(pred, truth, reporting=False):
     
     x_pred = pred[x_key]
     x_truth = truth[x_key]
+    
     if not reporting:
         x_pred = torch.tensor(x_pred)
         x_truth = torch.tensor(x_truth, dtype=x_pred.dtype)
+    else:
+        x_pred = np.array(x_pred)
+        x_truth = np.array(x_truth)
     
     diff = x_pred - x_truth
 
@@ -342,6 +349,9 @@ def vertex_y_error(pred, truth, reporting=False):
     if not reporting:
         y_pred = torch.tensor(y_pred)
         y_truth = torch.tensor(y_truth, dtype=y_pred.dtype)
+    else:
+        y_pred = np.array(y_pred)
+        y_truth = np.array(y_truth)
 
     diff = y_pred - y_truth
     return diff
@@ -374,6 +384,9 @@ def vertex_z_error(pred, truth, reporting=False):
     if not reporting:
         z_pred = torch.tensor(z_pred)
         z_truth = torch.tensor(z_truth, dtype=z_pred.dtype)
+    else:
+        z_pred = np.array(z_pred)
+        z_truth = np.array(z_truth)
 
     diff = z_pred - z_truth
     return diff
