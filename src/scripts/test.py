@@ -17,20 +17,20 @@ from src.modules.constants import *
 from src.modules.classes import *
 import src.modules.preprocessing as pp
 
-def calc_permutation_importance(save_dir, wandb_ID=None):
+def calc_permutation_importance(save_dir, wandb_ID=None, seq_features=[]):
     
     # * Load the best model
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
     model = load_best_model(save_dir)
 
     # * Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
-    # * SET MODE TO PERMUTE IN COLLATE_FN
     n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
     LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
     VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
     device = get_device()
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
     val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
+    # * SET MODE TO PERMUTE IN COLLATE_FN
     collate_fn = get_collate_fn(data_pars, mode='permute', permute_features=seq_features)
     val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)
     N_VAL = get_set_length(val_set)
@@ -48,6 +48,5 @@ def calc_permutation_importance(save_dir, wandb_ID=None):
     # print(seq_features)
     # print(scalar_features)
 
-y = torch.tensor(list(range(20, 30)))
-x = list(reversed(range(10)))
-print(y[x])
+save_dir = '/home/bjoern/Thesis/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/energy_reg/test_2020.02.18-13.40.33'
+calc_permutation_importance(save_dir)
