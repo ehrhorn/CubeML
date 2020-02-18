@@ -28,8 +28,6 @@ parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, help='Se
 parser.add_argument('--gpu', nargs='+', default='0', type=str, help='Sets the IDs of the GPUs to use')
 parser.add_argument('--batch_size', default=128, type=int, help='Sets batchsize.')
 
-
-
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -90,8 +88,8 @@ if __name__ == '__main__':
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR' if not args.dev else None,
                                         'max_lr':          args.max_lr,
                                         'min_lr':          args.min_lr,
-                                        'frac_up':         0.02,
-                                        'frac_down':       1-0.02,
+                                        'frac_up':         0.08,
+                                        'frac_down':       1-0.08,
                                         'schedule':        'inverse',
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
@@ -143,7 +141,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 256
+    n1 = 128
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
 
@@ -164,7 +162,7 @@ if __name__ == '__main__':
                                                 {'LstmBlock':       {'n_in':              n_seq_feat,
                                                                      'n_out':             n1,
                                                                      'n_parallel':        1,
-                                                                     'num_layers':        1,
+                                                                     'num_layers':        2,
                                                                      'residual':          False,
                                                                      'bidir':             True,
                                                                      'learn_init':        True}},

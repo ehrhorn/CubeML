@@ -149,6 +149,10 @@ class Performance:
             key = self._performance_keys[0]
             one_num = np.nansum(self.counts*getattr(self, key+'_sigma'))/np.nansum(self.counts)
         
+        elif self.meta_pars['group'] == 'full_reg':
+            print(get_time(), 'No onenumber performance measure defined for full_reg')
+            one_num = -1
+
         return one_num
 
     def _calculate_performance(self, energy_dict, pred_dict, crs_dict, true_dict):
@@ -207,28 +211,44 @@ class Performance:
             setattr(self, model_key+'_RIerr', sigma_rel)
 
     def _get_conversion_keys_crs(self):
+        
         if self.meta_pars['group'] == 'vertex_reg':
             keys = ['x', 'y', 'z', 't']
+        
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
             keys = ['x', 'y', 'z']
+        
         elif self.meta_pars['group'] == 'direction_reg':
             keys = ['azi', 'zen']
+        
         elif self.meta_pars['group'] == 'energy_reg':
             keys = ['E']
+        
+        elif self.meta_pars['group'] == 'full_reg':
+            keys = ['E', 'x', 'y', 'z', 't', 'azi', 'zen']
+
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
         
         return keys
     
     def _get_conversion_keys_true(self):
+        
         if self.meta_pars['group'] == 'vertex_reg':
             keys = ['x', 'y', 'z', 't']
+        
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
             keys = ['x', 'y', 'z']
+        
         elif self.meta_pars['group'] == 'direction_reg':
             keys = ['x', 'y', 'z']
+        
         elif self.meta_pars['group'] == 'energy_reg':
             keys = ['logE']
+        
+        elif self.meta_pars['group'] == 'full_reg':
+            keys = ['logE', 'x', 'y', 'z', 't', 'x', 'y', 'z']
+        
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
         
@@ -269,12 +289,19 @@ class Performance:
 
         if self.meta_pars['group'] == 'vertex_reg':
             funcs = [vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error]
+        
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
             funcs = [vertex_x_error, vertex_y_error, vertex_z_error]
+        
         elif self.meta_pars['group'] == 'direction_reg':
             funcs = [get_retro_crs_prefit_azi_error, get_retro_crs_prefit_polar_error]
+        
         elif self.meta_pars['group'] == 'energy_reg':
             funcs = [get_retro_crs_prefit_relE_error]
+
+        elif self.meta_pars['group'] == 'full_reg':
+            funcs = [get_retro_crs_prefit_relE_error, vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error, get_retro_crs_prefit_azi_error, get_retro_crs_prefit_polar_error]
+        
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
         
@@ -290,14 +317,23 @@ class Performance:
         return {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube']}
 
     def _get_performance_keys(self):
+
+        
         if self.meta_pars['group'] == 'vertex_reg':
             keys = self._get_prediction_keys()
+        
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
             keys = self._get_prediction_keys()
+        
         elif self.meta_pars['group'] == 'direction_reg':
             keys = ['azi_error', 'polar_error']
+        
         elif self.meta_pars['group'] == 'energy_reg':
             keys = self._get_prediction_keys()
+        
+        elif self.meta_pars['group'] == 'full_reg':
+            keys = self._get_prediction_keys()
+
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
         
@@ -326,12 +362,19 @@ class Performance:
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
             if self.meta_pars['group'] == 'vertex_reg':
                 reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
+            
             elif self.meta_pars['group'] == 'vertex_reg_no_time':
                 reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
+            
             elif self.meta_pars['group'] == 'direction_reg':
                 reco_keys = ['retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
+            
             elif self.meta_pars['group'] == 'energy_reg':
                 reco_keys = ['retro_crs_prefit_energy']
+            
+            elif self.meta_pars['group'] == 'full_reg':
+                reco_keys = ['retro_crs_prefit_energy', 'retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time', 'retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
+
             else:
                 raise KeyError('Unknown reco_keys requested in Performance!')
         else:

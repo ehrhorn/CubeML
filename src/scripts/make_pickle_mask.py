@@ -225,7 +225,7 @@ if __name__ == '__main__':
     max_doms = 200
     
     min_energy = 1.0
-    max_energy = 2.0
+    max_energy = 2.2
     mask_dict = {'mask_name': mask_name, 'min_doms':
         min_doms, 'max_doms': max_doms, 'min_energy': min_energy, 'max_energy': max_energy}
 
