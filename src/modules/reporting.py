@@ -79,8 +79,9 @@ class AziPolarHists:
             # * Load img with PIL - png format can be logged
             if self.wandb_ID is not None:
                 im = PIL.Image.open(img_address)
-                wandb.log({str(key): wandb.Image(im, caption=key)}, commit = False)
-        
+                wandb.log({str(key): wandb.Image(im, caption=key)}, commit=False)
+                im.close()
+
         # * Save 2D-histogram
         img_address = get_project_root() + self.model_dir+'/figures/azi_vs_polar.png'
         azi, polar = self._exclude_azi_polar()
@@ -95,6 +96,7 @@ class AziPolarHists:
             if self.wandb_ID is not None:
                 im = PIL.Image.open(img_address)
                 wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit = False)
+                im.close()
 
 class Performance:
     """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
@@ -166,7 +168,6 @@ class Performance:
 
         # * Calculate performance for our predictions
         for key, data in pred_dict.items():
-            print('')
             print(get_time(), 'Calculating %s performance...'%(key))
             sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_energy(energy, data, self.bin_edges)
             print(get_time(), 'Calculation finished!')
@@ -307,6 +308,46 @@ class Performance:
         
         return funcs
 
+    def _get_I3_2D_clip_and_d(self, key):
+        d2, clip_vals = {}, [-np.inf, np.inf]
+
+        if key == 'relative_E_error':
+            clip_vals = [-4.0, 4.0]
+            d2['ylabel'] = r'$(\mathrm{E}_{reco}-\mathrm{E}_{true})/\mathrm{E}_{true}$ [%]'
+            d2['title'] = 'Model Energy reco. results'
+
+        elif key == 'vertex_x_error':
+            clip_vals = [-80.0, 80.0]
+            d2['ylabel'] = 'Error [m]'
+            d2['title'] = 'Model vertex x reco. results'
+
+        elif key == 'vertex_y_error':
+            clip_vals = [-80.0, 80.0]
+            d2['ylabel'] = 'Error [m]'
+            d2['title'] = 'Model vertex y reco. results'
+
+        elif key == 'vertex_z_error':
+            clip_vals = [-80.0, 80.0]
+            d2['ylabel'] = 'Error [m]'
+            d2['title'] = 'Model vertex z reco. results'
+        
+        elif key == 'vertex_t_error':
+            clip_vals = [-500.0, 500.0]
+            d2['ylabel'] = 'Error [ns]'
+            d2['title'] = 'Model interaction time reco. results'
+        
+        elif key == 'polar_error':
+            clip_vals = [-80.0, 80.0]
+            d2['ylabel'] = 'Error [deg]'
+            d2['title'] = 'Model polar angle reco. results'
+        
+        elif key == 'azi_error':
+            clip_vals = [-150.0, 150.0]
+            d2['ylabel'] = 'Error [deg]'
+            d2['title'] = 'Model azimuthal angle reco. results'
+        
+        return d2, clip_vals
+
     def _get_perf_dict(self, model_key, reco_key):
         sigma = getattr(self, model_key+'_sigma')
         reco_sigma = getattr(self, reco_key+'_sigma')
@@ -401,17 +442,10 @@ class Performance:
         return label
 
     def _make_I3_perf_plot(self, key, energy, data, median, upper_perc, lower_perc):
-        d2 = {}
         
-        if key == 'relative_E_error':
-            clip_val = 4.0
-            d2['ylabel'] = 'Relative error [%]'
-            d2['ylabel'] = r'$(\mathrm{E}_{reco}-\mathrm{E}_{true})/\mathrm{E}_{true}$ [%]'
-            d2['title'] = 'Reconstruction results'
-        else:
-            clip_val = np.inf
+        d2, clip_vals = self._get_I3_2D_clip_and_d(key)
 
-        d2['hist2d'] = [energy, np.clip(data, -clip_val, clip_val)]
+        d2['hist2d'] = [energy, np.clip(data, clip_vals[0], clip_vals[1])]
         d2['zorder'] = 0
         d2['xlabel'] = r'log(E) [E/GeV]' 
         f2 = make_plot(d2)
@@ -427,11 +461,13 @@ class Performance:
         img_address = get_project_root()+self.model_dir+'/figures/'+key+'_2DPerformance.png'
         d['savefig'] = img_address
         f3 = make_plot(d, h_figure=f2)
-
+        plt.close('all')
+        
         # * Load img with PIL - this format can be logged
         if self.wandb_ID is not None:
             im = PIL.Image.open(img_address)
             wandb.log({key+'_2Dperformance': wandb.Image(im, caption=key+'_2Dperformance')}, commit=False)
+            im.close()
 
     def save(self):
         
@@ -457,12 +493,14 @@ class Performance:
                 d_energy = self._get_energy_dict()
                 d_energy['savefig'] = img_address
                 _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
-
-            # * Load img with PIL - this format can be logged
+            
+            plt.close('all')
+            # * Load img with PIL - this format can be logged. Remmeber to close it again
             if self.wandb_ID is not None:
                 im = PIL.Image.open(img_address)
                 wandb.log({pred_key+'_performance': wandb.Image(im, caption=pred_key+'_performance')}, commit=False)
-
+                im.close()
+                
                 # * Log the data for nice plotting on W&B
                 for num1, num2 in zip(getattr(self, pred_key+'_sigma'), self.bin_centers):
                     wandb.log({pred_key+'_sigma': num1, pred_key+'_bincenter2': num2})
@@ -673,7 +711,6 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
             d = {'linewidth': 1.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
-            # plt.plot(plot_dict['x'][i_set], dataset, **d)
             h_axis.plot(plot_dict['x'][i_set], dataset, **d)
             
         if 'label' in plot_dict: 
@@ -842,6 +879,7 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         print('')
         print(get_time(), 'Figure saved at:')
         print(plot_dict['savefig'])
+        plt.close(fig=h_figure)
     
 
     return h_figure

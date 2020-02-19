@@ -255,8 +255,8 @@ def calc_MAEs(sorted_data, entries, error_measure='median'):
     
     return maes
 
-def calc_perf_as_fn_of_energy(energy, predictor_vals, bin_edges):
-    """Calculates performance measured as width of error histograms as a function of energy using multiprocessing.
+def calc_perf_as_fn_of_energy(energy, predictor_vals, bin_edges, multiprocess=False, bootstrap=False):
+    """Calculates performance measured as width of error histograms as a function of energy using multiprocessing. Bootstrapping can be used to estimate width.
     
     Arguments:
         energy {list} -- Energy of event
@@ -271,11 +271,19 @@ def calc_perf_as_fn_of_energy(energy, predictor_vals, bin_edges):
     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
     sigmas, e_sigmas, median, upper_perc, lower_perc = [], [], [], [], []
     
-    # * Spread the job
-    available_cores = cpu_count()
-    with Pool(available_cores) as p:
-        dicts = p.map(estimate_sigma_multiprocess, predictor_bins)
-    
+    if multiprocess:
+        # * Spread the job
+        available_cores = cpu_count()
+        bootstrap_list = [bootstrap]*len(predictor_bins)
+        packed = [entry for entry in zip(predictor_bins, bootstrap_list)]
+        with Pool(available_cores) as p:
+            dicts = p.map(estimate_sigma_multiprocess, packed)
+        
+    else:
+        dicts = []
+        for predictor_bin in predictor_bins:
+            dicts.append(estimate_sigma_multiprocess((predictor_bin, bootstrap)))
+
     # * Unpack the result
     for d in dicts:
         sigmas.append(d['sigma'])
@@ -283,7 +291,6 @@ def calc_perf_as_fn_of_energy(energy, predictor_vals, bin_edges):
         median.append(d['50th'])
         upper_perc.append(d['84th'])
         lower_perc.append(d['16th'])
-
 
     return sigmas, e_sigmas, median, upper_perc, lower_perc
 
@@ -443,8 +450,8 @@ def convert_to_proper_list(l):
     
     return converted
 
-def estimate_percentile(data, percentiles, n_bootstraps=1000):
-    """Estimation of percentile of a dataset using bootstrapping and order statistics (see https://en.wikipedia.org/wiki/Order_statistic). A confidence interval of +-1 sigma is created for each percentile
+def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
+    """Estimation of percentile of a dataset order statistics (see https://en.wikipedia.org/wiki/Order_statistic) and potentially bootstrapping. A confidence interval of +-1 sigma is created for each percentile
     
     Arguments:
         data {array-like} -- Data in which to find percentiles.
@@ -474,31 +481,47 @@ def estimate_percentile(data, percentiles, n_bootstraps=1000):
         i_plussigmas.append(int(mean+sigma+1))
         i_minussigmas.append(int(mean-sigma))
     
-    
-    # * bootstrap
-    bootstrap_indices = np.random.choice(np.arange(0, n), size=(n, n_bootstraps))
-    bootstrap_indices.sort(axis=0)
-    bootstrap_samples = data[bootstrap_indices]
+    if bootstrap:
+        # * bootstrap
+        bootstrap_indices = np.random.choice(np.arange(0, n), size=(n, n_bootstraps))
+        bootstrap_indices.sort(axis=0)
+        bootstrap_samples = data[bootstrap_indices]
 
-    # * An IndexError is due to too few events in a bin. Set these to NaN, we don't care about bins with very little data, so dont log the error.
-    for i in range(len(i_means)):
-        
-        try:    
-            mean = bootstrap_samples[i_means[i], :]
-            plussigma = bootstrap_samples[i_plussigmas[i], :]
-            minussigma = bootstrap_samples[i_minussigmas[i], :]
+        # * An IndexError is due to too few events in a bin. Set these to NaN, we don't care about bins with very little data, so dont log the error.
+        for i in range(len(i_means)):
             
-            means.append(np.mean(mean))
-            plussigmas.append(np.mean(plussigma))
-            minussigmas.append(np.mean(minussigma))
-        except IndexError:
-            means.append(np.nan)
-            plussigmas.append(np.nan)
-            minussigmas.append(np.nan)
+            try:    
+                mean = bootstrap_samples[i_means[i], :]
+                plussigma = bootstrap_samples[i_plussigmas[i], :]
+                minussigma = bootstrap_samples[i_minussigmas[i], :]
+                
+                means.append(np.mean(mean))
+                plussigmas.append(np.mean(plussigma))
+                minussigmas.append(np.mean(minussigma))
+            except IndexError:
+                means.append(np.nan)
+                plussigmas.append(np.nan)
+                minussigmas.append(np.nan)
+    else:
+        
+        for i in range(len(i_means)):
+            
+            try:    
+                mean = data[i_means[i]]
+                plussigma = data[i_plussigmas[i]]
+                minussigma = data[i_minussigmas[i]]
+                
+                means.append(mean)
+                plussigmas.append(plussigma)
+                minussigmas.append(minussigma)
+            except IndexError:
+                means.append(np.nan)
+                plussigmas.append(np.nan)
+                minussigmas.append(np.nan)
 
     return means, plussigmas, minussigmas
 
-def estimate_sigma_multiprocess(entry):
+def estimate_sigma_multiprocess(pack):
     """Multiprocessing approach to calculating standard deviation, 16th and 84th percentiles of some given data.
     
     Arguments:
@@ -508,8 +531,10 @@ def estimate_sigma_multiprocess(entry):
         dict -- Dictionary with keys 'sigma', 'e_sigma', '16th' and '84th', corresponding to sigma, error on sigma, 16th percentile and 84th percentile.
     """    
 
+    # * unpack
+    data, bootstrap = pack
     # * 0.15865, 0.84135 corresponds to actual +- 1 sigma
-    means, plussigmas, minussigmas = estimate_percentile(entry, [0.25, 0.75, 0.50, 0.15865, 0.84135])
+    means, plussigmas, minussigmas = estimate_percentile(data, [0.25, 0.75, 0.50, 0.15865, 0.84135], bootstrap=bootstrap)
     e_quartiles = []
     e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
     e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
