@@ -47,3 +47,33 @@
 #     # return predictor_bins, energy_sorted
 
 #     return sigmas, e_sigmas
+
+def read_pickle_predicted_h5_data(file_address, keys, data_pars, true_keys):
+    """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
+    
+    Arguments:
+        file_address {str} -- absolute path to predictions-file.
+        keys {list} -- names of datasets to read in predictions-file
+        data_pars {dict} -- dictionary containing data-parameters of the model.
+        true_keys {list} -- names of datasets to read in raw data-files.
+    
+    Returns:
+        dicts -- predictions_dict, raw_dict
+    """    
+
+    data_dir = data_pars['data_dir']
+    prefix = 'transform'+str(data_pars['file_keys']['transform'])
+
+    preds = {key: [] for key in keys}
+    preds['indices'] = []
+
+    # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
+    with h5.File(file_address, 'r') as f:
+        preds['indices'] = f['index'][:]
+        for key in keys:
+            preds[key] = f[key][:]
+    
+    # * Now read the matching true values
+    truths = read_pickle_data(data_dir, preds['indices'], true_keys, prefix=prefix)
+    
+    return preds, truths

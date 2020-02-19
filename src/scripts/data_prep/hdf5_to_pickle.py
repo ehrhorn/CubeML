@@ -94,6 +94,6 @@ if __name__ == '__main__':
 
     packed = [entry for entry in zip(h5_files, new_names, new_data_dirs, particle_codes, n_per_dir_list)]
     
-    available_cores = cpu_count()+6
+    available_cores = cpu_count()
     with Pool(available_cores) as p:
         p.map(pickle_events, packed)

@@ -255,7 +255,7 @@ def calc_MAEs(sorted_data, entries, error_measure='median'):
     
     return maes
 
-def calc_perf_as_fn_of_energy(energy, predictor_vals, bin_edges, multiprocess=False, bootstrap=False):
+def calc_perf_as_fn_of_data(energy, predictor_vals, bin_edges, multiprocess=False, bootstrap=False):
     """Calculates performance measured as width of error histograms as a function of energy using multiprocessing. Bootstrapping can be used to estimate width.
     
     Arguments:
@@ -293,6 +293,46 @@ def calc_perf_as_fn_of_energy(energy, predictor_vals, bin_edges, multiprocess=Fa
         lower_perc.append(d['16th'])
 
     return sigmas, e_sigmas, median, upper_perc, lower_perc
+
+def calc_perf_as_fn_of_n_doms(predictor_vals, dom_mask, bin_edges, multiprocess=False, bootstrap=False):
+    """Calculates performance measured as width of error histograms as a function of energy using multiprocessing. Bootstrapping can be used to estimate width.
+    
+    Arguments:
+        energy {list} -- Energy of event
+        predictor_vals {list} -- Prediction (typically some error measure)
+        bin_edges {list} -- Edges of each energy bin.
+    
+    Returns:
+        lists -- estimated sigma, estimated error on sigma, estimated 84th percentile and estimated 16th percentile
+    """  
+    n_doms = get_n_doms(predictor_vals, dom_mask)
+    energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
+    _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
+    sigmas, e_sigmas, median, upper_perc, lower_perc = [], [], [], [], []
+    
+    if multiprocess:
+        # * Spread the job
+        available_cores = cpu_count()
+        bootstrap_list = [bootstrap]*len(predictor_bins)
+        packed = [entry for entry in zip(predictor_bins, bootstrap_list)]
+        with Pool(available_cores) as p:
+            dicts = p.map(estimate_sigma_multiprocess, packed)
+        
+    else:
+        dicts = []
+        for predictor_bin in predictor_bins:
+            dicts.append(estimate_sigma_multiprocess((predictor_bin, bootstrap)))
+
+    # * Unpack the result
+    for d in dicts:
+        sigmas.append(d['sigma'])
+        e_sigmas.append(d['e_sigma'])
+        median.append(d['50th'])
+        upper_perc.append(d['84th'])
+        lower_perc.append(d['16th'])
+
+    return sigmas, e_sigmas, median, upper_perc, lower_perc
+
 
 def calc_relative_error(l1, l2, e1=None, e2=None):
     """Calculates the relative error (l2-l1) / l1 wrt the values of l1 and propagates uncertainties if given.
@@ -858,6 +898,39 @@ def get_n_events_in_h5(file_path):
     with h5.File(file_path, 'r') as f:
         n_events = int(f['meta/events'][()])
     return n_events
+
+def get_n_doms(indices, dom_mask_name, data_dir):
+    events_per_dir = get_n_events_per_dir(data_dir)
+    
+    available_cores = cpu_count()
+    indices_chunked = np.array_split(indices, available_cores)
+    events_per_dir_list = [events_per_dir]*available_cores
+    data_dir_list = [get_project_root()+data_dir]*available_cores
+    dom_mask_name_list = [dom_mask_name]*available_cores
+    packed = [entry for entry in zip(indices_chunked, events_per_dir_list, data_dir_list, dom_mask_name_list)]
+
+    n_doms = np.array([])
+    with Pool(available_cores) as p:
+        n_doms_list = p.map(get_n_doms_multiprocess, packed)
+    for entry in n_doms_list:
+        n_doms = np.append(n_doms, entry)
+    
+    return n_doms
+
+def get_n_doms_multiprocess(pack):
+    indices, events_per_dir, data_dir, mask = pack
+    n_doms_arr = np.zeros(len(indices))
+    for i_index, index in enumerate(indices):
+        filename = str(index) + '.pickle'
+        path = data_dir + '/pickles/' + str(index//events_per_dir) + '/' + str(index) + '.pickle'
+        
+        # * Load event
+        with open(path, 'rb') as f:
+            event = pickle.load(f)
+            n_doms = len(event['masks'][mask])
+        n_doms_arr[i_index] = n_doms
+    
+    return n_doms_arr
 
 def get_n_parameters(model):
     params = 0
@@ -1503,36 +1576,6 @@ def read_predicted_h5_data(file_address, keys, data_pars, true_keys):
     truths_sorted = sort_wrt_file_id(file_address, truths) 
     
     return preds_sorted, truths_sorted
-
-# def read_pickle_predicted_h5_data(file_address, keys, data_pars, true_keys):
-#     """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
-    
-#     Arguments:
-#         file_address {str} -- absolute path to predictions-file.
-#         keys {list} -- names of datasets to read in predictions-file
-#         data_pars {dict} -- dictionary containing data-parameters of the model.
-#         true_keys {list} -- names of datasets to read in raw data-files.
-    
-#     Returns:
-#         dicts -- predictions_dict, raw_dict
-#     """    
-
-#     data_dir = data_pars['data_dir']
-#     prefix = 'transform'+str(data_pars['file_keys']['transform'])
-
-#     preds = {key: [] for key in keys}
-#     preds['indices'] = []
-
-#     # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
-#     with h5.File(file_address, 'r') as f:
-#         preds['indices'] = f['index'][:]
-#         for key in keys:
-#             preds[key] = f[key][:]
-    
-#     # * Now read the matching true values
-#     truths = read_pickle_data(data_dir, preds['indices'], true_keys, prefix=prefix)
-    
-#     return preds, truths
 
 def read_pickle_predicted_h5_data_v2(file_address, keys):
     """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.

@@ -141,7 +141,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 256
+    n1 = 128
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
 

@@ -49,4 +49,14 @@ def calc_permutation_importance(save_dir, wandb_ID=None, seq_features=[]):
     # print(scalar_features)
 
 save_dir = '/home/bjoern/Thesis/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/energy_reg/test_2020.02.18-13.40.33'
-calc_permutation_importance(save_dir)
+# calc_permutation_importance(save_dir)
+
+path = '/home/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/pickles/0/0'
+with open(path+'.pickle', 'rb') as f:
+    event = pickle.load(f)
+
+for key in event:
+    print(key)
+    for key2, items in event[key].items():
+        print(key2)
+    print('')

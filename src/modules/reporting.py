@@ -118,6 +118,7 @@ class Performance:
         self.meta_pars = meta_pars
         self.keyword = meta_pars['group']
         self.prefix = prefix
+        self.dom_mask = data_pars['dom_mask']
         
         self._energy_key = self._get_energy_key()
         self._pred_keys = self._get_prediction_keys()
@@ -129,8 +130,8 @@ class Performance:
         self.to_frac = to_frac
         self.wandb_ID = wandb_ID
 
-        energy_dict, pred_dict, crs_dict, true_dict = self._get_data_dicts()
-        self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict)
+        energy_dict, pred_dict, crs_dict, true_dict, n_doms = self._get_data_dicts()
+        self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict, n_doms)
         self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
 
     def _calculate_onenum_performance(self, data_dict):
@@ -157,19 +158,24 @@ class Performance:
 
         return one_num
 
-    def _calculate_performance(self, energy_dict, pred_dict, crs_dict, true_dict):
+    def _calculate_performance(self, energy_dict, pred_dict, crs_dict, true_dict, n_doms):
         
         # * Transform back and extract values into list
         true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
         energy_transformed = inverse_transform(energy_dict, get_project_root() + self.model_dir)
         energy = convert_to_proper_list(energy_transformed[self._energy_key[0]])
+
         self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
         self.bin_centers = calc_bin_centers(self.bin_edges)
 
+        self.dom_counts, self.dom_bin_edges = np.histogram(n_doms, bins=N_BINS_PERF_PLOTS)
+        self.dom_bin_centers = calc_bin_centers(self.dom_bin_edges)
+
         # * Calculate performance for our predictions
         for key, data in pred_dict.items():
+            # * Performance as a function of energy
             print(get_time(), 'Calculating %s performance...'%(key))
-            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_energy(energy, data, self.bin_edges)
+            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, data, self.bin_edges)
             print(get_time(), 'Calculation finished!')
             setattr(self, key+'_sigma', sigma)
             setattr(self, key+'_sigmaerr', sigmaerr)
@@ -180,6 +186,16 @@ class Performance:
             # * We make the I3-plot here so we do not have to save all the data...
             self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc)
 
+            # * Performance as a function of number of doms
+            print(get_time(), 'Calculating %s DOM performance...'%(key))
+            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(n_doms, data, self.dom_bin_edges)
+            print(get_time(), 'Calculation finished!')
+            setattr(self, 'dom_'+key+'_sigma', sigma)
+            setattr(self, 'dom_'+key+'_sigmaerr', sigmaerr)
+            setattr(self, 'dom_'+key+'_50th', median)
+            setattr(self, 'dom_'+key+'_84th', upper_perc)
+            setattr(self, 'dom_'+key+'_16th', lower_perc)
+        
         # * Calculate performance for Icecubes predictions
         # * Ensure keys are proper so the error calculations work
         conversion_keys_crs = self._get_conversion_keys_crs()
@@ -190,15 +206,26 @@ class Performance:
         true_transformed = convert_keys(true_transformed, self._true_keys, conversion_keys_true)
 
         for i_var, key in enumerate(conversion_keys_crs):
+            # * Performance as a function of energy
             error = error_funcs[i_var](crs_dict, true_transformed, reporting=True)
             print(get_time(), 'Calculating %s performance...'%(self._reco_keys[i_var]))
-            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_energy(energy, error, self.bin_edges)
+            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, error, self.bin_edges)
             print(get_time(), 'Calculation finished!')
             setattr(self, self._reco_keys[i_var]+'_sigma', sigma)
             setattr(self, self._reco_keys[i_var]+'_sigmaerr', sigmaerr)
             setattr(self, key+'_50th', median)
             setattr(self, key+'_84th', upper_perc)
             setattr(self, key+'_16th', lower_perc)
+
+            # * Performance as a function of number of doms
+            print(get_time(), 'Calculating %s DOM performance...'%(key))
+            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(n_doms, error, self.dom_bin_edges)
+            print(get_time(), 'Calculation finished!')
+            setattr(self, 'dom_'+self._reco_keys[i_var]+'_sigma', sigma)
+            setattr(self, 'dom_'+self._reco_keys[i_var]+'_sigmaerr', sigmaerr)
+            setattr(self, 'dom_'+key+'_50th', median)
+            setattr(self, 'dom_'+key+'_84th', upper_perc)
+            setattr(self, 'dom_'+key+'_16th', lower_perc)
 
         # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._reco_keys):
@@ -266,13 +293,21 @@ class Performance:
         true_dict = read_pickle_data(data_dir, pred_dict['indices'], self._true_keys, prefix=prefix)
         print(get_time(), 'Predictions loaded!')
 
+        print(get_time(), 'Finding number of DOMs in events')
+        n_doms = get_n_doms(pred_dict['indices'], self.dom_mask, data_dir)
         # * Indices have done, what we wanted them to do - delete them
+        print(get_time(), 'Number of DOMs found!')
         del pred_dict['indices']
 
-        return energy_dict, pred_dict, crs_dict, true_dict
+        return energy_dict, pred_dict, crs_dict, true_dict, n_doms
     
+    def _get_dom_dict(self):
+        d = {'data': [self.dom_bin_edges[:-1]], 'bins': [self.dom_bin_edges], 'weights': [self.dom_counts], 'histtype': ['step'], 'log': [True], 'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+        return d
+
     def _get_energy_dict(self):
-        return {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['lightgray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+        d = {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+        return d
     
     def _get_energy_key(self):
         dataset_name = get_dataset_name(self.data_pars['data_dir'])
@@ -358,6 +393,19 @@ class Performance:
         title = self._get_perf_plot_title(model_key)
 
         d = {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube'], 'yrange': {'bottom': 0.001}, 'title': title}
+
+        return d
+    
+    def _get_DOMperf_dict(self, model_key, reco_key):
+        sigma = getattr(self, 'dom_'+model_key+'_sigma')
+        reco_sigma = getattr(self, 'dom_'+reco_key+'_sigma')
+        sigmaerr = getattr(self, 'dom_'+model_key+'_sigmaerr')
+        reco_sigmaerr = getattr(self, 'dom_'+reco_key+'_sigmaerr')
+
+        label = self._get_ylabel(model_key)
+        title = self._get_perf_plot_title(model_key)
+
+        d = {'edges': [self.dom_bin_edges, self.dom_bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'$N_{DOMs}$', 'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube'], 'yrange': {'bottom': 0.001}, 'title': title}
 
         return d
 
@@ -548,6 +596,17 @@ class Performance:
                 
                 # * Save the performance class-instance for easy transfers between local and cloud
                 wandb.save(perf_savepath)
+
+        for pred_key, reco_key in zip(self._performance_keys, self._reco_keys):
+            img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_DOMperformance.png'
+            d = self._get_DOMperf_dict(pred_key, reco_key)
+            d['savefig'] = img_address
+
+            h_fig = make_plot(d)
+            d_dom = self._get_dom_dict()
+            d_dom['savefig'] = img_address
+            _ = make_plot(d_dom, h_figure=h_fig, axes_index=0)
+
 
 
 #* ======================================================================== 
@@ -914,11 +973,10 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
 
     if 'savefig' in plot_dict: 
         h_figure.savefig(plot_dict['savefig'])
-        print('')
         print(get_time(), 'Figure saved at:')
-        print(plot_dict['savefig'])
+        print(get_path_from_root(plot_dict['savefig']))
+        print('')
         plt.close(fig=h_figure)
-    
 
     return h_figure
 
