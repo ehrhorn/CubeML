@@ -186,7 +186,7 @@ def get_retro_crs_prefit_azi_error(retro_dict, true_dict, units='degrees', repor
     #* - see https://pytorch.org/docs/stable/torch.html#torch.atan
     pi = 3.14159265359
 
-    xy_truth = torch.tensor([true_dict['x'], true_dict['y']])
+    xy_truth = torch.tensor([true_dict['x_dir'], true_dict['y_dir']])
     azi_truth_signed = torch.atan2(xy_truth[1, :], xy_truth[0, :])
 
     #* Convert retro_crs to signed angle
@@ -219,7 +219,7 @@ def get_retro_crs_prefit_polar_error(retro_dict, true_dict, units='degrees', rep
     
     pi = 3.14159265359
 
-    x_true, y_true, z_true = true_dict['x'], true_dict['y'], true_dict['z']
+    x_true, y_true, z_true = true_dict['x_dir'], true_dict['y_dir'], true_dict['z_dir']
     dir_truth = torch.tensor([x_true, y_true, z_true])
     length_truth = torch.sum(dir_truth*dir_truth, dim=0)**0.5
     polar_truth = torch.acos(dir_truth[2, :]/length_truth)
@@ -302,8 +302,8 @@ def vertex_x_error(pred, truth, reporting=False):
     # * Ensure we are dealing with the right data
     if 'true_primary_position_x' in pred:
         x_key = 'true_primary_position_x'
-    elif 'x' in pred:
-        x_key = 'x'
+    elif 'x_vertex' in pred:
+        x_key = 'x_vertex'
     else:
         raise KeyError('Wrong dictionary given to vertex_x_error!')
     
@@ -338,8 +338,8 @@ def vertex_y_error(pred, truth, reporting=False):
     # * Ensure we are dealing with the right data
     if 'true_primary_position_y' in pred:
         y_key = 'true_primary_position_y'
-    elif 'y' in pred:
-        y_key = 'y'
+    elif 'y_vertex' in pred:
+        y_key = 'y_vertex'
     else:
         raise KeyError('Wrong dictionary given to vertex_y_error!')
     
@@ -373,8 +373,8 @@ def vertex_z_error(pred, truth, reporting=False):
     # * Ensure we are dealing with the right data
     if 'true_primary_position_z' in pred:
         z_key = 'true_primary_position_z'
-    elif 'z' in pred:
-        z_key = 'z'
+    elif 'z_vertex' in pred:
+        z_key = 'z_vertex'
     else:
         raise KeyError('Wrong dictionary given to vertex_z_error!')
     

@@ -214,10 +214,10 @@ class Performance:
     def _get_conversion_keys_crs(self):
         
         if self.meta_pars['group'] == 'vertex_reg':
-            keys = ['x', 'y', 'z', 't']
+            keys = ['x_vertex', 'y_vertex', 'z_vertex', 't']
         
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
-            keys = ['x', 'y', 'z']
+            keys = ['x_vertex', 'y_vertex', 'z_vertex']
         
         elif self.meta_pars['group'] == 'direction_reg':
             keys = ['azi', 'zen']
@@ -226,7 +226,7 @@ class Performance:
             keys = ['E']
         
         elif self.meta_pars['group'] == 'full_reg':
-            keys = ['E', 'x', 'y', 'z', 't', 'azi', 'zen']
+            keys = ['E', 'x_vertex', 'y_vertex', 'z_vertex', 't', 'azi', 'zen']
 
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
@@ -236,19 +236,19 @@ class Performance:
     def _get_conversion_keys_true(self):
         
         if self.meta_pars['group'] == 'vertex_reg':
-            keys = ['x', 'y', 'z', 't']
+            keys = ['x_vertex', 'y_vertex', 'z_vertex', 't']
         
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
-            keys = ['x', 'y', 'z']
+            keys = ['x_vertex', 'y_vertex', 'z_vertex']
         
         elif self.meta_pars['group'] == 'direction_reg':
-            keys = ['x', 'y', 'z']
+            keys = ['x_dir', 'y_dir', 'z_dir']
         
         elif self.meta_pars['group'] == 'energy_reg':
             keys = ['logE']
         
         elif self.meta_pars['group'] == 'full_reg':
-            keys = ['logE', 'x', 'y', 'z', 't', 'x', 'y', 'z']
+            keys = ['logE', 'x_vertex', 'y_vertex', 'z_vertex', 't', 'x_dir', 'y_dir', 'z_dir']
         
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
@@ -332,7 +332,7 @@ class Performance:
             d2['title'] = 'Model vertex z reco. results'
         
         elif key == 'vertex_t_error':
-            clip_vals = [-500.0, 500.0]
+            clip_vals = [-200.0, 200.0]
             d2['ylabel'] = 'Error [ns]'
             d2['title'] = 'Model interaction time reco. results'
         
@@ -355,7 +355,36 @@ class Performance:
         reco_sigmaerr = getattr(self, reco_key+'_sigmaerr')
 
         label = self._get_ylabel(model_key)
-        return {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube']}
+        title = self._get_perf_plot_title(model_key)
+
+        d = {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube'], 'yrange': {'bottom': 0.001}, 'title': title}
+
+        return d
+
+    def _get_perf_plot_title(self, key):
+
+        if key == 'relative_E_error':
+            title = 'Model energy reco. performance'
+
+        elif key == 'vertex_x_error':
+            title = 'Model x-vertex reco. performance'
+
+        elif key == 'vertex_y_error':
+            title = 'Model y-vertex reco. performance'
+
+        elif key == 'vertex_z_error':
+            title = 'Model z-vertex reco. performance'
+        
+        elif key == 'vertex_t_error':
+            title = 'Model interaction time reco. performance'
+
+        elif key == 'polar_error':
+            title = 'Model polar angle reco. performance'
+        
+        elif key == 'azi_error':
+            title = 'Model azimuthal angle reco. performance'
+        
+        return title
 
     def _get_performance_keys(self):
 
@@ -427,15 +456,27 @@ class Performance:
         rel_imp = getattr(self, key+'_RI')
         rel_imp_err = getattr(self, key+'_RIerr')
 
-        return {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2, 'yrange': [-0.5, 0.5]}
+        d = {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
+        
+        yrange_d = {}
+        if max(-0.5, min(rel_imp)) == -0.5:
+            yrange_d['bottom'] = -0.5
+            yrange_d['top'] = 0.5
+            d['yrange'] = yrange_d
+
+        return d
 
     def _get_ylabel(self, key):
         
         if self.meta_pars['group'] == 'vertex_reg' or 'vertex_reg_no_time':
             if key == 'vertex_t_error':
-                label = 'Error [ns]'
-            else:
-                label = 'Error [m]'
+                label = 'Resolution [ns]'
+            elif key == 'vertex_x_error' or key == 'vertex_y_error' or key == 'vertex_z_error':
+                label = 'Resolution [m]'
+            elif key == 'azi_error' or key == 'polar_error':
+                label = 'Resolution [degrees]'
+            elif key == 'relative_E_error':
+                label = 'Resolution [%]'
         else:
             raise KeyError('PerformanceClass._get_ylabel: Unknown key (%s)given!'%(key))
 
@@ -866,13 +907,10 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         plt.title(plot_dict['title'])
 
     if 'yrange' in plot_dict:
-        bottom = plot_dict['yrange'][0]
-        top = plot_dict['yrange'][1]
-        h_axis.set_ylim(bottom=bottom, top=top)
+        h_axis.set_ylim(**plot_dict['yrange'])
     
     if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
     if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
-    
 
     if 'savefig' in plot_dict: 
         h_figure.savefig(plot_dict['savefig'])
