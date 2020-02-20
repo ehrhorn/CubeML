@@ -141,7 +141,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 128
+    n1 = 256
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
 
@@ -183,7 +183,7 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
+                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2, n2, n2],
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
                                                 {'Linear':          {'input_sizes':        [n2, n_target],

@@ -910,8 +910,9 @@ def get_n_doms(indices, dom_mask_name, data_dir):
     packed = [entry for entry in zip(indices_chunked, events_per_dir_list, data_dir_list, dom_mask_name_list)]
 
     n_doms = np.array([])
-    with Pool(available_cores) as p:
-        n_doms_list = p.map(get_n_doms_multiprocess, packed)
+    p = Pool(available_cores)
+    n_doms_list = p.map(get_n_doms_multiprocess, packed)
+    p.close()
     for entry in n_doms_list:
         n_doms = np.append(n_doms, entry)
     
@@ -1633,9 +1634,14 @@ def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
         n_events_per_dir_list = [n_events_per_dir]*available_cores
         packed = [entry for entry in zip(indices_chunked, keys_list, path_list, prefix_list, n_events_per_dir_list)]
         
-        with Pool(available_cores) as p:
-            dicts_list = p.map(read_pickle_data_multiprocess, packed)
-        
+        # TODO: Fix multiprocessing
+        p = Pool(available_cores)
+        dicts_list = p.map(read_pickle_data_multiprocess, packed)
+        p.close()
+        # dicts_list = []
+        # for pack in packed:
+        #     dicts_list.append(read_pickle_data_multiprocess(pack))
+
         # * Gather results
         final_dict = {key: [] for key in keys}
         for d in dicts_list:

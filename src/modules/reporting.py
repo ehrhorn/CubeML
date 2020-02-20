@@ -607,8 +607,13 @@ class Performance:
             d_dom['savefig'] = img_address
             _ = make_plot(d_dom, h_figure=h_fig, axes_index=0)
 
-
-
+            # * Log to W&B to compare
+            if self.wandb_ID is not None:
+                
+                # * Log the data for nice plotting on W&B
+                for num1, num2 in zip(getattr(self, 'dom_'+pred_key+'_sigma'), self.dom_bin_centers):
+                    wandb.log({'dom_'+pred_key+'_sigma': num1, pred_key+'dom_bincenter': num2})
+                
 #* ======================================================================== 
 #* PERFORMANCE FUNCTIONS
 #* ========================================================================
