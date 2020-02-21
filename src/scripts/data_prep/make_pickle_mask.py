@@ -13,7 +13,11 @@ PRINT_EVERY = 10000
 
 description = 'Creates masks for pickled Icecube data.'
 parser = argparse.ArgumentParser(description=description)
-parser.add_argument('--name', default='None', type=str, help='Sets the name of the mask. Options: particle_name (e.g. muon_neutrino), dom_interval, energy_interval')
+parser.add_argument('--name', default='None', type=str, help='Sets the name of the mask. Options: particle_name (e.g. muon_neutrino), dom_interval, dom_interval_SRTInIcePulses, energy_interval')
+parser.add_argument('--min_energy', default=0.0, type=float, help='Sets the minimum log(energy/GeV) wrt energy_interval mask creation.')
+parser.add_argument('--max_energy', default=3.0, type=float, help='Sets the maximum log(energy/GeV) wrt energy_interval mask creation.')
+parser.add_argument('--min_doms', default=0, type=int, help='Sets the minimum amount of DOMs wrt dom_interval mask creation.')
+parser.add_argument('--max_doms', default=200, type=int, help='Sets the minimum amount of DOMs wrt dom_interval mask creation.')
 
 args = parser.parse_args()
 
@@ -221,11 +225,11 @@ if __name__ == '__main__':
     if mask_name == 'None':
         raise KeyError('Must parse a name!')
 
-    min_doms = 0
-    max_doms = 200
+    min_doms = args.min_doms
+    max_doms = args.max_doms
     
-    min_energy = 1.0
-    max_energy = 2.2
+    min_energy = args.min_energy
+    max_energy = args.max_energy
     mask_dict = {'mask_name': mask_name, 'min_doms':
         min_doms, 'max_doms': max_doms, 'min_energy': min_energy, 'max_energy': max_energy}
 

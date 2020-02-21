@@ -88,8 +88,8 @@ if __name__ == '__main__':
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR' if not args.dev else None,
                                         'max_lr':          args.max_lr,
                                         'min_lr':          args.min_lr,
-                                        'frac_up':         0.08,
-                                        'frac_down':       1-0.08,
+                                        'frac_up':         0.02,
+                                        'frac_down':       1-0.02,
                                         'schedule':        'inverse',
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
@@ -116,11 +116,11 @@ if __name__ == '__main__':
                                 'dom_v_from_prev',
                                 'dom_d_minkowski_to_prev',
                                 'dom_d_closest',
-                                'dom_d_minkowski_closest',
-                                'dom_d_vertex',
-                                'dom_d_minkowski_vertex',
-                                'dom_charge_over_vertex',
-                                'dom_charge_over_vertex_sqr'], 
+                                'dom_d_minkowski_closest'],
+                                # 'dom_d_vertex',
+                                # 'dom_d_minkowski_vertex',
+                                # 'dom_charge_over_vertex',
+                                # 'dom_charge_over_vertex_sqr'], 
                                 
                 'scalar_feat': ['dom_timelength_fwhm',
                                 'tot_charge'],
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 128
+    n1 = 256
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
 
@@ -183,7 +183,7 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
+                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2, n2, n2],
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
                                                 {'Linear':          {'input_sizes':        [n2, n_target],

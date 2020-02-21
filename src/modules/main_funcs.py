@@ -907,16 +907,6 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
         with open(save_dir+'/meta_pars.json', 'w') as fp:
             json.dump(meta_pars, fp)
 
-        # # * Add to .gitignore immediately
-        # gitignore_model_path = '/'.join(save_dir.split('/')[:-1]) + '/.gitignore'
-        # with open(gitignore_model_path,'a') as f:
-        #     f.write('/%s\n'%(MODEL_NAME))
-        
-        # WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
-        # gitignore_wandb_path = WANDB_DIR+'/wandb/.gitignore'
-        # with open(gitignore_wandb_path,'a') as f:
-        #     f.write('/%s\n'%(WANDB_NAME_IN_WANDB_DIR))
-
     else:
         print('Logging turned off.')
 
