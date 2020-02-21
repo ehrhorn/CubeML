@@ -55,8 +55,11 @@ class PadSequence:
         
         return pack, (targets.float(), weights.float())
 
-        def _permute(self, seqs, scalars):
-            pass
+    def _permute(self, seqs, scalars):
+        # * Make a scrambled bag of features
+        print(type(seqs), len(seqs), type(seqs[0]), seqs[0].shape)
+        a+=1
+        pass
 
         # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
 
