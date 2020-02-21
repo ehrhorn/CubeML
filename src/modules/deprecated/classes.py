@@ -496,3 +496,80 @@ class FullBatchLoader(data.Dataset):
         # * Free up some memory
         del batches
         del next_epoch_batches
+
+class BiLSTM(nn.Module):
+    
+    def __init__(self, n_in, n_hidden, residual=False, batch_first=True, learn_init=False):
+                
+        super(BiLSTM, self).__init__()
+
+        self._batch_first = batch_first
+        self.n_in = n_in
+        self.n_hidden = n_hidden
+        self.residual = residual
+        self.fwrd = nn.LSTM(input_size=n_in, hidden_size=n_hidden, bidirectional=False, batch_first=batch_first)
+        self.bkwrd = nn.LSTM(input_size=n_in, hidden_size=n_hidden, bidirectional=False, batch_first=batch_first)
+        self.learn_init = learn_init
+        
+        if self.learn_init:
+            self.hidden_fwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
+            self.hidden_bkwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
+            self.state_fwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
+            self.state_bkwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
+
+    def forward(self, seq, lengths, device=None):
+       
+        # * The max length is retrieved this way such that dataparallel works
+        shape = seq.shape
+        if self._batch_first:
+            longest_seq = shape[1]
+            batch_size = shape[0]
+            feats = shape[2]
+            bk_seq = torch.zeros(batch_size, longest_seq, feats, device=device)
+        else:
+            longest_seq = shape[0]
+            batch_size = shape[1]
+        
+        # * Make a reversed sequence, but still padded
+        for i_batch, length in enumerate(lengths):
+            indices = list(reversed(range(length)))
+            bk_seq[i_batch,:length,:] = seq[i_batch,indices,:]
+        
+        # * Prep for lstm
+        seq = pack(seq, lengths, batch_first=self._batch_first)
+        bk_seq = pack(bk_seq, lengths, batch_first=self._batch_first)
+        
+        if self.learn_init:
+            hidden_fwrd = self.hidden_fwrd.view(1, 1, -1).expand(-1, batch_size, -1)
+            state_fwrd = self.state_fwrd.view(1, 1, -1).expand(-1, batch_size, -1)
+            hidden_bkwrd = self.hidden_bkwrd.view(1, 1, -1).expand(-1, batch_size, -1)
+            state_bkwrd = self.state_bkwrd.view(1, 1, -1).expand(-1, batch_size, -1)
+
+            h_fwrd = (hidden_fwrd, state_fwrd)
+            h_bkwrd = (hidden_bkwrd, state_bkwrd)
+        else:
+            h_fwrd = self.init_hidden(batch_size, self.fwrd, device)
+            h_bkwrd = self.init_hidden(batch_size, self.fwrd, device)
+        
+        self.fwrd.flatten_parameters()
+        self.bkwrd.flatten_parameters()
+
+        # * Send through LSTMs!
+        seq, h = self.fwrd(seq, h_fwrd)
+        bk_seq, bk_h = self.bkwrd(bk_seq, h_bkwrd)
+
+        # * Unpack
+        seq, _ = unpack(seq, batch_first=self._batch_first, total_length=longest_seq)
+        bk_seq, _ = unpack(bk_seq, batch_first=self._batch_first, total_length=longest_seq)
+        
+        # * reverse again
+        for i_batch, length in enumerate(lengths):
+            indices = list(reversed(range(length)))
+            bk_seq[i_batch,:length,:] = bk_seq[i_batch,indices,:]
+        
+        # * Combine. If decoding next, bk_h(t_end) and h(t_end) are catted instead of bk_h(0) and h(t_end)
+        # TODO: Implement option to either cat and add.
+        combined_seq = torch.cat((seq, bk_seq), dim=-1)
+        x = torch.cat((h[0], bk_h[0]), dim=-1).squeeze(0)
+        
+        return combined_seq, x

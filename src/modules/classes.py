@@ -414,23 +414,23 @@ class AttentionBlock(nn.Module):
             self.Q = nn.Linear(in_features=n_in, out_features=n_out)
             self.K = nn.Linear(in_features=n_in, out_features=n_out)
             self.V = nn.Linear(in_features=n_in, out_features=n_out)
-            init_weights(arch_dict, arch_dict['non_lin'], self.Q)
-            init_weights(arch_dict, arch_dict['non_lin'], self.K)
-            init_weights(arch_dict, arch_dict['non_lin'], self.V)
+            init_weights(arch_dict, arch_dict['nonlin'], self.Q)
+            init_weights(arch_dict, arch_dict['nonlin'], self.K)
+            init_weights(arch_dict, arch_dict['nonlin'], self.V)
         elif mode == 'decoder':
             raise ValueError('AttentionDecoder: Not implemented yet')
             self.Q = nn.Linear(in_features=n_in, out_features=n_out)
             self.K = nn.Linear(in_features=n_in, out_features=1)
             self.V = nn.Linear(in_features=n_in, out_features=n_out)
-            init_weights(arch_dict, arch_dict['non_lin'], self.Q)
-            init_weights(arch_dict, arch_dict['non_lin'], self.K)
-            init_weights(arch_dict, arch_dict['non_lin'], self.V)
+            init_weights(arch_dict, arch_dict['nonlin'], self.Q)
+            init_weights(arch_dict, arch_dict['nonlin'], self.K)
+            init_weights(arch_dict, arch_dict['nonlin'], self.V)
 
         self.softmax = nn.Softmax(dim=-1)
         if self.layer_dict.get('LayerNorm', False):
             self.norm = nn.LayerNorm(n_out)
         self.linear_out = nn.Linear(in_features=n_out, out_features=n_out)
-        self.nonlin = add_non_lin(arch_dict, arch_dict['non_lin'])
+        self.nonlin = add_non_lin(arch_dict, arch_dict['nonlin'])
         if self.layer_dict.get('LayerNorm', False):
             self.norm2 = nn.LayerNorm(n_out)
         if self.layer_dict.get('Residual', False):
@@ -506,12 +506,12 @@ class AttentionBlock2(nn.Module):
 
         self.Q = nn.Linear(in_features=n_in, out_features=n_out)
         self.K = nn.Linear(in_features=n_in, out_features=n_out)
-        init_weights(arch_dict, arch_dict['non_lin'], self.Q)
-        init_weights(arch_dict, arch_dict['non_lin'], self.K)
+        init_weights(arch_dict, arch_dict['nonlin'], self.Q)
+        init_weights(arch_dict, arch_dict['nonlin'], self.K)
 
         self.softmax = nn.Softmax(dim=-1)
         self.linear_out = nn.Linear(in_features=n_out, out_features=n_out)
-        self.nonlin = add_non_lin(arch_dict, arch_dict['non_lin'])
+        self.nonlin = add_non_lin(arch_dict, arch_dict['nonlin'])
         if self.layer_dict.get('LayerNorm', False):
             self.norm = nn.LayerNorm(n_out)
         if self.layer_dict.get('Residual', False):
@@ -561,125 +561,6 @@ class AttentionBlock2(nn.Module):
             mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(1)
         return mask
-
-class BiLSTM(nn.Module):
-    
-    def __init__(self, n_in, n_hidden, residual=False, batch_first=True, learn_init=False):
-                
-        super(BiLSTM, self).__init__()
-
-        self._batch_first = batch_first
-        self.n_in = n_in
-        self.n_hidden = n_hidden
-        self.residual = residual
-        self.fwrd = nn.LSTM(input_size=n_in, hidden_size=n_hidden, bidirectional=False, batch_first=batch_first)
-        self.bkwrd = nn.LSTM(input_size=n_in, hidden_size=n_hidden, bidirectional=False, batch_first=batch_first)
-        self.learn_init = learn_init
-        
-        if self.learn_init:
-            self.hidden_fwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
-            self.hidden_bkwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
-            self.state_fwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
-            self.state_bkwrd = nn.Parameter(torch.empty(self.n_hidden).normal_(mean=0,std=1.0), requires_grad=True)
-
-    def forward(self, seq, lengths, device=None):
-       
-        # * The max length is retrieved this way such that dataparallel works
-        shape = seq.shape
-        if self._batch_first:
-            longest_seq = shape[1]
-            batch_size = shape[0]
-            feats = shape[2]
-            bk_seq = torch.zeros(batch_size, longest_seq, feats, device=device)
-        else:
-            longest_seq = shape[0]
-            batch_size = shape[1]
-        
-        # * Make a reversed sequence, but still padded
-        for i_batch, length in enumerate(lengths):
-            indices = list(reversed(range(length)))
-            bk_seq[i_batch,:length,:] = seq[i_batch,indices,:]
-        
-        # * Prep for lstm
-        seq = pack(seq, lengths, batch_first=self._batch_first)
-        bk_seq = pack(bk_seq, lengths, batch_first=self._batch_first)
-        
-        if self.learn_init:
-            hidden_fwrd = self.hidden_fwrd.view(1, 1, -1).expand(-1, batch_size, -1)
-            state_fwrd = self.state_fwrd.view(1, 1, -1).expand(-1, batch_size, -1)
-            hidden_bkwrd = self.hidden_bkwrd.view(1, 1, -1).expand(-1, batch_size, -1)
-            state_bkwrd = self.state_bkwrd.view(1, 1, -1).expand(-1, batch_size, -1)
-
-            h_fwrd = (hidden_fwrd, state_fwrd)
-            h_bkwrd = (hidden_bkwrd, state_bkwrd)
-        else:
-            h_fwrd = self.init_hidden(batch_size, self.fwrd, device)
-            h_bkwrd = self.init_hidden(batch_size, self.fwrd, device)
-        
-        self.fwrd.flatten_parameters()
-        self.bkwrd.flatten_parameters()
-
-        # * Send through LSTMs!
-        seq, h = self.fwrd(seq, h_fwrd)
-        bk_seq, bk_h = self.bkwrd(bk_seq, h_bkwrd)
-
-        # * Unpack
-        seq, _ = unpack(seq, batch_first=self._batch_first, total_length=longest_seq)
-        bk_seq, _ = unpack(bk_seq, batch_first=self._batch_first, total_length=longest_seq)
-        
-        # * reverse again
-        for i_batch, length in enumerate(lengths):
-            indices = list(reversed(range(length)))
-            bk_seq[i_batch,:length,:] = bk_seq[i_batch,indices,:]
-        
-        # * Combine. If decoding next, bk_h(t_end) and h(t_end) are catted instead of bk_h(0) and h(t_end)
-        # TODO: Implement option to either cat and add.
-        combined_seq = torch.cat((seq, bk_seq), dim=-1)
-        x = torch.cat((h[0], bk_h[0]), dim=-1).squeeze(0)
-        
-        return combined_seq, x
-        
-    def init_hidden(self, batch_size, layer, device):
-        
-        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
-        if layer.bidirectional: num_dir = 2
-        else: num_dir = 1
-
-        # * Initialize hidden and cell states - to either random nums or 0's
-        # * (num_layers * num_directions, batch, hidden_size)
-        return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
-                torch.zeros(num_dir, batch_size, hidden_size, device=device))
-
-class ResBlock(nn.Module):
-    """A Residual block as proposed in 'Identity Mappings in Deep Residual Networks'
-    """    
-    def __init__(self, arch_dict, layer_dict, n_in, n_out, norm=False):
-        super(ResBlock, self).__init__()
-        self.n_in = n_in
-        self.n_out = n_out
-        if n_in != n_out:
-            self.linear0 = nn.Linear(in_features=n_in, out_features=n_out)
-
-        if norm:
-            self.norm1 = add_norm(arch_dict, layer_dict, n_out)
-        self.non_lin1 = add_non_lin(arch_dict, arch_dict['non_lin'])
-        self.linear1 = nn.Linear(in_features=n_out, out_features=n_out)
-        init_weights(arch_dict, arch_dict['non_lin'], self.linear1)
-        if norm:
-            self.norm2 = add_norm(arch_dict, layer_dict, n_out)
-        self.non_lin2 = add_non_lin(arch_dict, arch_dict['non_lin'])
-        self.linear2 = nn.Linear(in_features=n_out, out_features=n_out)
-        init_weights(arch_dict, arch_dict['non_lin'], self.linear2)
-
-    def forward(self, seq, device=None):
-
-        if self.n_in != self.n_out:
-            seq = self.linear0(seq)
-        
-        res = self.linear1(self.non_lin1(self.norm1(seq)))
-        res = self.linear2(self.non_lin2(self.norm2(res)))
-
-        return seq+res
 
 class LstmBlock_old(nn.Module):
     
@@ -898,34 +779,9 @@ class MakeModel(nn.Module):
             # * seq = seq.view(batch_size, -1, n_seq_vars)
         
         for layer_name, entry in zip(self.layer_names, self.mods):
+            
             # * Handle different layers in different ways! 
-            
-            if layer_name == 'LSTM':
-                # * A padded sequence is expected
-                # * Initialize hidden layer
-                h = self.init_hidden(batch_size, entry, device)
-
-                # * Send to LSTM!
-                seq = pack(seq, lengths, batch_first=True)
-                
-                # ? No idea why this works, but an error is thrown when using DataParallel and not calling it, see
-                # ? https://discuss.pytorch.org/t/rnn-module-weights-are-not-part-of-single-contiguous-chunk-of-memory/6011/13
-                entry.flatten_parameters()
-                
-                seq, h = entry(seq, h)
-                x, _ = h
-                seq, lengths = unpack(seq, batch_first=True, total_length=longest_seq)
-                
-                # * See sidharthms' answer @ https://github.com/pytorch/pytorch/issues/3587 for how sequence is returned by bidir lstm
-                if entry.bidirectional:
-
-                    # * Add hidden states from forward and backward pass to encode information
-                    seq = seq[:, :, :entry.hidden_size] + seq[:, :, entry.hidden_size:]
-                    x = (x[0,:,:] + x[1,:,:]) 
-                else:
-                    x = x.view(batch_size, entry.hidden_size)
-            
-            elif layer_name == 'Linear':
+            if layer_name == 'Linear':
 
                 # * If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
                 if 'scalars' in locals(): 
@@ -974,6 +830,9 @@ class MakeModel(nn.Module):
 
                 x = entry(x)
             
+            elif layer_name == 'ResAttention':
+                seq = entry(seq, lengths, device=device)
+            
             elif layer_name == 'ResBlockSeq':
                 seq = entry(seq)
 
@@ -1019,7 +878,7 @@ class ManyToOneAttention(nn.Module):
         # * We will only have one keyvector - this is the one we want to learn.
         # * Instantiate with normally distributed numbers. The dotproduct of 2 vectors of dim N with normally distributed numbers will have a mean of 0 and variance of N. 
         self.k = nn.Parameter(torch.empty(self.n_in).normal_(mean=0,std=1.0), requires_grad=True)
-        init_weights(arch_dict, arch_dict['non_lin'], self.Q)
+        init_weights(arch_dict, arch_dict['nonlin'], self.Q)
 
         self.softmax = nn.Softmax(dim=-1)
         
@@ -1101,6 +960,139 @@ class MaxPool(nn.Module):
             mask = mask.unsqueeze(2)
         return mask
 
+class NormNonlinWeight(nn.Module):
+
+    def __init__(self, arch_dict, layer_dict, n_in, n_out, norm=None):
+        super(NormNonlinWeight, self).__init__()
+        self.norm = norm
+        if self.norm:
+            self.normalize = add_norm(arch_dict, layer_dict, n_in)
+        self.nonlin = add_non_lin(arch_dict, layer_dict)
+        self.linear = nn.Linear(in_features=n_in, out_features=n_out)
+    
+    def forward(self, x, device=None):
+        if self.norm:
+            output = self.linear(self.nonlin((self.normalize(x))))
+        else:
+            output = self.linear(self.nonlin(x))
+        
+        return output
+
+class ResBlock(nn.Module):
+    """A Residual block as proposed in 'Identity Mappings in Deep Residual Networks'
+    """    
+    def __init__(self, arch_dict, layer_dict, n_in, n_out, norm=False):
+        super(ResBlock, self).__init__()
+        self.n_in = n_in
+        self.n_out = n_out
+        if n_in != n_out:
+            self.linear0 = nn.Linear(in_features=n_in, out_features=n_out)
+
+        if norm:
+            self.norm1 = add_norm(arch_dict, layer_dict, n_out)
+        self.non_lin1 = add_non_lin(arch_dict, arch_dict['nonlin'])
+        self.linear1 = nn.Linear(in_features=n_out, out_features=n_out)
+        init_weights(arch_dict, arch_dict['nonlin'], self.linear1)
+        if norm:
+            self.norm2 = add_norm(arch_dict, layer_dict, n_out)
+        self.non_lin2 = add_non_lin(arch_dict, arch_dict['nonlin'])
+        self.linear2 = nn.Linear(in_features=n_out, out_features=n_out)
+        init_weights(arch_dict, arch_dict['nonlin'], self.linear2)
+
+    def forward(self, seq, device=None):
+
+        if self.n_in != self.n_out:
+            seq = self.linear0(seq)
+        
+        res = self.linear1(self.non_lin1(self.norm1(seq)))
+        res = self.linear2(self.non_lin2(self.norm2(res)))
+
+        return seq+res
+
+class ResAttention(nn.Module):
+        
+    def __init__(self, arch_dict, layer_dict, n_in, n_out, batch_first=True):
+        super(ResAttention, self).__init__()
+        self.n_in = n_in
+        self.n_out = n_out
+        self.n_layers = layer_dict['n_res_layers']
+        self.norm = layer_dict.get('norm', False)
+
+        if self.n_in != self.n_out:
+            self.linear0 = nn.Linear(in_features=self.n_in, out_features=self.n_out)
+        
+        self.attention = SelfAttention(arch_dict, self.n_out, self.n_out, batch_first=batch_first)
+        self.post_attntn = nn.Sequential(*[NormNonlinWeight(arch_dict, layer_dict, self.n_out, self.n_out, norm=self.norm) for i in range(self.n_layers)])
+    
+    def forward(self, seq, lengths, device=None):
+        if self.n_in != self.n_out:
+            seq = self.linear0(seq)
+        post_attention = self.attention(seq, lengths, device=device)
+        post_attention = self.post_attntn(post_attention)
+        
+        return seq+post_attention
+
+class SelfAttention(nn.Module):
+    """Implementation of Self Attention almost as described in 'Attention is All You Need'. Uses no value-vectors, but just the sequence itself. Furthermore, experimenting with only normalizing after nonlinearity.
+    
+    (or https://jalammar.github.io/illustrated-transformer/) - calculates query-, key- and valuevectors, softmaxes a padded sequence and scales the dotproducts and returns weighted sum of values vectors.
+    
+    Can work both as a seq2seq encoder or as a seq2vec decoder - in this case, the key-matrix produces one key only.
+    Returns:
+        nn.Module -- A Self-attention layer 
+    """
+    def __init__(self, arch_dict, n_in, n_out, batch_first=True):
+        super(SelfAttention, self).__init__()
+        self.arch_dict = arch_dict
+        self.n_in = n_in
+        self.n_out = n_out
+        self._batch_first = batch_first
+
+        self.Q = nn.Linear(in_features=n_in, out_features=n_out)
+        self.K = nn.Linear(in_features=n_in, out_features=n_out)
+        init_weights(arch_dict, arch_dict['nonlin'], self.Q)
+        init_weights(arch_dict, arch_dict['nonlin'], self.K)
+
+        self.softmax = nn.Softmax(dim=-1)
+    
+    def forward(self, seq, lengths, device=None):
+        
+        # * The max length is retrieved this way such that dataparallel works
+        if self._batch_first:
+            max_length = seq.shape[1]
+        else:
+            max_length = seq.shape[0]
+
+        # * Find queries and keys
+        q = self.Q(seq)
+        k = self.K(seq)
+        
+        # * Attention
+        output = self._calc_self_attention(q, k, seq, lengths, max_length, batch_first=self._batch_first, device=device)
+
+        return output
+
+    def _calc_self_attention(self, q, k, v, lengths, max_length, batch_first=False, device=None):
+        # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
+        # * The transpose means swap second to last and last dimension
+        # * masked_fill_ is in-place, masked_fill creates a new tensor
+        weights = torch.matmul(q, k.transpose(-2, -1)) / sqrt(self.n_out)
+        mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
+        weights = weights.masked_fill(~mask, float('-inf'))
+        weights = self.softmax(weights)
+        
+        # * Calculate weighted sum of v-vectors.
+        output = torch.matmul(weights, v)
+        
+        return output
+
+    def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
+        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        if batch_first:
+            mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
+            mask = mask.unsqueeze(1)
+        return mask
+
 #* ======================================================================== 
 #* MODEL FUNCTIONS
 #* ========================================================================
@@ -1126,10 +1118,10 @@ def add_linear_embedder(arch_dict, layer_dict):
         layers.append(ResBlock(arch_dict, layer_dict, ))
         # * Add a matrix to linearly 
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
-        init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
+        init_weights(arch_dict, arch_dict['nonlin'], layers[-1])
         if layer_dict.get('LayerNorm', False):
             layers.append(nn.LayerNorm(hsize))
-        layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
+        layers.append(add_non_lin(arch_dict, arch_dict['nonlin']))
     
     return nn.Sequential(*layers)
 
@@ -1154,7 +1146,7 @@ def add_linear_layers(arch_dict, layer_dict):
 
         # * Add layer and initialize its weights
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
-        init_weights(arch_dict, arch_dict['non_lin'], layers[-1])
+        init_weights(arch_dict, arch_dict['nonlin'], layers[-1])
 
         # * If last layer, do not add non-linearities or normalization
         if i_layer+1 == n_layers: continue
@@ -1166,25 +1158,22 @@ def add_linear_layers(arch_dict, layer_dict):
                 # * Only add normalization layer if wanted!
                 if arch_dict['norm']['norm'] != None:
                     layers.append(add_norm(arch_dict, arch_dict['norm'], hsize))
-                layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
+                layers.append(add_non_lin(arch_dict, arch_dict['nonlin']))
 
             else:
-                layers.append(add_non_lin(arch_dict, arch_dict['non_lin']))
+                layers.append(add_non_lin(arch_dict, arch_dict['nonlin']))
                 if arch_dict['norm']['norm'] != None:
                     layers.append(add_norm(arch_dict, arch_dict['norm'], hsize))
 
     return nn.Sequential(*layers)
 
 def add_non_lin(arch_dict, layer_dict):
-    if layer_dict['func'] == 'ReLU': 
+    if arch_dict['nonlin']['func'] == 'ReLU': 
         return nn.ReLU()
     
-    elif layer_dict['func'] == 'LeakyReLU':
-        if 'negative_slope' in layer_dict: 
-            negslope = layer_dict['negative_slope']
-        else: 
-            negslope = 0.01
-        return nn.LeakyReLU(negative_slope = negslope)
+    elif arch_dict['nonlin']['func'] == 'LeakyReLU':
+        negslope = arch_dict['nonlin'].get('negslope', 0.01)
+        return nn.LeakyReLU(negative_slope=negslope)
 
     else:
         raise ValueError('An unknown nonlinearity could not be added in model generation.')
@@ -1200,6 +1189,7 @@ def add_norm(arch_dict, layer_dict, n_features):
         else: eps = 1e-05
         
         return nn.BatchNorm1d(n_features, eps=eps, momentum=mom)
+    
     elif layer_dict['norm'] == 'LayerNorm':
         return nn.LayerNorm(n_features)
 
@@ -1218,6 +1208,13 @@ def add_AttentionBlock2_modules(arch_dict, layer_dict, modules):
     for n_in, n_out in zip(layer_dict['input_sizes'][:-1], layer_dict['input_sizes'][1:]):
         modules.append(AttentionBlock2(arch_dict, layer_dict, n_in, n_out))
     
+    return modules
+
+def add_ResAttention_modules(arch_dict, layer_dict, modules):
+
+    for n_in, n_out in zip(layer_dict['input_outputs'][:-1], layer_dict['input_outputs'][1:]):
+        modules.append(ResAttention(arch_dict, layer_dict, n_in, n_out))
+
     return modules
 
 def init_weights(arch_dict, layer_dict, layer):
@@ -1303,6 +1300,8 @@ def make_model_architecture(arch_dict):
                 modules.append(LstmBlock(**layer_dict))
             elif key == 'BiLSTM':
                 modules.append(BiLSTM(**layer_dict))
+            elif key == 'ResAttention':
+                modules = add_ResAttention_modules(arch_dict, layer_dict, modules)
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 
@@ -1322,6 +1321,11 @@ def get_layer_names(arch_dict):
             
             elif layer_name == 'AttentionBlock2':
                 n_attention_modules = len(layer['AttentionBlock2']['input_sizes'])-1
+                for nth_attention_layer in range(n_attention_modules):
+                    layer_names.append(layer_name)
+            
+            elif layer_name == 'ResAttention':
+                n_attention_modules = len(layer['ResAttention']['input_outputs'])-1
                 for nth_attention_layer in range(n_attention_modules):
                     layer_names.append(layer_name)
             

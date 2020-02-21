@@ -145,7 +145,7 @@ if __name__ == '__main__':
     n = 256+n_scalar_feat
     n_target = len(get_target_keys(data_pars, meta_pars))
 
-    arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
+    arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
                         'loss_func':           error_func,#'L2_like_loss','dir_reg_L1_like_loss',
 
@@ -160,13 +160,16 @@ if __name__ == '__main__':
                                                 #                      'n_hidden':           128,
                                                 #                      'residual':           False,
                                                 #                      'learn_init':         False}},
-                                                {'LstmBlock':       {'n_in':              n_seq_feat,
-                                                                     'n_out':             3,
-                                                                     'n_parallel':        2,
-                                                                     'num_layers':        3,
-                                                                     'residual':          False,
-                                                                     'bidir':             True,
-                                                                     'learn_init':        True}},]
+                                                {'ResAttention':    {'input_outputs':     [n_seq_feat, 32, 32],
+                                                                     'n_res_layers':      2,
+                                                                     'norm':             'LayerNorm'}},
+                                                # {'LstmBlock':       {'n_in':              n_seq_feat,
+                                                #                      'n_out':             3,
+                                                #                      'n_parallel':        2,
+                                                #                      'num_layers':        3,
+                                                #                      'residual':          False,
+                                                #                      'bidir':             True,
+                                                #                      'learn_init':        True}},]
                                                 # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
                                                 #                       'LayerNorm':          True,
                                                 #                       'Residual':           True},},
@@ -177,8 +180,9 @@ if __name__ == '__main__':
                                                 # {'ResBlock':        {'input_sizes':        [128+n_scalar_feat, 128+n_scalar_feat],
                                                 #                      'norm':               'BatchNorm1D',
                                                 #                      'type':               'x'}},
-                                                # {'Linear':          {'input_sizes':        [128+n_scalar_feat, n_target],
-                                                #                     'norm_before_nonlin':  True}}]
+                                                {'AveragePool': []},
+                                                {'Linear':          {'input_sizes':        [32+n_scalar_feat, n_target],
+                                                                    'norm_before_nonlin':  True}}]
                         }
                                                 
 
