@@ -143,7 +143,7 @@ if __name__ == '__main__':
     n_target = len(get_target_keys(data_pars, meta_pars))
     n1 = 256
     n2 = 2*n1+n_scalar_feat
-    arch_pars =         {'non_lin':             {'func':     'LeakyReLU'},
+    arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
                         'loss_func':           error_func,#'L2_like_loss','dir_reg_L1_like_loss',
 

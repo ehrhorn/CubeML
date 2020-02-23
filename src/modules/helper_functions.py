@@ -491,7 +491,7 @@ def convert_to_proper_list(l):
     return converted
 
 def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
-    """Estimation of percentile of a dataset order statistics (see https://en.wikipedia.org/wiki/Order_statistic) and potentially bootstrapping. A confidence interval of +-1 sigma is created for each percentile
+    """Estimation of percentile of a dataset using order statistics (see https://en.wikipedia.org/wiki/Order_statistic) and potentially bootstrapping. A confidence interval of +-1 sigma is created for each percentile
     
     Arguments:
         data {array-like} -- Data in which to find percentiles.
@@ -559,7 +559,7 @@ def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
                 plussigmas.append(np.nan)
                 minussigmas.append(np.nan)
 
-    return means, plussigmas, minussigmas
+    return np.array(means), np.array(plussigmas), np.array(minussigmas)
 
 def estimate_sigma_multiprocess(pack):
     """Multiprocessing approach to calculating standard deviation, 16th and 84th percentiles of some given data.

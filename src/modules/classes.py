@@ -14,9 +14,10 @@ from src.modules.helper_functions import *
 class PadSequence:
     '''A helper-function for lstm_v2_loader, which zero-pads shortest sequences.
     '''
-    def __init__(self, mode='normal', permute_features=None):
+    def __init__(self, mode='normal', permute_seq_features=None, permute_scalar_features=None):
         self._mode = mode
-        self._permute_features = permute_features
+        self._permute_seq_features = permute_seq_features
+        self._permute_scalar_features = permute_scalar_features
 
     def __call__(self, batch):
         # * Inference and training is handled differently - therefore a keyword is passed along
@@ -36,14 +37,14 @@ class PadSequence:
         targets = torch.Tensor([x[2] for x in sorted_batch])
         weights = torch.Tensor([x[3] for x in sorted_batch])
 
-        # * permute-mode is used for permutation importance
-        if self._mode == 'permute':
-            sequences, scalar_vars = self._permute(sequences, scalar_vars)
-
         # * Also need to store the length of each sequence
         # * This is later needed in order to unpad the sequences
         lengths = torch.LongTensor([len(x) for x in sequences])
-        
+
+        # * permute-mode is used for permutation importance
+        if self._mode == 'permute':
+            sequences, scalar_vars = self._permute(sequences, scalar_vars, [len(x) for x in sequences])
+
         # * pad_sequence returns a tensor(seqlen, batch, n_features)
         sequences_padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
         
@@ -55,13 +56,30 @@ class PadSequence:
         
         return pack, (targets.float(), weights.float())
 
-    def _permute(self, seqs, scalars):
-        # * Make a scrambled bag of features
-        print(type(seqs), len(seqs), type(seqs[0]), seqs[0].shape)
-        a+=1
-        pass
+    def _permute(self, seqs, scalars, lengths):
+        # * For the sequential features, there are sum(lengths) variables to draw from (if  we only permute in batch)
+        # * draw randomly with 
+        
+        # * Loop over indices of features to permute
+        for index in self._permute_seq_features:
 
-        # * return PinnedSeqScalarLengthsBatch(sequences_padded.float(), lengths, scalar_vars.float(), targets.float()) #targets.float()
+            # * Make a scrambled bag of features
+            entries = np.array([])
+            for entry in seqs:
+                entries = np.append(entries, entry[:, index].numpy()) 
+            
+            # * Generate a random sample with replacement for each sequence
+            for i_seq, length in enumerate(lengths):
+                seqs[i_seq][:, index] = torch.tensor(np.random.choice(entries, length))
+        
+        # * Now do the same for scalar vars
+        batch_size = scalars.shape[0]
+        for index in self._permute_scalar_features:
+            
+            # * Convert to numpy, retrieve a random sample, convert back to tensor
+            scalars[:, index] = torch.tensor(np.random.choice(scalars[:, index].numpy(), batch_size))
+
+        return seqs, scalars
 
 class PickleLoader(data.Dataset):
     '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads and closes the file again upon every __getitem__.
@@ -267,14 +285,14 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
     else:
         raise ValueError('An unknown prediction loader was requested!')
 
-def get_collate_fn(data_pars, mode='normal', permute_features=None):
+def get_collate_fn(data_pars, mode='normal', permute_seq_features=None, permute_scalar_features=None):
     '''Returns requested collate-function, if the key 'collate_fn' is in the dictionary data_pars.
     '''
 
     if 'collate_fn' in data_pars:
         name = data_pars['collate_fn']
         if name == 'PadSequence':
-            func = PadSequence(mode=mode, permute_features=permute_features)
+            func = PadSequence(mode=mode, permute_seq_features=permute_seq_features, permute_scalar_features=permute_seq_features)
         
         else:
             raise ValueError('Unknown collate-function requested!')
