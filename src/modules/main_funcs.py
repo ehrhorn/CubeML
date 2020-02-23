@@ -125,16 +125,6 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
     meta_pars['status'] = 'Finished'
     with open(model_dir+'/meta_pars.json', 'w') as fp:
         json.dump(meta_pars, fp)
-    
-    # # * Make a .dvc-file to track the model
-    # path_to_model_dir = Path(model_dir).resolve().parent
-    # model_name = model_dir.split('/')[-1]
-    # subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
-    
-    # # * Make a wandb-.dvc-file aswell if predictions are logged.
-    # if wandb_ID is not None:
-    #     WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
-    #     subprocess.run(['dvc', 'add', WANDB_NAME_IN_WANDB_DIR], cwd=WANDB_DIR+'/wandb/')
 
     # * Close all open figures
     plt.close('all')
@@ -491,7 +481,7 @@ def run_experiment(file, log=True, debug_mode=False):
         if log:
             evaluate_model(model_dir, wandb_ID=wandb_ID)
 
-def run_experiments(log=True):
+def run_experiments(log=True, newest_first=False):
     """Loops over the experiment-defining files in ~/CubeML/experiments/ and runs each one of them using run_experiment. Continously checks if new experiments have been added. 
     
     Keyword Arguments:
@@ -499,7 +489,7 @@ def run_experiments(log=True):
     """
 
     exp_dir = get_project_root() + '/experiments'
-    exps = Path(exp_dir).glob('*.json')
+    exps = sorted(Path(exp_dir).glob('*.json'), reverse=newest_first)
     n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
     
     # ! Someone online set to add next line to ensure CUDA works...
@@ -617,7 +607,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
 
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)
-    MAX_ITERATIONS = MAX_EPOCHS*len(train_set)
+    MAX_ITERATIONS = MAX_EPOCHS*N_TRAIN
     # * Used for some lr-schedulers, so just add it.
     hyper_pars['lr_schedule']['train_set_size'] = N_TRAIN
 
@@ -730,7 +720,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     # * Print log
     def print_log(engine, set_name, metric_name):
         print("Events: {}/{} - {} {}: {:.2e}"
-            .format((trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE, (MAX_ITERATIONS+ITERATIONS_COMPLETED)*BATCH_SIZE, set_name, metric_name, engine.state.metrics[metric_name]))
+            .format((trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE, (MAX_ITERATIONS+ITERATIONS_COMPLETED), set_name, metric_name, engine.state.metrics[metric_name]))
 
     evaluator_train.add_event_handler(Events.COMPLETED, print_log, "train", 'custom_loss')
     evaluator_val.add_event_handler(Events.COMPLETED, print_log, "validation", 'custom_loss')
@@ -788,7 +778,6 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
                 trainerr_set.shuffle_indices()
                 val_set.shuffle_indices()
 
-            
             # * Log maximum memory allocated and speed.
             if log:
                 wandb.config.update({'Avg. Events/second (train)': BATCH_SIZE/time_trainer.value()}, allow_val_change=True)

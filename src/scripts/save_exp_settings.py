@@ -141,7 +141,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 256
+    n1 = 128
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
@@ -159,13 +159,16 @@ if __name__ == '__main__':
                                                 # {'ResBlock':        {'input_sizes':       [n_seq_feat, n1//2, n1//2],
                                                 #                      'norm':              'LayerNorm',
                                                 #                      'type':              'seq'}},
-                                                {'LstmBlock':       {'n_in':              n_seq_feat,
-                                                                     'n_out':             n1,
-                                                                     'n_parallel':        1,
-                                                                     'num_layers':        2,
-                                                                     'residual':          False,
-                                                                     'bidir':             True,
-                                                                     'learn_init':        True}},
+                                                # {'LstmBlock':       {'n_in':              n_seq_feat,
+                                                #                      'n_out':             n1,
+                                                #                      'n_parallel':        1,
+                                                #                      'num_layers':        2,
+                                                #                      'residual':          False,
+                                                #                      'bidir':             True,
+                                                #                      'learn_init':        True}},
+                                                {'ResAttention':    {'input_outputs':     [n_seq_feat, n1],
+                                                                     'n_res_layers':      2,
+                                                                     'norm':             'LayerNorm'}},
                                                 # {'ResBlock':        {'input_sizes':       [2*n1, n1],
                                                 #                      'norm':              'LayerNorm',
                                                 #                      'type':              'seq'}},
@@ -183,10 +186,11 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2, n2, n2],
-                                                                     'norm':               'BatchNorm1D',
-                                                                     'type':               'x'}},
-                                                {'Linear':          {'input_sizes':        [n2, n_target],
+                                                {'AveragePool': []},
+                                                # {'ResBlock':        {'input_sizes':        [n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat],
+                                                #                      'norm':               'BatchNorm1D',
+                                                #                      'type':               'x'}},
+                                                {'Linear':          {'input_sizes':        [n1+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
 

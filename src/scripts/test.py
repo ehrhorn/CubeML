@@ -112,10 +112,17 @@ class FeaturePermutationImportance:
     # print(scalar_features)
 
 save_dir = '/home/bjoern/Thesis/CubeML/models/oscnext-genie-level5-v01-01-pass2/regression/energy_reg/test_2020.02.21-12.21.14'
-a = FeaturePermutationImportance(save_dir)
-a.calc_permutation_importance(['dom_x'])
-a.calc_permutation_importance(['dom_charge'])
-print(a.feature_importances)
+# a = FeaturePermutationImportance(save_dir)
+# a.calc_permutation_importance(['dom_x'])
+# a.calc_permutation_importance(['dom_charge'])
+# print(a.feature_importances)
+
+exp_dir = get_project_root() + '/experiments'
+exps = sorted(Path(exp_dir).glob('*.json'), reverse=False)
+for exp in exps:
+    print(exp)
+
+
 
 # path = '/home/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/pickles/0/0'
 # with open(path+'.pickle', 'rb') as f:
