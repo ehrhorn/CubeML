@@ -534,6 +534,15 @@ class Performance:
         
         d2, clip_vals = self._get_I3_2D_clip_and_d(key)
 
+        # * Strip potential NaNs: subtract arrays --> find indices, since a number - nan is also nan.
+        # * Notify if NaNs are found.
+        bad_indices = np.isnan(energy-data)
+        good_indices = ~bad_indices
+        n_nans = np.sum(bad_indices)
+        print('WARNING: %d NAN(S) FOUND IN I3 PERFORMANCE PLOT!'%(n_nans)) if n_nans>0 else None
+
+        energy = energy[good_indices]
+        data = data[good_indices]
         d2['hist2d'] = [energy, np.clip(data, clip_vals[0], clip_vals[1])]
         d2['zorder'] = 0
         d2['xlabel'] = r'log(E) [E/GeV]' 
