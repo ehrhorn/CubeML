@@ -39,14 +39,13 @@ if __name__ == '__main__':
 
     # * data_dir = '/data/MuonGun_Level2_139008'
     data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
-    pretrained_path = '/models/oscnext-genie-level5-v01-01-pass2/regression/direction_reg/2020-01-13-13.58.14' 
 
     # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time', 'energy_reg'
     regression_type = args.regression
     if regression_type == 'None':
         raise KeyError('A regression type must be chosen! Use flag --regression')
 
-    # * Options: 'train_new', 'continue_training', 'explore_lr'
+    # * Options: 'train_new', 'continue_training', 'explore_lr', 'continue_crashed'
     objective = 'train_new'
     if args.explore_lr:
         objective = 'explore_lr'
@@ -71,7 +70,6 @@ if __name__ == '__main__':
                 'group':                regression_type,
                 'project':              project,
                 'objective':            objective,
-                'pretrained_path':      pretrained_path,
                 'log_every':            500000 if not args.dev else 50,
                 'lr_scan':              args.scan_lr, 
                 'gpu':                  args.gpu
@@ -85,11 +83,11 @@ if __name__ == '__main__':
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
-                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR' if not args.dev else None,
+                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
                                         'max_lr':          args.max_lr,
                                         'min_lr':          args.min_lr,
-                                        'frac_up':         0.02,
-                                        'frac_down':       1-0.02,
+                                        'frac_up':         0.05,
+                                        'frac_down':       1-0.05,
                                         'schedule':        'inverse',
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,

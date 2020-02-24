@@ -63,9 +63,9 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN
             print('\nEvent %d completed'%(engine.state.iteration*BATCH_SIZE),strftime("%d/%m %H:%M", localtime()))
     lr_trainer.add_event_handler(Events.ITERATION_COMPLETED, log_lr, lr, loss_vals, optimizer, scheduler, n_steps)
     
-    print(strftime("%d/%m %H:%M", localtime()), ': LR-scan begun.')
+    print(get_time(), 'LR-scan begun.')
     lr_trainer.run(train_generator, max_epochs=n_epochs)
-    print(strftime("%d/%m %H:%M", localtime()), ': LR-scan finished!')
+    print(get_time(), 'LR-scan finished!')
 
     return lr, loss_vals
 
@@ -129,13 +129,13 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
     # * Close all open figures
     plt.close('all')
 
-def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
+def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
     """Calculates loss as a funciton of learning rate in a given interval and saves the graph and the dictionaries used to generate the plot. Used to choose lr-schedule.
     
     Arguments:
         hyper_pars {dict} -- Dictionary containing hyperparameters for the model.
         data_pars {dict} -- Dictionary containing datapath and relevant data parameters.
-        architecture_pars {dict} -- Dictionary containing the keywords required to build the model architecture
+        arch_pars {dict} -- Dictionary containing the keywords required to build the model architecture
         meta_pars {dict} -- Dictionary containing metaparameters for the model such as regression-tag.
     
     Keyword Arguments:
@@ -146,10 +146,10 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     #* SETUP AND UNPACK
     #* ======================================================================== 
     
-    print(strftime("%d/%m %H:%M", localtime()), ': LEARNING RATE FINDER INITIATED')
+    print(get_time(), 'LEARNING RATE FINDER INITIATED')
     BATCH_SIZE = hyper_pars['batch_size']
     print('Loading data...')
-    train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train')
+    train_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'train')
     N_TRAIN = get_set_length(train_set)
     n_epochs = hyper_pars['lr_finder']['n_epochs'] 
     start_lr = hyper_pars['lr_finder']['start_lr']
@@ -165,9 +165,9 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
 
     # * Initialize model and log it - use GPU if available
-    model, optimizer, device = initiate_model_and_optimizer(None, hyper_pars, data_pars, architecture_pars, meta_pars)
+    model, optimizer, device, _ = initiate_model_and_optimizer(None, hyper_pars, data_pars, arch_pars, meta_pars)
 
-    loss = get_loss_func(architecture_pars['loss_func'])
+    loss = get_loss_func(arch_pars['loss_func'])
 
     # * Setup generators - make a generator for training, validation on trainset and validation on test set
     collate_fn = get_collate_fn(data_pars)
@@ -189,7 +189,7 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     pickle.dump(loss_vals, open(lr_dir+'/loss_vals.pickle', 'wb'))
 
     print('')
-    print(strftime("%d/%m %H:%M", localtime()), ': LR-finder saved at')
+    print(get_time(), 'LR-finder saved at')
     print(lr_dir)
 
     with open(lr_dir+'/hyper_pars.json', 'w') as fp:
@@ -197,18 +197,14 @@ def explore_lr(hyper_pars, data_pars, architecture_pars, meta_pars, save=True):
     with open(lr_dir+'/data_pars.json', 'w') as fp:
         json.dump(data_pars, fp)
     with open(lr_dir+'/architecture_pars.json', 'w') as fp:
-        json.dump(architecture_pars, fp)
+        json.dump(arch_pars, fp)
 
-    # # * Make sure it isn't logged to Github
-    # # * Make a .dvc-file to track the model - it automatically adds the path to .gitignore
-    # path_to_model_dir = Path(lr_dir).resolve().parent
-    # model_name = lr_dir.split('/')[-1]
-    # subprocess.run(['dvc', 'add', model_name], cwd=path_to_model_dir)
+def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, n_train=None):
 
-def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars):
     gpus =  meta_pars['gpu']
     device = get_device(gpus[0])
-    model = MakeModel(architecture_pars, device)
+    model = MakeModel(arch_pars, device)
+    lr_scheduler = None
 
     # * If several GPU's are available, use them all!
     print('')
@@ -234,6 +230,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
         checkpoint_path = get_project_root() + meta_pars['pretrained_path'] + '/backup.pth'
 
         checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
+        iterations_completed = checkpoint['iterations_completed']
         
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.to(device)
@@ -241,14 +238,33 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
         optimizer = get_optimizer(model.parameters(), hyper_pars['optimizer'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-        print('')
-        print('###########################')
-        print('# PRETRAINED MODEL LOADED #')
-        print('###########################')
-    
+        lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, hyper_pars['batch_size'], n_train, iterations_completed=iterations_completed)
+
+        print(get_time(), 'PRETRAINED MODEL LOADED!')
+
+    # * If a run crashed and is reinitiated, load the state prior to crashing; model pars, optmizer pars and lr-schedule pars
+    elif meta_pars['objective'] == 'continue_crashed':
+        checkpoint_path = get_project_root() + get_path_from_root(meta_pars['crashed_path']) + '/backup.pth'
+
+        checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
+        iterations_completed = checkpoint['iterations_completed']
+        
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model = model.to(device)
+
+        optimizer = get_optimizer(model.parameters(), hyper_pars['optimizer'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, hyper_pars['batch_size'], n_train, iterations_completed=iterations_completed)
+
+        print(get_time(), 'CONTINUING TRAINING A CRASHED RUN!')
+
     elif meta_pars['objective'] == 'train_new' or meta_pars['objective'] == 'explore_lr':
         model = model.to(device)
         optimizer = get_optimizer(model.parameters(), hyper_pars['optimizer'])
+        lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, hyper_pars['batch_size'], n_train)
+        
+
     else:
         raise ValueError('Unknown objective set!')
 
@@ -257,7 +273,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_p
     print(model)
     print('')
 
-    return model, optimizer, device
+    return model, optimizer, device, lr_scheduler
 
 def calc_predictions(save_dir, wandb_ID=None):
     '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
@@ -279,7 +295,7 @@ def calc_predictions(save_dir, wandb_ID=None):
     model = model.float()
 
     # * Loop over files
-    print('\n', strftime("%d/%m %H:%M", localtime()), ': Prediction begun.')
+    print(get_time(), 'Prediction begun.')
     pred_filename = str(best_pars).split('.pth')[0].split('/')[-1]
     pred_full_address = save_dir+'/data/predict'+pred_filename+'.h5'
     i_file = 0
@@ -372,7 +388,7 @@ def calc_predictions(save_dir, wandb_ID=None):
             
             n_predicted += len(val_set)
                 
-        print(strftime("%d/%m %H:%M", localtime()), ': Predictions finished!')
+        print(get_time(), 'Predictions finished!')
 
 def calc_predictions_pickle(save_dir, wandb_ID=None):
     '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
@@ -473,7 +489,7 @@ def run_experiment(file, log=True, debug_mode=False):
     Path(file).unlink()
 
     # * Only scan new experiments
-    scan = meta_pars['lr_scan']
+    scan = meta_pars.get('lr_scan', False)
     if meta_pars['objective'] == 'explore_lr':
         explore_lr(hyper_pars, data_pars, arch_pars, meta_pars)
     else:
@@ -562,14 +578,14 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
 
     return predictions, truths, indices
 
-def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True, debug_mode=False):
+def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True, debug_mode=False):
     """Main training script. Takes experiment-defining dictionaries as input and trains the model induced by them.
     
     Arguments:
         save_dir {str} -- Absolute path to the model's diretory
         hyper_pars {dict} -- Dictionary containing hyperparameters for the model.
         data_pars {dict} -- Dictionary containing datapath and relevant data parameters.
-        architecture_pars {dict} -- Dictionary containing the keywords required to build the model architecture
+        arch_pars {dict} -- Dictionary containing the keywords required to build the model architecture
         meta_pars {dict} -- Dictionary containing metaparameters for the model such as regression-tag.
     
     Keyword Arguments:
@@ -598,23 +614,23 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     data_pars_copy['n_train_events_wanted'] = data_pars.get('n_val_events_wanted', np.inf)
     hyper_pars_copy['batch_size'] = data_pars['val_batch_size']
     
-    print(strftime("%d/%m %H:%M", localtime()), ': Loading data...')
+    print(get_time(), 'Loading data...')
     # * We split in each file (after its been shuffled..)
     # * Now load data
-    train_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'train', debug_mode=debug_mode)
-    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, architecture_pars, meta_pars, 'train', debug_mode=debug_mode)
-    val_set = load_data(hyper_pars, data_pars, architecture_pars, meta_pars, 'val', debug_mode=debug_mode)
+    train_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'train', debug_mode=debug_mode)
+    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, arch_pars, meta_pars, 'train', debug_mode=debug_mode)
+    val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'val', debug_mode=debug_mode)
 
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)
-    MAX_ITERATIONS = MAX_EPOCHS*N_TRAIN
+    MAX_ITERATIONS = MAX_EPOCHS*N_TRAIN//BATCH_SIZE
     # * Used for some lr-schedulers, so just add it.
     hyper_pars['lr_schedule']['train_set_size'] = N_TRAIN
 
     if log:
         wandb.config.update({'Trainset size': N_TRAIN})
         wandb.config.update({'Val. set size': N_VAL})
-    print(strftime("%d/%m %H:%M", localtime()), ': Data loaded!')
+    print(get_time(), 'Data loaded!')
     print('\nTrain set size: %d'%(N_TRAIN))
     print('Val. set size: %d'%(N_VAL))
     
@@ -628,7 +644,8 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=5, shuffle=False, dataloader=data_pars['dataloader'])
     
     # * Initialize model and log it - use GPU if available
-    model, optimizer, device = initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars)
+    model, optimizer, device, lr_scheduler = initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, n_train=N_TRAIN)
+
     if log:
         with open(save_dir+'/model_arch.yml', 'w') as f:
             print(model, file=f)
@@ -636,10 +653,9 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
         wandb.config.update({'Model parameters': get_n_parameters(model)})
     print('N_PARAMETERS:', get_n_parameters(model))
     
-    # * Get type of scheduler, since different schedulers need different kinds of updating
-    lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, BATCH_SIZE, N_TRAIN)
+    # * Get type of scheduler, since different schedulers need different kinds of updating.
     type_lr_scheduler = type(lr_scheduler)
-    loss = get_loss_func(architecture_pars['loss_func'])
+    loss = get_loss_func(arch_pars['loss_func'])
 
     # * Setup generators - make a generator for training, validation on trainset and validation on test set
     collate_fn = get_collate_fn(data_pars)
@@ -662,7 +678,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     
     if log:
         name = ''
-        checkpointer = ModelCheckpoint(dirname=save_dir+'/checkpoints', filename_prefix=name, create_dir=True, save_as_state_dict=True, score_function=custom_score_function, score_name='Loss', n_saved=2, require_empty=True)
+        checkpointer = ModelCheckpoint(dirname=save_dir+'/checkpoints', filename_prefix=name, create_dir=True, save_as_state_dict=True, score_function=custom_score_function, score_name='Loss', n_saved=2, require_empty=False)
         
         # * Add handler to evaluator
         checkpointer_dict = {'model': model}
@@ -689,7 +705,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
         pretrain_hyper_pars = hyper_pars['optimizer'].copy()
         pretrain_hyper_pars['lr'] = 0.000001
 
-        lr_model = MakeModel(architecture_pars, device)
+        lr_model = MakeModel(arch_pars, device)
         lr_model = lr_model.float()
         lr_model = lr_model.to(device)
 
@@ -715,12 +731,12 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     #* ======================================================================== #*   
     
     # * If continuing training, get how many epochs completed
-    ITERATIONS_COMPLETED = hyper_pars.get('iterations_completed', 0)
+    ITERATIONS_COMPLETED = get_iterations_completed(meta_pars)
 
     # * Print log
     def print_log(engine, set_name, metric_name):
         print("Events: {}/{} - {} {}: {:.2e}"
-            .format((trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE, (MAX_ITERATIONS+ITERATIONS_COMPLETED), set_name, metric_name, engine.state.metrics[metric_name]))
+            .format((trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE, (MAX_ITERATIONS)*BATCH_SIZE, set_name, metric_name, engine.state.metrics[metric_name]))
 
     evaluator_train.add_event_handler(Events.COMPLETED, print_log, "train", 'custom_loss')
     evaluator_val.add_event_handler(Events.COMPLETED, print_log, "validation", 'custom_loss')
@@ -729,15 +745,15 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     if log:
         def log_metric(engine, set_name, metric_name, list_address):
             append_list_and_save(list_address, engine.state.metrics[metric_name])
-            wandb.log({set_name+metric_name: engine.state.metrics[metric_name]}, step=trainer.state.iteration*BATCH_SIZE)
+            wandb.log({set_name+metric_name: engine.state.metrics[metric_name]}, step=(trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE)
 
         def log_lr(engine, set_name, optimizer, list_address):
             number = get_lr(optimizer)
             append_list_and_save(list_address, number)
-            wandb.log({set_name: number}, step=trainer.state.iteration*BATCH_SIZE)
+            wandb.log({set_name: number}, step=(trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE)
 
         def log_epoch(engine, list_address):
-            append_list_and_save(list_address, trainer.state.iteration*BATCH_SIZE)
+            append_list_and_save(list_address, (trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE)
 
         evaluator_train.add_event_handler(Events.COMPLETED, log_metric, 'Graphs/train ', 'custom_loss', save_dir+'/data/train_error.pickle')
         evaluator_val.add_event_handler(Events.COMPLETED, log_metric, 'Graphs/val. ', 'custom_loss', save_dir+'/data/val_error.pickle')
@@ -754,9 +770,10 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
     # * Call evaluator after each iteration - only evaluate after each LOG_EVERY events
     def evaluate(trainer):
 
-        if trainer.state.iteration%(int(LOG_EVERY/BATCH_SIZE)) == 0:
-            print('\nEvent %d completed'%(trainer.state.iteration*BATCH_SIZE),strftime("%d/%m %H:%M", localtime()))
-
+        if (trainer.state.iteration+ITERATIONS_COMPLETED)%(int(LOG_EVERY/BATCH_SIZE)) == 0:
+            print('')
+            print(get_time(), 'Event %d completed'%((trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE))
+            
             # # ? Log weights, biases and gradients in histograms - mostly for debugging?
             # if log:
             #     i_layer = 1
@@ -787,7 +804,7 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
                     wandb.config.update({'Max memory allocated [MiB]': max_memory_allocated}, allow_val_change=True)
 
                 # * Save a backup after each epoch incase something crashes...
-                backup = {'iterations_completed': trainer.state.iteration*BATCH_SIZE + ITERATIONS_COMPLETED,
+                backup = {'iterations_completed': trainer.state.iteration + ITERATIONS_COMPLETED,
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict()
                         }
@@ -831,21 +848,33 @@ def train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, earlyst
         trainer.add_event_handler(Events.ITERATION_COMPLETED, update_lr, lr_scheduler)
 
     else:
-        raise ValueError('Undefined lr_scheduler used for updating LR!')
+        raise ValueError('Undefined lr_scheduler (%s) used for updating LR!'%(type_lr_scheduler))
 
     #* ======================================================================== #
     #* START TRAINING
     #* ======================================================================== # 
            
     print('Training begun')
-    trainer.run(train_generator, max_epochs=MAX_EPOCHS)
+    train_epochs = MAX_EPOCHS-(ITERATIONS_COMPLETED*BATCH_SIZE//N_TRAIN)
+    trainer.run(train_generator, max_epochs=train_epochs)
     print('\nTraining finished!')
 
-def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train=False, log=True, debug_mode=False):
+def train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=False, log=True, debug_mode=False):
     
     #* ======================================================================== 
     #* SETUP AND LOAD DATA
     #* ======================================================================== 
+
+    # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
+    if meta_pars['objective'] == 'continue_training':
+        save_dir, hyper_pars, data_pars, arch_pars = update_model_pars(hyper_pars, data_pars, meta_pars)
+        wandb_ID = save_dir.split('/')[-1]
+    elif meta_pars['objective'] == 'continue_crashed':
+        save_dir = get_project_root() + get_path_from_root(meta_pars['crashed_path'])
+        hyper_pars, data_pars, arch_pars, new_meta_pars = load_model_pars(save_dir)
+        new_meta_pars['objective'] = 'continue_crashed'
+        new_meta_pars['crashed_path'] = meta_pars['crashed_path']
+        meta_pars = new_meta_pars
 
     # * The script expects a H5-file with a structure as shown at https://github.com/ehrhorn/CubeML
     data_dir = data_pars['data_dir'] # * WHere to load data from
@@ -854,14 +883,9 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     project = meta_pars['project']
     particle = data_pars.get('particle', 'any')
 
-    # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
-    if meta_pars['objective'] == 'continue_training':
-        save_dir, hyper_pars, data_pars, architecture_pars = update_model_pars(hyper_pars, data_pars, meta_pars)
-        wandb_ID = save_dir.split('/')[-1]
-    else:
+    if meta_pars['objective'] == 'train_new':
         if log:
             save_dir = make_model_dir(group, data_dir, file_keys, project, particle=particle)
-            wandb_ID = save_dir.split('/')[-1]
             print('Model saved at', save_dir)
         else:
             save_dir = None
@@ -870,6 +894,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     # * Save model parameters on W&B AND LOCALLY!
     # * Shut down W&B first, if it is already running
     if log:
+        wandb_ID = save_dir.split('/')[-1]
         WANDB_NAME = save_dir.split('/')[-1]
         MODEL_NAME = save_dir.split('/')[-1]
         WANDB_DIR = get_project_root()+'/models'
@@ -878,7 +903,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
         wandb.init(project=meta_pars['project'], name=WANDB_NAME, tags=meta_pars['tags'], id=wandb_ID, reinit=True, dir=WANDB_DIR)
         wandb.config.update(hyper_pars)
         wandb.config.update(data_pars)
-        wandb.config.update(architecture_pars)
+        wandb.config.update(arch_pars)
         wandb.config.update({'n_seq_feats': n_seq_feats})
 
         with open(save_dir+'/hyper_pars.json', 'w') as fp:
@@ -888,7 +913,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
             json.dump(data_pars, fp)
         
         with open(save_dir+'/architecture_pars.json', 'w') as fp:
-            json.dump(architecture_pars, fp)
+            json.dump(arch_pars, fp)
         
         meta_pars['status'] = 'Failed'
         n_devices = len(meta_pars['gpu'])
@@ -899,7 +924,7 @@ def train_model(hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_bef
     else:
         print('Logging turned off.')
 
-    train(save_dir, hyper_pars, data_pars, architecture_pars, meta_pars, scan_lr_before_train = scan_lr_before_train, wandb_ID=wandb_ID, log=log, debug_mode=debug_mode)
+    train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=scan_lr_before_train, wandb_ID=wandb_ID, log=log, debug_mode=debug_mode)
     
     # * Update the meta_pars-file and add .dvc-files to track the model in the wandb-dir and the models-dir
     if log:
