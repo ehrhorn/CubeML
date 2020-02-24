@@ -117,11 +117,7 @@ save_dir = '/home/bjoern/Thesis/CubeML/models/oscnext-genie-level5-v01-01-pass2/
 # a.calc_permutation_importance(['dom_charge'])
 # print(a.feature_importances)
 
-exp_dir = get_project_root() + '/experiments'
-exps = sorted(Path(exp_dir).glob('*.json'), reverse=False)
-for exp in exps:
-    print(exp)
-
+print(torch.cuda.device_count())
 
 
 # path = '/home/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/pickles/0/0'

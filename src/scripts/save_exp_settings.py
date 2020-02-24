@@ -27,6 +27,7 @@ parser.add_argument('--weights', default='None', type=str, help='Sets the weight
 parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, help='Sets the DOM mask to use. Options: "SplitInIcePulses", "dom_interval_SRTInIcePulses"')
 parser.add_argument('--gpu', nargs='+', default='0', type=str, help='Sets the IDs of the GPUs to use')
 parser.add_argument('--batch_size', default=128, type=int, help='Sets batchsize.')
+parser.add_argument('--tags', nargs='+', default='', type=str, help='Tags a run for easier comparisons on W&B')
 
 args = parser.parse_args()
 
@@ -65,9 +66,8 @@ if __name__ == '__main__':
 
     # * Set project
     project = 'cubeml_test' if args.dev else 'cubeml'
-    
     dataset = data_dir.split('/')[-1]
-    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names, args.weights, args.dom_mask],
+    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names, args.weights, args.dom_mask, *args.tags],
                 'group':                regression_type,
                 'project':              project,
                 'objective':            objective,
@@ -76,7 +76,7 @@ if __name__ == '__main__':
                 'lr_scan':              args.scan_lr, 
                 'gpu':                  args.gpu
                 }
-
+    
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
                 'max_epochs':          17 if not args.dev else 2,
                 'early_stop_patience': 35,
@@ -166,7 +166,7 @@ if __name__ == '__main__':
                                                 #                      'residual':          False,
                                                 #                      'bidir':             True,
                                                 #                      'learn_init':        True}},
-                                                {'ResAttention':    {'input_outputs':     [n_seq_feat, n1],
+                                                {'ResAttention':    {'input_outputs':     [n_seq_feat, n1, n1, n1, n1],
                                                                      'n_res_layers':      2,
                                                                      'norm':             'LayerNorm'}},
                                                 # {'ResBlock':        {'input_sizes':       [2*n1, n1],
@@ -187,9 +187,9 @@ if __name__ == '__main__':
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
                                                 {'AveragePool': []},
-                                                # {'ResBlock':        {'input_sizes':        [n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat],
-                                                #                      'norm':               'BatchNorm1D',
-                                                #                      'type':               'x'}},
+                                                {'ResBlock':        {'input_sizes':        [n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat],
+                                                                     'norm':               'BatchNorm1D',
+                                                                     'type':               'x'}},
                                                 {'Linear':          {'input_sizes':        [n1+n_scalar_feat, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
