@@ -153,13 +153,12 @@ class Performance:
         
         elif self.meta_pars['group'] == 'full_reg':
             errors = []
-    
-            errors.append(self._get_len_error(data_dict))
+            len_error = self._get_len_error(data_dict)
+            errors.append(np.nanpercentile(len_error, 50))
             errors.append(np.nanpercentile(data_dict['relative_E_error'], 50))
             errors.append(np.nanpercentile(data_dict['vertex_t_error'], 50))
             errors.append(np.nanpercentile(data_dict['azi_error'], 50))
             errors.append(np.nanpercentile(data_dict['polar_error'], 50))
-
             one_num = calc_geometric_mean(errors)
 
         return one_num
@@ -623,7 +622,6 @@ class Performance:
         for pred_key, reco_key in zip(self._performance_keys, self._reco_keys):
             img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_DOMperformance.png'
             d = self._get_DOMperf_dict(pred_key, reco_key)
-            d['savefig'] = img_address
 
             h_fig = make_plot(d)
             d_dom = self._get_dom_dict()
@@ -1031,7 +1029,6 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
             
-            # plt.hist(data, **d)
             h_axis.hist(data, **d)
 
             if 'label' in plot_dict: h_axis.legend()
@@ -1209,5 +1206,6 @@ def summarize_model_performance(model_dir, wandb_ID=None):
         wandb.config.update({'Performance': onenum_performance}, allow_val_change=True)
 
     meta_pars['performance'] = onenum_performance
+    
     with open(model_dir+'/meta_pars.json', 'w') as fp:
         json.dump(meta_pars, fp)
