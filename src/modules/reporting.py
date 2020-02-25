@@ -166,7 +166,8 @@ class Performance:
         # * Transform back and extract values into list
         true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
         energy_transformed = inverse_transform(energy_dict, get_project_root() + self.model_dir)
-        energy = convert_to_proper_list(energy_transformed[self._energy_key[0]])
+        # * We want energy as array
+        energy = np.array(convert_to_proper_list(energy_transformed[self._energy_key[0]]))
 
         self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
         self.bin_centers = calc_bin_centers(self.bin_edges)
@@ -543,7 +544,7 @@ class Performance:
         good_indices = ~bad_indices
         n_nans = np.sum(bad_indices)
         print('WARNING: %d NAN(S) FOUND IN I3 PERFORMANCE PLOT!'%(n_nans)) if n_nans>0 else None
-
+        
         energy = energy[good_indices]
         data = data[good_indices]
         d2['hist2d'] = [energy, np.clip(data, clip_vals[0], clip_vals[1])]
@@ -732,8 +733,10 @@ class FeaturePermutationImportance:
     def save(self):
         # * Save the results as a class instance
         save_path = get_project_root()+self.save_dir+'/data/FeaturePermutationImportance.pickle'
+        self.make_plots()
         with open(save_path, 'wb') as f:
             pickle.dump(self, f)
+            print(get_time(), 'Saved FeaturePermutationImportance at %s'%(get_path_from_root(save_path)))
 
     def check_duplication(self, seq_features, scalar_features):
         
