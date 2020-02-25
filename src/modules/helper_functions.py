@@ -19,7 +19,7 @@ from src.modules.constants import *
 
 class lr_watcher:
 
-    def __init__(self, start_lr, max_lr, min_lr, n_rise, n_fall, batch_size, schedule='exp'):
+    def __init__(self, start_lr, max_lr, min_lr, n_rise, n_fall, batch_size, schedule='exp', iterations_completed=1):
         """Calculates the factor the initial learning rate should be multiplied with to get desired learning rate. Options: 'inverse', 'exp'
         
         Arguments:
@@ -42,7 +42,7 @@ class lr_watcher:
         self._start_lr = start_lr
         self._max_lr = max_lr
         self.schedule = schedule
-        self.step = 1
+        self.step = iterations_completed
 
         if schedule == 'inverse':
             # * 1/t decay
@@ -759,11 +759,46 @@ def get_indices_from_fraction(n, from_frac, to_frac, shuffle=False, file_name='N
     
     return sorted(indices)
 
+def get_iterations_completed(meta_pars):
+    """Gets the amount of training iterations (one batch per iteration) a model has completed.
+    
+    Arguments:
+        meta_pars {dict} -- Dictionary containing metaparameters for the model such as regression-tag.
+    
+    Returns:
+        int -- Number of completed iterations
+    """
+    try:
+        checkpoint_path = get_project_root() + get_path_from_root(meta_pars.get('crashed_path', None)) + '/backup.pth'
+        device = get_device(meta_pars['gpu'][0])
+        checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
+        iterations_completed = checkpoint['iterations_completed']
+    
+    # * TypeError raised, if path doesn't exist - means we are training a new model
+    except TypeError:
+        try:
+            checkpoint_path = get_project_root() + get_path_from_root(meta_pars.get('pretrained_path', None)) + '/backup.pth'
+            device = get_device(meta_pars['gpu'][0])
+            checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
+            iterations_completed = checkpoint['iterations_completed']
+        except TypeError:
+            iterations_completed = 0
+    
+    return iterations_completed
+
 def get_lr(optimizer):
+    """Retrieves the current learning rate.
+    
+    Arguments:
+        optimizer {torch.optim} -- Optimizer used during training.
+    
+    Returns:
+        float -- current learning rate
+    """    
     for param_group in optimizer.param_groups:
         return param_group['lr']
 
-def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train):
+def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_completed=0):
     """Instantiates a torch.optim learning rate-scheduler and attaches it to an optimizer (see https://pytorch.org/docs/stable/optim.html)
     
     Arguments:
@@ -863,11 +898,12 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train):
         n_rise = int(lr_dict['frac_up']*lr_dict['train_set_size']*hyper_pars['max_epochs'])
         n_fall = int(lr_dict['frac_down']*lr_dict['train_set_size']*hyper_pars['max_epochs'])
         batch_size = hyper_pars['batch_size']
+        
         # * A quick sanity check
         if lr_dict['frac_up'] + lr_dict['frac_down'] != 1.0:
             raise ValueError('CustomOneCycleLR frac_up and frac_down does not add up to 1 (adds to %.2f)'%(lr_dict['frac_up'] + lr_dict['frac_down']))
 
-        lr_watch = lr_watcher(start_lr, max_lr, min_lr, n_rise, n_fall, batch_size, schedule=schedule)
+        lr_watch = lr_watcher(start_lr, max_lr, min_lr, n_rise, n_fall, batch_size, schedule=schedule, iterations_completed=iterations_completed)
         lambda1 = lambda step: lr_watch.get_factor()
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
@@ -1251,7 +1287,7 @@ def load_model_pars(model_dir):
     """    
      
     model_dir = get_path_from_root(model_dir)
-    with open(get_project_root() + model_dir + "/architecture_pars.json", 'r') as f: 
+    with open(get_project_root() + get_path_from_root(model_dir) + "/architecture_pars.json", 'r') as f: 
         arch_pars = json.load(f)
     with open(get_project_root() + get_path_from_root(model_dir) + "/data_pars.json", 'r') as f: 
         data_pars = json.load(f)
@@ -1287,7 +1323,19 @@ def load_pickle_mask(data_dir, masknames):
         mask = mask & set(list_of_masks[i])
 
     return list(mask)
-    
+
+def locate_model(model_name):
+        
+    # * Locate the model directory
+    paths = find_files(model_name)
+    for path in paths:
+        if path.split('/')[-1] == model_name:
+            model_path = path
+            break
+    else:
+        model_path = None
+
+    return model_path
 
 def log_weights_and_grads(i_layer, layer, step):
     '''Logs weight- and gradienthistograms to wandb
@@ -1916,6 +1964,7 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
 
     # * Get last epoch number
     hyper_pars['epochs_completed'] = checkpoint['epochs_completed']
+    hyper_pars['lr_scheduler'] = checkpoint['lr_scheduler']
 
     # * Update the old pars - do not update arch-pars: 
     for key, item in new_hyper_pars.items():

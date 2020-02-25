@@ -14,7 +14,7 @@ if __name__ == '__main__':
     model_dirs = args.path
     if len(model_dirs) == 0:
         raise ValueError('No models supplied!')
-    for model_dir in model_dirs:  
+    for model_dir in model_dirs:
         # * Locate the model directory
         paths = find_files(model_dir)
         for path in paths:
