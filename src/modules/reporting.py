@@ -140,11 +140,7 @@ class Performance:
     def _calculate_onenum_performance(self, data_dict):
        
         if self.meta_pars['group'] == 'vertex_reg' or self.meta_pars['group'] == 'vertex_reg_no_time':
-            x_error = data_dict['vertex_x_error']
-            y_error = data_dict['vertex_y_error']
-            z_error = data_dict['vertex_z_error']
-
-            len_error = np.sqrt(x_error**2 + y_error**2 + z_error**2)
+            len_error = self._get_len_error(data_dict)
             one_num = np.nanpercentile(len_error, 50)
         
         elif self.meta_pars['group'] == 'direction_reg':
@@ -156,8 +152,15 @@ class Performance:
             one_num = np.nansum(self.counts*getattr(self, key+'_sigma'))/np.nansum(self.counts)
         
         elif self.meta_pars['group'] == 'full_reg':
-            print(get_time(), 'No onenumber performance measure defined for full_reg')
-            one_num = -1
+            errors = []
+    
+            errors.append(self._get_len_error(data_dict))
+            errors.append(np.nanpercentile(data_dict['relative_E_error'], 50))
+            errors.append(np.nanpercentile(data_dict['vertex_t_error'], 50))
+            errors.append(np.nanpercentile(data_dict['azi_error'], 50))
+            errors.append(np.nanpercentile(data_dict['polar_error'], 50))
+
+            one_num = calc_geometric_mean(errors)
 
         return one_num
 
@@ -387,6 +390,14 @@ class Performance:
         
         return d2, clip_vals
 
+    def _get_len_error(self, data_dict):
+        x_error = data_dict['vertex_x_error']
+        y_error = data_dict['vertex_y_error']
+        z_error = data_dict['vertex_z_error']
+
+        len_error = np.sqrt(x_error**2 + y_error**2 + z_error**2)
+        return len_error
+
     def _get_perf_dict(self, model_key, reco_key):
         sigma = getattr(self, model_key+'_sigma')
         reco_sigma = getattr(self, reco_key+'_sigma')
@@ -439,7 +450,6 @@ class Performance:
         return title
 
     def _get_performance_keys(self):
-
         
         if self.meta_pars['group'] == 'vertex_reg':
             keys = self._get_prediction_keys()
