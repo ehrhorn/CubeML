@@ -1325,7 +1325,14 @@ def load_pickle_mask(data_dir, masknames):
     return list(mask)
 
 def locate_model(model_name):
-        
+    """Finds the path to a certain model given its name.
+    
+    Arguments:
+        model_name {str} -- Model name 
+    
+    Returns:
+        str -- Path to model
+    """    
     # * Locate the model directory
     paths = find_files(model_name)
     for path in paths:

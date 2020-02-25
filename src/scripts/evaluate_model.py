@@ -1,5 +1,5 @@
 from src.modules.main_funcs import evaluate_model
-from src.modules.helper_functions import get_time, find_files
+from src.modules.helper_functions import get_time, find_files, locate_model
 import argparse
 from pathlib import Path
 
@@ -16,11 +16,7 @@ if __name__ == '__main__':
         raise ValueError('No models supplied!')
     for model_dir in model_dirs:
         # * Locate the model directory
-        paths = find_files(model_dir)
-        for path in paths:
-            if path.split('/')[-1] == model_dir:
-                model = path
-                break
+        model = locate_model(model_dir)
         
         print('')
         print(get_time(), 'Used model: %s'%(Path(model_dir).name))
