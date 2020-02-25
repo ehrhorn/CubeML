@@ -77,7 +77,7 @@ if __name__ == '__main__':
     
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
                 'max_epochs':          17 if not args.dev else 2,
-                'early_stop_patience': 35,
+                'early_stop_patience': 25,
                 'optimizer':           {'optimizer':      'Adam',
                                         'lr':             1e-6,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 128
+    n1 = 64
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
@@ -164,7 +164,7 @@ if __name__ == '__main__':
                                                 #                      'residual':          False,
                                                 #                      'bidir':             True,
                                                 #                      'learn_init':        True}},
-                                                {'ResAttention':    {'input_outputs':     [n_seq_feat, n1, n1, n1, n1],
+                                                {'ResAttention':    {'input_outputs':     [n_seq_feat, n1, n1, n1, n1, n1],
                                                                      'n_res_layers':      2,
                                                                      'norm':             'LayerNorm'}},
                                                 # {'ResBlock':        {'input_sizes':       [2*n1, n1],
