@@ -663,16 +663,16 @@ class FeaturePermutationImportance:
         
         return feature_importance[0], e_feature_importance[0]
 
-    def calc_all_seq_importances(self):
+    def calc_all_seq_importances(self, n_predictions_wanted=np.inf):
         # * Option given to just calculate all
         hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(self.save_dir)
         
         # * Get indices of features to permute - both scalar and sequential
         all_seq_features = data_pars['seq_feat']
         for feature in all_seq_features:
-            self.calc_permutation_importance(seq_features=[feature])
+            self.calc_permutation_importance(seq_features=[feature], n_predictions_wanted=n_predictions_wanted)
         
-    def calc_permutation_importance(self, seq_features=[], scalar_features=[]):
+    def calc_permutation_importance(self, seq_features=[], scalar_features=[], n_predictions_wanted=np.inf):
         hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(self.save_dir)
         
         # * Get indices of features to permute - both scalar and sequential
@@ -695,7 +695,7 @@ class FeaturePermutationImportance:
         model = load_best_model(self.save_dir)
 
         # * Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
-        n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
+        data_pars['n_predictions_wanted'] = n_predictions_wanted
         LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
         VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
         gpus = meta_pars['gpu']
@@ -722,8 +722,10 @@ class FeaturePermutationImportance:
         pred_full_address = get_project_root()+self.save_dir+'/data/predictions.h5'
 
         # * Calculate PFI for all evaluation functions.
+        print(get_time(), 'Calculating PFI for evaluation functions...')
         for func in eval_functions:
             name = func.__name__
+           
             # * Calculate new errors.
             error_from_preds[name] = func(predictions_transformed, truths_transformed)
 
@@ -739,6 +741,7 @@ class FeaturePermutationImportance:
             features.extend(scalar_features)
             d = {'permuted': features, 'feature_importance': feature_importance, 'error': feature_importance_err}
             self.save_feature_importance(name, d)
+        print(get_time(), 'PFI Calculation finished!')
         
     def save(self):
         # * Save the results as a class instance

@@ -1209,39 +1209,42 @@ def get_train_val_test_indices(n_data, train_frac, val_frac, test_frac, shuffle=
     return indices[:train_end], indices[train_end:val_end], indices[val_end:test_end]
 
 def inverse_transform(data, model_dir):
-    '''
-    Input 
-    data: a dictionary with matching keys between data and loaded transformer.
-    model-dir: full path to used model
-
-    Output: dictionary with transformed data
-    '''
-
-    try:
-        transformers = joblib.load(open(model_dir+'/transformers.pickle', "rb"))
-    except FileNotFoundError:
-        transformers = None
-    transformed = {}
-
-    if transformers == None:
-        for key in data:
-            transformed[key] = data[key]
+    """Performs the inverse transformation on input data to get back to original data.
     
-    else:
-        for key in data:
+    Arguments:
+        data {dict} -- Keys with array-like data to be transformed
+        model_dir {str} -- Full or relative path to the model directory
+    
+    Returns:
+        dict -- Dictionary containing the inverse-transformed data.
+    """    
 
-            # * If key is not in transformers, it shouldn't be transformed
-            if transformers.get(key, None) == None: 
-                transformed[key] = data[key]
+    # try:
+    # except FileNotFoundError:
+    #     transformers = None
 
-            # * The reshape is required for scikit to function...
-            else: 
-                # * Input might be given as a dictionary of lists
-                # * The squeeze is to ensure a shape of (N,)
-                try: 
-                    transformed[key] = np.squeeze(transformers[key].inverse_transform(data[key].reshape(-1, 1)))
-                except AttributeError: 
-                    transformed[key] = np.squeeze(transformers[key].inverse_transform(np.array(data[key]).reshape(-1, 1)))
+    # if transformers == None:
+    #     for key in data:
+    #         transformed[key] = data[key]
+    transformers_path = get_project_root()+get_path_from_root(model_dir)+'/transformers.pickle'
+    transformers = joblib.load(open(transformers_path, "rb"))
+    transformed = {}
+    
+    # else:
+    for key in data:
+
+        # * If key is not in transformers, it shouldn't be transformed
+        if transformers.get(key, None) == None: 
+            transformed[key] = data[key]
+
+        # * The reshape is required for scikit to function...
+        else: 
+            # * Input might be given as a dictionary of lists
+            # * The squeeze is to ensure a shape of (N,)
+            try: 
+                transformed[key] = np.squeeze(transformers[key].inverse_transform(data[key].reshape(-1, 1)))
+            except AttributeError: 
+                transformed[key] = np.squeeze(transformers[key].inverse_transform(np.array(data[key]).reshape(-1, 1)))
 
     return transformed
 

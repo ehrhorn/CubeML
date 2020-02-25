@@ -274,7 +274,6 @@ def vertex_t_error(pred, truth, reporting=False):
     
     t_pred = pred[t_key]
     t_truth = truth[t_key]
-    
     if not reporting:
         t_pred = torch.tensor(t_pred)
         t_truth = torch.tensor(t_truth, dtype=t_pred.dtype)
