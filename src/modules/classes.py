@@ -59,7 +59,6 @@ class PadSequence:
     def _permute(self, seqs, scalars, lengths):
         # * For the sequential features, there are sum(lengths) variables to draw from (if  we only permute in batch)
         # * draw randomly with 
-        
         # * Loop over indices of features to permute
         for index in self._permute_seq_features:
 
@@ -75,7 +74,6 @@ class PadSequence:
         # * Now do the same for scalar vars
         batch_size = scalars.shape[0]
         for index in self._permute_scalar_features:
-            
             # * Convert to numpy, retrieve a random sample, convert back to tensor
             scalars[:, index] = torch.tensor(np.random.choice(scalars[:, index].numpy(), batch_size))
 
@@ -285,14 +283,14 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
     else:
         raise ValueError('An unknown prediction loader was requested!')
 
-def get_collate_fn(data_pars, mode='normal', permute_seq_features=None, permute_scalar_features=None):
+def get_collate_fn(data_pars, mode='normal', permute_seq_features=[], permute_scalar_features=[]):
     '''Returns requested collate-function, if the key 'collate_fn' is in the dictionary data_pars.
     '''
 
     if 'collate_fn' in data_pars:
         name = data_pars['collate_fn']
         if name == 'PadSequence':
-            func = PadSequence(mode=mode, permute_seq_features=permute_seq_features, permute_scalar_features=permute_seq_features)
+            func = PadSequence(mode=mode, permute_seq_features=permute_seq_features, permute_scalar_features=permute_scalar_features)
         
         else:
             raise ValueError('Unknown collate-function requested!')
@@ -1263,7 +1261,7 @@ def load_best_model(save_dir):
     Returns:
         torch.nn.Module -- A torch NN.
     """     
-    
+    save_dir = get_project_root() + get_path_from_root(save_dir)
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
     particle_code = get_particle_code(data_pars['particle'])
     device = get_device(meta_pars['gpu'][0])
