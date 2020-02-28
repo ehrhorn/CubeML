@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     # * Get filepaths and retrieve the particle code for each file
     h5_files = sorted([str(file) for file in Path(data_dir+'/h5').iterdir() if file.suffix == '.h5'])
-    particle_codes = [get_particle_code_from_h5(file, particle_codes) for file in h5_files]
+    particle_codes = [get_particle_code_from_i3name(file, particle_codes) for file in h5_files]
     n_events_file = [get_n_events_in_h5(path) for path in h5_files]
     
     # * Create the new names for the events in each file
