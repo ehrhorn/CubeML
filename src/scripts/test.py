@@ -18,11 +18,5 @@ from src.modules.classes import *
 import src.modules.preprocessing as pp
 from src.modules.main_funcs import *
 import shelve
-
-with shelve.open('shelve_test/train_set_test') as f:
-    for key in f:
-        for key2 in f[key]:
-            for key3 in f[key][key2]:
-                print(key, key2, key3)
-        break
-
+import sys
+from time import sleep

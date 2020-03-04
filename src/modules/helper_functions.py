@@ -1251,18 +1251,11 @@ def inverse_transform(data, model_dir):
         dict -- Dictionary containing the inverse-transformed data.
     """    
 
-    # try:
-    # except FileNotFoundError:
-    #     transformers = None
 
-    # if transformers == None:
-    #     for key in data:
-    #         transformed[key] = data[key]
     transformers_path = get_project_root()+get_path_from_root(model_dir)+'/transformers.pickle'
     transformers = joblib.load(open(transformers_path, "rb"))
     transformed = {}
     
-    # else:
     for key in data:
 
         # * If key is not in transformers, it shouldn't be transformed
