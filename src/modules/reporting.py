@@ -1177,7 +1177,6 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
     if 'savefig' in plot_dict: 
         h_figure.savefig(plot_dict['savefig'], bbox_inches='tight')
         print(get_time(), 'Figure saved at: %s'%(get_path_from_root(plot_dict['savefig'])))
-        print('')
         plt.close(fig=h_figure)
 
     return h_figure

@@ -11,6 +11,7 @@ import torch
 import h5py as h5
 import numpy as np
 import json
+import shelve
 from ignite.engine import Events
 from multiprocessing import cpu_count, Pool
 
@@ -180,6 +181,19 @@ def calc_geometric_mean(data):
     """    
     array = np.array(data)
     return array.prod()**(1.0/array.shape[0])
+
+def calc_l2_dist(a1, a2):
+    """Calculates the Euclidian distance between two points.
+    
+    Arguments:
+        a1 {np.array} -- Array of shape (N,)
+        a2 {np.array} -- Array of shape (N,)
+    
+    Returns:
+        float -- distance between the two points
+    """
+    dist = np.sqrt(np.sum((a1-a2)*(a1-a2)))
+    return dist
 
 def calc_histogram(sorted_data, n_bins=10, mode='equal_amount'):
     '''Calculates the histogram with n_bins from a sorted list. Mode can be either equal_amount or same_width - equal_amount puts same, given number in each bin, whereas same_width gives every bin the same width
@@ -935,6 +949,24 @@ def get_n_events_in_h5(file_path):
         n_events = int(f['meta/events'][()])
     return n_events
 
+def get_n_events_in_i3files(data_dir):
+    """Retrieve the number of events in a single I3-file from its key in the Shelve-db.
+    
+    Arguments:
+        data_dir {str} -- Path to shelve DB
+        file_name {str} -- Name of file
+    
+    Returns:
+        int -- number of events in file
+    """    
+    with shelve.open(data_dir) as f:
+        n_events = []
+        for key in f:
+            n_event = f[key]['n_events']
+            print(n_event)
+            n_events.append(n_event)
+    return n_events
+
 def get_n_doms(indices, dom_mask_name, data_dir):
     events_per_dir = get_n_events_per_dir(data_dir)
     
@@ -1079,7 +1111,7 @@ def get_particle_code(particle):
 
     return particle_code
 
-def get_particle_code_from_h5(h5_file, codes):
+def get_particle_code_from_i3name(h5_file, codes):
     """Given an oscnext-h5-file, the particle code is retrieved from the filename
     
     Arguments:
@@ -1219,18 +1251,11 @@ def inverse_transform(data, model_dir):
         dict -- Dictionary containing the inverse-transformed data.
     """    
 
-    # try:
-    # except FileNotFoundError:
-    #     transformers = None
 
-    # if transformers == None:
-    #     for key in data:
-    #         transformed[key] = data[key]
     transformers_path = get_project_root()+get_path_from_root(model_dir)+'/transformers.pickle'
     transformers = joblib.load(open(transformers_path, "rb"))
     transformed = {}
     
-    # else:
     for key in data:
 
         # * If key is not in transformers, it shouldn't be transformed
