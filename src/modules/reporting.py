@@ -126,7 +126,9 @@ class Performance:
         self._energy_key = self._get_energy_key()
         self._pred_keys = self._get_prediction_keys()
         self._reco_keys = self._get_reco_keys()
+        # * There should be equally many performance keys and icecube perf keys
         self._performance_keys = self._get_performance_keys()
+        self._icecube_perf_keys = self._get_icecube_perf_keys()
         self._true_keys = get_target_keys(data_pars, meta_pars)
 
         self.from_frac = from_frac
@@ -182,6 +184,7 @@ class Performance:
             # * Performance as a function of energy
             print(get_time(), 'Calculating %s performance...'%(key))
             sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, data, self.bin_edges)
+            print(key, 'model')
             print(get_time(), 'Calculation finished!')
             setattr(self, key+'_sigma', sigma)
             setattr(self, key+'_sigmaerr', sigmaerr)
@@ -202,40 +205,36 @@ class Performance:
             setattr(self, 'dom_'+key+'_84th', upper_perc)
             setattr(self, 'dom_'+key+'_16th', lower_perc)
             print('')
-        # * Calculate performance for Icecubes predictions
-        # * Ensure keys are proper so the error calculations work
-        conversion_keys_crs = self._get_conversion_keys_crs()
-        conversion_keys_true = self._get_conversion_keys_true()
-        error_funcs = self._get_error_funcs()
         
-        crs_dict = convert_keys(crs_dict, self._reco_keys, conversion_keys_crs)
-        true_transformed = convert_keys(true_transformed, self._true_keys, conversion_keys_true)
-
-        for i_var, key in enumerate(conversion_keys_crs):
+        # * Calculate how well Icecube does.
+        for name, func in zip(self._icecube_perf_keys, self._get_error_funcs()):
             # * Performance as a function of energy
-            error = error_funcs[i_var](crs_dict, true_transformed, reporting=True)
-            print(get_time(), 'Calculating %s performance...'%(self._reco_keys[i_var]))
+            error = func(crs_dict, true_transformed, reporting=True)
+            
+            print(get_time(), 'Calculating %s performance...'%(name))
             sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, error, self.bin_edges)
             print(get_time(), 'Calculation finished!')
-            setattr(self, self._reco_keys[i_var]+'_sigma', sigma)
-            setattr(self, self._reco_keys[i_var]+'_sigmaerr', sigmaerr)
-            setattr(self, key+'_50th', median)
-            setattr(self, key+'_84th', upper_perc)
-            setattr(self, key+'_16th', lower_perc)
+            
+            setattr(self, name+'_sigma', sigma)
+            setattr(self, name+'_sigmaerr', sigmaerr)
+            setattr(self, name+'_50th', median)
+            setattr(self, name+'_84th', upper_perc)
+            setattr(self, name+'_16th', lower_perc)
 
             # * Performance as a function of number of doms
-            print(get_time(), 'Calculating %s DOM performance...'%(key))
+            print(get_time(), 'Calculating %s DOM performance...'%(name))
             sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(n_doms, error, self.dom_bin_edges)
             print(get_time(), 'Calculation finished!')
-            setattr(self, 'dom_'+self._reco_keys[i_var]+'_sigma', sigma)
-            setattr(self, 'dom_'+self._reco_keys[i_var]+'_sigmaerr', sigmaerr)
-            setattr(self, 'dom_'+key+'_50th', median)
-            setattr(self, 'dom_'+key+'_84th', upper_perc)
-            setattr(self, 'dom_'+key+'_16th', lower_perc)
+            setattr(self, 'dom_'+name+'_sigma', sigma)
+            setattr(self, 'dom_'+name+'_sigmaerr', sigmaerr)
+            setattr(self, 'dom_'+name+'_50th', median)
+            setattr(self, 'dom_'+name+'_84th', upper_perc)
+            setattr(self, 'dom_'+name+'_16th', lower_perc)
             print('')
-
+        
         # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
-        for model_key, retro_key in zip(self._performance_keys, self._reco_keys):
+        for model_key, retro_key in zip(self._performance_keys, self._icecube_perf_keys):
+            print(model_key, retro_key)
             retro_sigma = getattr(self, retro_key+'_sigma')
             model_sigma = getattr(self, model_key+'_sigma')
             retro_sigmaerr = getattr(self, retro_key+'_sigmaerr')
@@ -331,19 +330,20 @@ class Performance:
     def _get_error_funcs(self):
 
         if self.meta_pars['group'] == 'vertex_reg':
-            funcs = [vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error]
+            funcs = [retro_x_error, retro_y_error, retro_z_error, retro_t_error]
         
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
-            funcs = [vertex_x_error, vertex_y_error, vertex_z_error]
+            funcs = [retro_x_error, retro_y_error, retro_z_error]
         
         elif self.meta_pars['group'] == 'direction_reg':
-            funcs = [get_retro_crs_prefit_azi_error, get_retro_crs_prefit_polar_error]
+            funcs = [retro_azi_error, retro_polar_error]
         
         elif self.meta_pars['group'] == 'energy_reg':
-            funcs = [get_retro_crs_prefit_relE_error]
+            funcs = [retro_relE_error, retro_log_frac_E_error]
 
         elif self.meta_pars['group'] == 'full_reg':
-            funcs = [get_retro_crs_prefit_relE_error, vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error, get_retro_crs_prefit_azi_error, get_retro_crs_prefit_polar_error]
+            funcs = [retro_relE_error, retro_log_frac_E_error, retro_x_error, retro_y_error, retro_z_error, retro_t_error, retro_azi_error, retro_polar_error]
+            names = []
         
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
@@ -447,6 +447,9 @@ class Performance:
         elif key == 'azi_error':
             title = 'Model azimuthal angle reco. performance'
         
+        elif key == 'log_frac_E_error':
+            title = 'Model energy reco. performance'
+
         return title
 
     def _get_performance_keys(self):
@@ -471,6 +474,11 @@ class Performance:
         
         return keys
 
+    def _get_icecube_perf_keys(self):
+        funcs = self._get_error_funcs()
+        keys = [func.__name__ for func in funcs]
+        return keys
+
     def _get_pred_path(self):
         path_to_data = get_project_root() + self.model_dir + '/data'
         for file in Path(path_to_data).iterdir():
@@ -487,6 +495,7 @@ class Performance:
         return keys
 
     def _get_reco_keys(self):
+        
         dataset_name = get_dataset_name(self.data_pars['data_dir'])
 
         if dataset_name == 'MuonGun_Level2_139008':
@@ -530,15 +539,16 @@ class Performance:
 
     def _get_ylabel(self, key):
         
-        if self.meta_pars['group'] == 'vertex_reg' or 'vertex_reg_no_time':
-            if key == 'vertex_t_error':
-                label = 'Resolution [ns]'
-            elif key == 'vertex_x_error' or key == 'vertex_y_error' or key == 'vertex_z_error':
-                label = 'Resolution [m]'
-            elif key == 'azi_error' or key == 'polar_error':
-                label = 'Resolution [degrees]'
-            elif key == 'relative_E_error':
-                label = 'Resolution [%]'
+        if key == 'vertex_t_error':
+            label = 'Resolution [ns]'
+        elif key == 'vertex_x_error' or key == 'vertex_y_error' or key == 'vertex_z_error':
+            label = 'Resolution [m]'
+        elif key == 'azi_error' or key == 'polar_error':
+            label = 'Resolution [degrees]'
+        elif key == 'relative_E_error':
+            label = 'Resolution [%]'
+        elif key == 'log_frac_E_error':
+            label = r'$\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$'
         else:
             raise KeyError('PerformanceClass._get_ylabel: Unknown key (%s)given!'%(key))
 
@@ -587,7 +597,7 @@ class Performance:
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
 
-        for pred_key, reco_key in zip(self._performance_keys, self._reco_keys):
+        for pred_key, reco_key in zip(self._performance_keys, self._icecube_perf_keys):
             img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_performance.png'
             d = self._get_perf_dict(pred_key, reco_key)
         
@@ -620,7 +630,6 @@ class Performance:
                 # * Save the performance class-instance for easy transfers between local and cloud
                 wandb.save(perf_savepath)
 
-        for pred_key, reco_key in zip(self._performance_keys, self._reco_keys):
             img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_DOMperformance.png'
             d = self._get_DOMperf_dict(pred_key, reco_key)
 
