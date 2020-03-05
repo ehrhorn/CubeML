@@ -971,10 +971,10 @@ if __name__ == '__main__':
         print('')
         print(get_time(), 'Processing chunk %d of %d'%(i_chunk+1, n_chunks))
         # * For each chunk, first retrieve data on the n nearest neighbors. 
-        n_nearest_data = get_n_nearest_data(path_db, id_chunk, geom_features, geom_dict_path)
+        n_nearest_data = get_n_nearest_data(str(path_db), id_chunk, geom_features, path_geom_dict)
         
         # * Now transform all data
-        events = transform_events(path_db, id_chunk, feature_dicts, transformers, n_nearest_data, geom_features)
+        events = transform_events(str(path_db), id_chunk, feature_dicts, transformers, n_nearest_data, geom_features)
 
         print(get_time(), 'Saving chunk %d of %d'%(i_chunk+1, n_chunks))
         with shelve.open(new_db_path, 'w') as db:

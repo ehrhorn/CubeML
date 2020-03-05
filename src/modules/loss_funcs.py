@@ -79,7 +79,6 @@ class angle_squared_loss_with_L2(torch.nn.Module):
         self._clip_val = clip_val
         self._eps = eps
         self._alpha = alpha
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
 
     def _clip_x(self, grad):
         return torch.clamp(grad, min=-self._clip_val, max=self._clip_val)
@@ -104,7 +103,7 @@ class angle_squared_loss_with_L2(torch.nn.Module):
         L2 = torch.mean((x-y)**2, dim=-1)
         L2_mean = torch.mean(L2)
 
-        return loss_mean + self._alpha*L2_mean 
+        return (1-self._alpha)*loss_mean + self._alpha*L2_mean 
 
 class angle_squared_loss_with_L2_TEST(torch.nn.Module):
     '''takes two tensors with shapes (B, 3) as input and calculates the angular error plus a bit of L2. Adds 1e-7 to squareroots to avoid inf gradients and multiplies denominator with 1+1e-7 to avoid division with zero. The L2 is useful to force unit vector predictions.
