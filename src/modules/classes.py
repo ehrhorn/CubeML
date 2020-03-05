@@ -578,106 +578,11 @@ class AttentionBlock2(nn.Module):
             mask = mask.unsqueeze(1)
         return mask
 
-class LstmBlock_old(nn.Module):
+class RnnBlock(nn.Module):
     
-    def __init__(self, n_in, n_out, n_parallel, n_stacks, bidir=False, residual=False, batch_first=True, learn_init=False):
+    def __init__(self, n_in, n_out, n_parallel, num_layers, rnn_type='LSTM', bidir=False, residual=False, batch_first=True, learn_init=False, dropout=0.0):
                 
-        super(LstmBlock, self).__init__()
-
-        self._batch_first = batch_first
-        self.residual = residual
-        self.bidir = bidir
-        self.n_dirs = 2 if bidir else 1
-        self.learn_init = learn_init
-        self.par_LSTMs = nn.ModuleList()
-        if learn_init:
-            self.init_hidden_states = nn.ModuleList()
-            self.init_cell_states = nn.ModuleList()
-        
-        for i_par in range(n_parallel):
-            par_module = nn.ModuleList()
-            par_module.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
-            if self.learn_init:
-                hidden_module = nn.ModuleList()
-                cell_module = nn.ModuleList()
-                hidden_module.append(nn.Parameter(torch.empty(self.n_dirs*self.n_in).normal_(mean=0,std=1.0)))
-                cell_module.append(nn.Parameter(torch.empty(self.n_dirs*self.n_in).normal_(mean=0,std=1.0)))
-
-            for i_stack in range(n_stacks-1):
-                par_module.append(nn.LSTM(input_size=n_out, hidden_size=n_out, bidirectional=bidir, batch_first=batch_first))
-                if self.learn_init:
-                    hidden_module.append(nn.Parameter(torch.empty(self.n_dirs*self.n_out).normal_(mean=0,std=1.0)))
-                    cell_module.append(nn.Parameter(torch.empty(self.n_dirs*self.n_out).normal_(mean=0,std=1.0)))
-
-
-            self.par_LSTMs.append(par_module)
-            if self.learn_init:
-                self.init_hidden_states.append(hidden_module)
-                self.init_cell_states.append(cell_module)
-
-    def forward(self, seq, lengths, device=None):
-        
-        # * The max length is retrieved this way such that dataparallel works
-        if self._batch_first:
-            longest_seq = seq.shape[1]
-            batch_size = seq.shape[0]
-        else:
-            longest_seq = seq.shape[0]
-            batch_size = seq.shape[1]
-
-        # * Send through LSTMs! Prep for first layer.
-        seq = pack(seq, lengths, batch_first=self._batch_first)
-        
-        # * x is output - concatenate outputs of LSTMs in parallel
-        for i_par, stack in enumerate(self.par_LSTMs):
-            
-            # * Stack section.
-            # ? Maybe learn initial state?             
-            h_par = self.init_hidden(batch_size, stack[0], device)
-            stack[0].flatten_parameters()
-            seq_par, h_par = stack[0](seq, h_par)
-
-            # * If residual connection, save the pre-LSTM version
-            if self.residual:
-                seq_par_pre, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
-            for i_stack in range(1, len(stack)):
-                
-                h_par = self.init_hidden(batch_size, stack[i_stack], device)
-                stack[i_stack].flatten_parameters()
-                seq_par, h_par = stack[i_stack](seq_par, h_par)
-                
-                # * Residual connection
-                # ? Maybe Add + Norm as in Attention?
-                if self.residual:
-                    seq_par_post, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
-                    seq_par_pre = seq_par_pre + seq_par_post
-                    seq_par = pack(seq_par_pre, lengths, batch_first=self._batch_first)
-
-            # * Define x on first parallel LSTM-module
-            if i_par == 0:
-                x, _ = h_par
-
-            # * Now keep cat'ing for each parallel stack
-            else:
-                x = torch.cat((x, h_par[0]), -1)
-        
-        return x.squeeze(0)
-        
-    def init_hidden(self, batch_size, layer, device):
-        hidden_size = int(layer.weight_ih_l0.shape[0]/4)
-        if layer.bidirectional: num_dir = 2
-        else: num_dir = 1
-
-        # * Initialize hidden and cell states - to either random nums or 0's
-        # * (num_layers * num_directions, batch, hidden_size)
-        return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
-                torch.zeros(num_dir, batch_size, hidden_size, device=device))
-
-class LstmBlock(nn.Module):
-    
-    def __init__(self, n_in, n_out, n_parallel, num_layers, bidir=False, residual=False, batch_first=True, learn_init=False):
-                
-        super(LstmBlock, self).__init__()
+        super(RnnBlock, self).__init__()
 
         self._batch_first = batch_first
         self.hidden_size = n_out
@@ -687,19 +592,34 @@ class LstmBlock(nn.Module):
         self.n_dirs = 2 if bidir else 1
         self.n_layers = num_layers
         self.learn_init = learn_init
-        self.par_LSTMs = nn.ModuleList()
+        self.dropout = dropout
+        self.rnn_type = rnn_type
+        self.par_RNNs = nn.ModuleList()
         if learn_init:
             self.init_hidden_states = nn.ParameterList()
-            self.init_cell_states = nn.ParameterList()
+            if rnn_type == 'LSTM':
+                self.init_cell_states = nn.ParameterList()
         
-        for i_par in range(n_parallel):
-            self.par_LSTMs.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, 
-            num_layers=num_layers, batch_first=batch_first))
-            if self.learn_init:
-                n_parameters = self.n_dirs*self.hidden_size*self.n_layers
-                self.init_hidden_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
-                self.init_cell_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
+        if rnn_type == 'LSTM':
+            for i_par in range(n_parallel):
+                self.par_RNNs.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, 
+                num_layers=num_layers, batch_first=batch_first, dropout=self.dropout))
+                if self.learn_init:
+                    n_parameters = self.n_dirs*self.hidden_size*self.n_layers
+                    self.init_hidden_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
+                    self.init_cell_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
 
+        elif rnn_type == 'GRU':
+            for i_par in range(n_parallel):
+                self.par_RNNs.append(nn.GRU(input_size=n_in, hidden_size=n_out, bidirectional=bidir, 
+                num_layers=num_layers, batch_first=batch_first, dropout=self.dropout))
+                if self.learn_init:
+                    n_parameters = self.n_dirs*self.hidden_size*self.n_layers
+                    self.init_hidden_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
+                    # self.init_cell_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
+        else:
+            raise KeyError('UNKNOWN RNN TYPE (%s) PASSED TO MAKEMODEL'%(rnn_type))
+    
     def forward(self, seq, lengths, device=None):
         
         # * The max length is retrieved this way such that dataparallel works
@@ -714,25 +634,35 @@ class LstmBlock(nn.Module):
         seq_packed = pack(seq, lengths, batch_first=self._batch_first)
         
         # * x is output - concatenate outputs of LSTMs in parallel
-        for i_par in range(len(self.par_LSTMs)):
+        for i_par in range(len(self.par_RNNs)):
             
             # * Instantiate hidden and cell.
             # ? Maybe learn initial state?
             if self.learn_init:
-                # ? Dont know why, but the .contiguous call is needed, else an error is thrown
-                hidden = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
-                cell = self.init_cell_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
-                h = (hidden, cell)
+                
+                # * GRUs and LSTMs require different initiations
+                if self.rnn_type == 'LSTM':
+                    # ? Dont know why, but the .contiguous call is needed, else an error is thrown
+                    hidden = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
+                    cell = self.init_cell_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
+                    h = (hidden, cell)
+                elif self.rnn_type == 'GRU':
+                    h = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
+
             else:
-                h = self.init_hidden(batch_size, self.par_LSTMs[i_par], device)
+                h = self.init_hidden(batch_size, self.par_RNNs[i_par], device)
 
             # * Send through LSTM
-            self.par_LSTMs[i_par].flatten_parameters()
-            seq_par, h_par = self.par_LSTMs[i_par](seq_packed, h)
+            self.par_RNNs[i_par].flatten_parameters()
+            seq_par, h_par = self.par_RNNs[i_par](seq_packed, h)
             seq_par_post, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
 
             # * when multiple directions and layers, h_out is weird - needs careful treatment
-            h_out = h_par[0].view(self.n_layers, self.n_dirs, batch_size, self.hidden_size)
+            if self.rnn_type == 'LSTM':
+                h_out = h_par[0].view(self.n_layers, self.n_dirs, batch_size, self.hidden_size)
+            elif self.rnn_type == 'GRU':
+                h_out = h_par.view(self.n_layers, self.n_dirs, batch_size, self.hidden_size)
+            
             if self.bidir:
                 h_out = torch.cat((h_out[self.n_layers-1, 0, :, :], h_out[self.n_layers-1, 1, :, :]), axis=-1)
             else:
@@ -758,8 +688,13 @@ class LstmBlock(nn.Module):
 
         # * Initialize hidden and cell states - to either random nums or 0's
         # * (num_layers * num_directions, batch, hidden_size)
-        return (torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device),
-                torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device))
+        if self.rnn_type == 'LSTM':
+            output = (torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device), 
+            torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device))
+        elif self.rnn_type == 'GRU':
+            output = torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device)
+        
+        return output
 
 class MakeModel(nn.Module):
     '''A modular PyTorch model builder
@@ -833,6 +768,9 @@ class MakeModel(nn.Module):
                 x = entry(seq, lengths, device=device)
             
             elif layer_name == 'LstmBlock':
+                seq, x = entry(seq, lengths, device=device)
+            
+            elif layer_name == 'RnnBlock':
                 seq, x = entry(seq, lengths, device=device)
             
             elif layer_name == 'BiLSTM':
@@ -1314,6 +1252,8 @@ def make_model_architecture(arch_dict):
                 modules.append(AveragePool())
             elif key == 'LstmBlock':
                 modules.append(LstmBlock(**layer_dict))
+            elif key == 'RnnBlock':
+                modules.append(RnnBlock(**layer_dict))
             elif key == 'BiLSTM':
                 modules.append(BiLSTM(**layer_dict))
             elif key == 'ResAttention':

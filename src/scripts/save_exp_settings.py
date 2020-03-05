@@ -88,8 +88,8 @@ if __name__ == '__main__':
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
                                         'max_lr':          args.max_lr,
                                         'min_lr':          args.min_lr,
-                                        'frac_up':         0.025 if not args.dev else 0.5,
-                                        'frac_down':       1-0.025 if not args.dev else 0.5,
+                                        'frac_up':         0.0 if not args.dev else 0.5,
+                                        'frac_down':       1-0.0 if not args.dev else 0.5,
                                         'schedule':        'inverse',
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 128
+    n1 = 256
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
@@ -168,12 +168,14 @@ if __name__ == '__main__':
                                                 # {'ResBlock':        {'input_sizes':       [n_seq_feat, n1//2, n1//2],
                                                 #                      'norm':              'LayerNorm',
                                                 #                      'type':              'seq'}},
-                                                {'LstmBlock':       {'n_in':              n_seq_feat,
+                                                {'RnnBlock':        {'n_in':              n_seq_feat,
                                                                      'n_out':             n1,
+                                                                     'rnn_type':          'GRU',
                                                                      'n_parallel':        1,
                                                                      'num_layers':        2,
                                                                      'residual':          False,
                                                                      'bidir':             True,
+                                                                     'dropout':           0.0,
                                                                      'learn_init':        True}},
                                                 # {'ResAttention':    {'input_outputs':     [2*n1, n1],
                                                 #                      'n_res_layers':      2,

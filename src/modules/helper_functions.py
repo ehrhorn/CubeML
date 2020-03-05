@@ -35,8 +35,9 @@ class lr_watcher:
             schedule {str} -- Keyword for factor calculation (default: {'exp'})
         """        
 
-        self._steps_up = n_rise//batch_size
-        self._steps_down = n_fall//batch_size
+        # * To ensure no nasty divisions by 0
+        self._steps_up = max(n_rise//batch_size, 1)
+        self._steps_down = max(n_fall//batch_size, 1)
         self.gamma_up = (max_lr/start_lr)**(1/self._steps_up)
         self.gamma_down = (min_lr/max_lr)**(1/self._steps_down)
 
