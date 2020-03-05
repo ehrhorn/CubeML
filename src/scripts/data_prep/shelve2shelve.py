@@ -586,7 +586,7 @@ def get_geom_features(n_nearest=2):
     
     return d
 
-def get_n_nearest_data(db_path, id_chunk, geom_features, geom_dict_path):
+def get_n_nearest_data(db_path, id_chunk, geom_features, n_cpus=cpu_count()):
     """Finds and extracts data from the nearest n DOMs
     
     Parameters
@@ -606,7 +606,7 @@ def get_n_nearest_data(db_path, id_chunk, geom_features, geom_dict_path):
         Data of nearest N doms for each event ID
     """    
     # * Chunk ID's for multiprocessing
-    n_chunks = cpu_count()
+    n_chunks = n_cpus
     id_chunks = np.array_split(id_chunk, n_chunks)
 
     # * Multiprocess
@@ -614,8 +614,10 @@ def get_n_nearest_data(db_path, id_chunk, geom_features, geom_dict_path):
     geom_features_list = [geom_features]*n_chunks
     geom_dict_list = [geom_dict_path]*n_chunks
     packed = zip(id_chunks, db_list, geom_features_list, geom_dict_list)
-    with Pool() as p:
+    with Pool(processes=n_cpus) as p:
+        print(get_time(), 'Finding n nearest DOMs...')
         data = p.map(get_n_nearest_data_multiprocess, packed)
+        print(get_time(), 'N nearest DOMs found!')
     
     # * Unpack
     all_events = {}
@@ -638,7 +640,7 @@ def get_n_nearest_data_multiprocess(pack):
     events = {index: {} for index in ids}
     
     # * We open the database inside each process - opening outside and passing opened file seems to produce bugs...
-    with shelve.open(path_db, 'r') as db:
+    with shelve.open(str(path_db), 'r') as db:
         
         # * Loop over events
         for index in ids:
@@ -763,7 +765,7 @@ def load_and_fit_transformer(pack):
     
     return {key: transformer}
 
-def fit_transformers(db_path, n_data, feature_dicts):
+def fit_transformers(db_path, n_data, feature_dicts, n_cpus=cpu_count()):
     # * Assumes a RANDOMIZED DB!
     ids = [str(i) for i in range(n_data)]
 
@@ -775,8 +777,10 @@ def fit_transformers(db_path, n_data, feature_dicts):
     ids_list = [ids]*len(keys)
     n_data_list = [n_data]*len(keys)
     packed = zip(ids_list, feature_dicts.items(), db_list, n_data_list)
-    with Pool() as p:
+    with Pool(processes=n_cpus) as p:
+        print(get_time(), 'Fitting transformers...')
         transformers_list = p.map(load_and_fit_transformer, packed)
+        print(get_time(), 'Transformers fitted!')
 
     # * Make a dictionary with the transformers
     transformers = {}
@@ -806,7 +810,7 @@ def make_multiprocess_pack(discriminator, stuff):
         lists.append([entry]*n_copies)
     return zip(*lists)
 
-def transform_events(db_path, ids, feature_dicts, transformers, n_nearest_data, geom_features):
+def transform_events(db_path, ids, feature_dicts, transformers, n_nearest_data, geom_features, n_cpus=cpu_count()):
     """Transforms events.
 
     For each ID, the data induced by feature_dicts is calculated and/or transformed and placed in a a dictionary under event ID --> transformed. Furthermore, meta-information and masks are saved aswell.
@@ -832,7 +836,7 @@ def transform_events(db_path, ids, feature_dicts, transformers, n_nearest_data, 
         Dictionary containing transformed events.
     """    
     # * Chunk ID's for multiprocessing
-    n_chunks = cpu_count()
+    n_chunks = n_cpus
     id_chunks = np.array_split(ids, n_chunks)
     
     # * Repack the n_nearest_data so that IDs matches
@@ -844,8 +848,11 @@ def transform_events(db_path, ids, feature_dicts, transformers, n_nearest_data, 
     feature_dicts_list = [feature_dicts]*n_chunks
     geom_features_list = [geom_features]*n_chunks
     packed = zip(id_chunks, n_nearest_chunks, db_path_list, transformers_list, feature_dicts_list, geom_features_list)
-    with Pool() as p:
+    with Pool(processes=n_cpus) as p:
+        print(get_time(), 'Transforming events...')
         events_transformed = p.map(transform_events_multiprocess, packed)
+        print(get_time(), 'Events transformed!')
+
     events_unpacked = {}
     for events in events_transformed:
         events_unpacked.update(events)   
@@ -916,9 +923,11 @@ if __name__ == '__main__':
 
     description = 'Converts raw data in a shelve-database to transformed data in a new shelve-database'
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('--chunksize', default=1000, type=int, help='Sets the amount of events to process and save at a time. Splits the entire data into chunks of this size.')
-    parser.add_argument('--n_transform', default=1000, type=int, help='Sets the amount of datapoints to use in approximating their distribution during fitting of transformer')
-    parser.add_argument('--path', default='None', type=str, help='Data directory.')
+    parser.add_argument('--dev', action='store_true', help='Initiates developermode')
+    parser.add_argument('--chunksize', default=200000, type=int, help='Sets the amount of events to process and save at a time. Splits the entire data into chunks of this size.')
+    parser.add_argument('--n_transform', default=500000, type=int, help='Sets the amount of datapoints to use in approximating their distribution during fitting of transformer')
+    parser.add_argument('--n_cpus', default=cpu_count(), type=int, help='Sets the amount of datapoints to use in approximating their distribution during fitting of transformer')
+    parser.add_argument('--path', default='None', type=str, help='Path to shelve-file.')
     parser.add_argument('--fit_transformers', action='store_true', help='Whether or not to fit new transformers.')
     parser.add_argument('--new_name', default='None', type=str, help='Sets the new databases name.')
 
@@ -935,26 +944,28 @@ if __name__ == '__main__':
     path_geom_dict = str(path_db.parent)+'/dom_geom.pickle'
     path_transformer = str(path_db.parent)+'/transformers.pickle'
     path_new_db = str(path_db.parent)+'/'+args.new_name
-
-    n_data = args.n_transform
-    chunksize = args.chunksize
+    
+    n_data = args.n_transform if not args.dev else 1000
+    chunksize = args.chunksize if not args.dev else 1000
+    n_cpus = args.n_cpus if not args.dev else 2
     feature_dicts = get_feature_dicts()
     geom_features = get_geom_features()
     
     # * Fit and save transformers
     if args.fit_transformers:
-        print(get_time(), 'Fitting transformers...')
-        transformers = fit_transformers(path_db, n_data, feature_dicts)
-        with open(transformer_path, 'wb') as f:
+        transformers = fit_transformers(str(path_db), n_data, feature_dicts, n_cpus=n_cpus)
+        with open(path_transformer, 'wb') as f:
             pickle.dump(transformers, f)
-        print(get_time(), 'Transformers fitted!')
 
     with open(path_transformer, 'rb') as f:
         transformers = pickle.load(f)
     
     # * Chunk IDs and process it chunk by chunk
-    with shelve.open(path_db, 'r') as f:
-        ids = [index for index in f]
+    if args.dev:
+        with shelve.open(str(path_db), 'r') as f:
+            ids = [index for index in f]
+    else:
+        ids = [str(i) for i in range(10000)]
 
     # * Chunk can't be smaller than 1
     n_chunks = max(1, len(ids)//chunksize)
@@ -971,14 +982,17 @@ if __name__ == '__main__':
         print('')
         print(get_time(), 'Processing chunk %d of %d'%(i_chunk+1, n_chunks))
         # * For each chunk, first retrieve data on the n nearest neighbors. 
-        n_nearest_data = get_n_nearest_data(str(path_db), id_chunk, geom_features, path_geom_dict)
+        n_nearest_data = get_n_nearest_data(str(path_db), id_chunk, geom_features, path_geom_dict, n_cpus=n_cpus)
         
         # * Now transform all data
-        events = transform_events(str(path_db), id_chunk, feature_dicts, transformers, n_nearest_data, geom_features)
+        events = transform_events(str(path_db), id_chunk, feature_dicts, transformers, n_nearest_data, geom_features, n_cpus=n_cpus)
 
         print(get_time(), 'Saving chunk %d of %d'%(i_chunk+1, n_chunks))
-        with shelve.open(new_db_path, 'w') as db:
+        with shelve.open(path_new_db, 'w') as db:
             for event, d in events.items():
                 db[event] = d
         print(get_time(), 'Saved chunk!')
+        
+        if args.dev:
+            break
         
