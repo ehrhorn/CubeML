@@ -79,15 +79,15 @@ if __name__ == '__main__':
                 'max_epochs':          17 if not args.dev else 2,
                 'early_stop_patience': 25,
                 'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-6,#0.00003,#0.001, 
+                                        'lr':             1e-5,#0.00003,#0.001, 
                                         'betas':          (0.9, 0.998),
                                         'eps':            1.0e-9
                                         },
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
                                         'max_lr':          args.max_lr,
                                         'min_lr':          args.min_lr,
-                                        'frac_up':         0.05 if not args.dev else 0.5,
-                                        'frac_down':       1-0.05 if not args.dev else 0.5,
+                                        'frac_up':         0.025 if not args.dev else 0.5,
+                                        'frac_down':       1-0.025 if not args.dev else 0.5,
                                         'schedule':        'inverse',
                                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
@@ -120,8 +120,8 @@ if __name__ == '__main__':
                                 # 'dom_charge_over_vertex',
                                 # 'dom_charge_over_vertex_sqr'], 
                                 
-                'scalar_feat': ['dom_timelength_fwhm',
-                                'tot_charge'],
+                'scalar_feat': ['dom_timelength_fwhm'],
+                                # 'tot_charge'],
                                 
                 'n_val_events_wanted':   100000 if not args.dev else 100,# np.inf,
                 'n_train_events_wanted': np.inf if not args.dev else 100,
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 64
+    n1 = 256
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
@@ -157,19 +157,19 @@ if __name__ == '__main__':
                                                 # {'ResBlock':        {'input_sizes':       [n_seq_feat, n1//2, n1//2],
                                                 #                      'norm':              'LayerNorm',
                                                 #                      'type':              'seq'}},
-                                                # {'LstmBlock':       {'n_in':              n_seq_feat,
-                                                #                      'n_out':             n1,
-                                                #                      'n_parallel':        1,
-                                                #                      'num_layers':        2,
-                                                #                      'residual':          False,
-                                                #                      'bidir':             True,
-                                                #                      'learn_init':        True}},
-                                                {'ResAttention':    {'input_outputs':     [n_seq_feat, n1, n1, n1, n1, n1],
-                                                                     'n_res_layers':      2,
-                                                                     'norm':             'LayerNorm'}},
-                                                # {'ResBlock':        {'input_sizes':       [2*n1, n1],
-                                                #                      'norm':              'LayerNorm',
-                                                #                      'type':              'seq'}},
+                                                {'LstmBlock':       {'n_in':              n_seq_feat,
+                                                                     'n_out':             n1,
+                                                                     'n_parallel':        1,
+                                                                     'num_layers':        2,
+                                                                     'residual':          False,
+                                                                     'bidir':             True,
+                                                                     'learn_init':        True}},
+                                                # {'ResAttention':    {'input_outputs':     [2*n1, n1],
+                                                #                      'n_res_layers':      2,
+                                                #                      'norm':             'LayerNorm'}},
+                                                # # {'ResBlock':        {'input_sizes':       [2*n1, n1],
+                                                # #                      'norm':              'LayerNorm',
+                                                # #                      'type':              'seq'}},
                                                 # {'LstmBlock':       {'n_in':              n1,
                                                 #                      'n_out':             n1,
                                                 #                      'n_parallel':        1,
@@ -184,11 +184,11 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                {'AveragePool': []},
-                                                {'ResBlock':        {'input_sizes':        [n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat],
+                                                #{'MaxPool': []},
+                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
-                                                {'Linear':          {'input_sizes':        [n1+n_scalar_feat, n_target],
+                                                {'Linear':          {'input_sizes':        [n2, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
 
