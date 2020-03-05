@@ -201,7 +201,7 @@ class Performance:
             setattr(self, 'dom_'+key+'_50th', median)
             setattr(self, 'dom_'+key+'_84th', upper_perc)
             setattr(self, 'dom_'+key+'_16th', lower_perc)
-        
+            print('')
         # * Calculate performance for Icecubes predictions
         # * Ensure keys are proper so the error calculations work
         conversion_keys_crs = self._get_conversion_keys_crs()
@@ -232,6 +232,7 @@ class Performance:
             setattr(self, 'dom_'+key+'_50th', median)
             setattr(self, 'dom_'+key+'_84th', upper_perc)
             setattr(self, 'dom_'+key+'_16th', lower_perc)
+            print('')
 
         # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._reco_keys):

@@ -26,6 +26,35 @@ def relative_E_error(pred, truth):
 
         return rel_E_error
 
+def log_frac_E_error(pred, truth, eps=1e-3):
+    r"""Calculates $\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$
+    
+    This error measure puts predictions that are either twice as big or small on an equal footing.
+
+    Parameters
+    ----------
+    pred : array
+        log_10(E/GeV)-predictions
+    truth : array
+        log_10(E/GeV)-truths
+    eps : float, optional
+        Small number to ensure no log(0) are taken, by default 1e-3
+    
+    Returns
+    -------
+    tensor
+        log of fractional difference
+    """    
+    if 'true_primary_energy' in pred:
+        logE_pred = torch.tensor(pred['true_primary_energy'])
+        logE_truth = torch.tensor(truth['true_primary_energy'], dtype=logE_pred.dtype)
+        E_pred = torch.clamp(10**logE_pred, min=eps, max=np.inf)
+        E_truth = 10**logE_truth
+
+        log_frac_E = torch.log10(E_pred/E_truth)
+
+        return log_frac_E
+
 def azi_error(pred, truth, units='degrees'):
 
     # ensure cartesian coordinates are used
@@ -137,13 +166,13 @@ def get_eval_functions(meta_pars):
     if regression_type == 'direction_reg':
         eval_funcs = [directional_error, azi_error, polar_error]
     elif regression_type == 'full_reg':
-        eval_funcs = [relative_E_error, vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error, azi_error, polar_error]
+        eval_funcs = [relative_E_error, log_frac_E_error, vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error, azi_error, polar_error]
     elif regression_type == 'vertex_reg':
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error, vertex_t_error]
     elif regression_type == 'vertex_reg_no_time':
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error]
     elif regression_type == 'energy_reg':
-        eval_funcs = [relative_E_error]
+        eval_funcs = [relative_E_error, log_frac_E_error]
     else:
         raise ValueError('eval_funcs: Unknown regression type (%s) encountered!'%(regression_type))
 
