@@ -60,7 +60,7 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN
         lr.append(get_lr(optimizer))
         scheduler.step()
         if engine.state.iteration%(int(LOG_EVERY/BATCH_SIZE)) == 0:
-            print('\nEvent %d completed'%(engine.state.iteration*BATCH_SIZE),strftime("%d/%m %H:%M", localtime()))
+            print(get_time(), 'Event %d completed'%(engine.state.iteration*BATCH_SIZE))
     lr_trainer.add_event_handler(Events.ITERATION_COMPLETED, log_lr, lr, loss_vals, optimizer, scheduler, n_steps)
     
     print(get_time(), 'LR-scan begun.')
@@ -165,7 +165,7 @@ def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
     dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
 
     # * Initialize model and log it - use GPU if available
-    model, optimizer, device, _ = initiate_model_and_optimizer(None, hyper_pars, data_pars, arch_pars, meta_pars)
+    model, optimizer, device, _ = initiate_model_and_optimizer(None, hyper_pars, data_pars, arch_pars, meta_pars, n_train=N_TRAIN)
 
     loss = get_loss_func(arch_pars['loss_func'])
 
@@ -259,12 +259,16 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, met
 
         print(get_time(), 'CONTINUING TRAINING A CRASHED RUN!')
 
-    elif meta_pars['objective'] == 'train_new' or meta_pars['objective'] == 'explore_lr':
+    elif meta_pars['objective'] == 'train_new':
         model = model.to(device)
         optimizer = get_optimizer(model.parameters(), hyper_pars['optimizer'])
         lr_scheduler = get_lr_scheduler(hyper_pars, optimizer, hyper_pars['batch_size'], n_train)
+    
+    elif meta_pars['objective'] == 'explore_lr':
+        model = model.to(device)
+        optimizer = get_optimizer(model.parameters(), hyper_pars['optimizer'])
+        lr_scheduler = None
         
-
     else:
         raise ValueError('Unknown objective set!')
 

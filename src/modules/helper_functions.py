@@ -1074,11 +1074,17 @@ def get_optimizer(model_pars, d_opt):
         if 'weight_decay' in d_opt: weight_decay = d_opt['eps']
         else: weight_decay = 0 # * default Adam par
         
-        return optim.Adam(model_pars, lr = lr, betas = betas, eps = eps, weight_decay = weight_decay)
+        optimizer = optim.Adam(model_pars, lr = lr, betas = betas, eps = eps, weight_decay = weight_decay)
     
+    elif d_opt['optimizer'] == 'SGD':
+        _ = d_opt.pop('optimizer')
+        optimizer = optim.SGD(model_pars, **d_opt)
+
     else:
         raise ValueError('Unknown optimizer (%s) chosen!'%(d_opt['optimizer']))
 
+    return optimizer
+    
 def get_particle_code(particle):
     """Retrieves the particle code (a 6-digit number) as a str for the desired particle.
     

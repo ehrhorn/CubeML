@@ -66,23 +66,25 @@ if __name__ == '__main__':
     # * Set project
     project = 'cubeml_test' if args.dev else 'cubeml'
     dataset = data_dir.split('/')[-1]
-    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names, args.weights, args.dom_mask, *args.tags],
-                'group':                regression_type,
-                'project':              project,
-                'objective':            objective,
-                'log_every':            500000 if not args.dev else 50,
-                'lr_scan':              args.scan_lr, 
-                'gpu':                  args.gpu
-                }
     
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
                 'max_epochs':          17 if not args.dev else 2,
                 'early_stop_patience': 25,
-                'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-5,#0.00003,#0.001, 
-                                        'betas':          (0.9, 0.998),
-                                        'eps':            1.0e-9
+                # 'optimizer':           {'optimizer':      'Adam',
+                #                         'lr':             1e-5,#0.00003,#0.001, 
+                #                         'betas':          (0.9, 0.998),
+                #                         'eps':            1.0e-9},
+                'optimizer':           {'optimizer':      'SGD',
+                                        'lr':             1e-6,#0.00003,#0.001, 
+                                        'momentum':       0.9,
+                                        'weight_decay':   0.0,
+                                        'nesterov':       True
                                         },
+                # 'optimizer':           {'optimizer':      'Adam',
+                #                         'lr':             1e-6,#0.00003,#0.001, 
+                #                         'betas':          (0.9, 0.998),
+                #                         'eps':            1.0e-9
+                #                         },
                 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
                                         'max_lr':          args.max_lr,
                                         'min_lr':          args.min_lr,
@@ -96,7 +98,16 @@ if __name__ == '__main__':
                                         }
                                         
                  }
-
+    
+    optimizer = hyper_pars['optimizer']['optimizer']
+    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names, args.weights, args.dom_mask, *args.tags, optimizer],
+                'group':                regression_type,
+                'project':              project,
+                'objective':            objective,
+                'log_every':            500000 if not args.dev else 50,
+                'lr_scan':              args.scan_lr, 
+                'gpu':                  args.gpu
+                }
 
     data_pars = {'data_dir':     data_dir,
                 'masks':         mask_names,
@@ -139,7 +150,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
-    n1 = 256
+    n1 = 128
     n2 = 2*n1+n_scalar_feat
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
@@ -184,7 +195,7 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                #{'MaxPool': []},
+                                                # {'AveragePool': []},
                                                 {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
