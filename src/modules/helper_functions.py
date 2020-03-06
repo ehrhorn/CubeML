@@ -1860,6 +1860,13 @@ def remove_tests_wandbdir(directory = get_project_root() + '/models/wandb/', rm_
             except FileNotFoundError:
                 pass
 
+def save_shared_exp_folder_command(command=None, nohup_dest=None):
+    path = str(Path(get_project_root()).parent)+'/experiments/'+strftime("%Y-%m-%d-%H.%M.%S", localtime())+'.pickle'
+    d = {'command': command, 'nohup_dest': nohup_dest, 'environment': 'cudaCubeML'}
+    with open(path, 'w') as f:
+        json.dump(d, f)
+    print(get_time(), 'Saved command in shared folder.')
+
 def sort_pairs(l1, l2, reverse=False):
     '''Sorts lists l1 and l2 w.r.t. the l1-values
     '''

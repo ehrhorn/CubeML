@@ -472,7 +472,7 @@ def pickle_evaluator(model, device, non_blocking=False):
     
     return engine    
 
-def run_experiment(file, log=True, debug_mode=False):
+def run_experiment(file, log=True, debug_mode=False, gpu_id=None):
     """Runs the experiment defined by file and deletes file.
     
     Arguments:
@@ -489,9 +489,13 @@ def run_experiment(file, log=True, debug_mode=False):
         arch_pars = dicts['arch_pars']
         meta_pars = dicts['meta_pars']
 
+    if gpu_id:
+        print(meta_pars)
+        a+=1
+
     # * Delete file
     Path(file).unlink()
-
+    
     # * Only scan new experiments
     scan = meta_pars.get('lr_scan', False)
     if meta_pars['objective'] == 'explore_lr':

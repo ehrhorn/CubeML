@@ -28,6 +28,7 @@ parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, help='Se
 parser.add_argument('--gpu', nargs='+', default='0', type=str, help='Sets the IDs of the GPUs to use')
 parser.add_argument('--batch_size', default=128, type=int, help='Sets batchsize.')
 parser.add_argument('--tags', nargs='+', default='', type=str, help='Tags a run for easier comparisons on W&B')
+parser.add_argument('--shared', action='store_true', help='Saves execution command in shared folder.')
 
 args = parser.parse_args()
 
@@ -175,7 +176,7 @@ if __name__ == '__main__':
                                                                      'num_layers':        2,
                                                                      'residual':          False,
                                                                      'bidir':             True,
-                                                                     'dropout':           0.5,
+                                                                     'dropout':           0.0,
                                                                      'learn_init':        True}},
                                                 # {'ResAttention':    {'input_outputs':     [2*n1, n1],
                                                 #                      'n_res_layers':      2,
@@ -218,6 +219,12 @@ if __name__ == '__main__':
     exp_name = exp_dir+base_name+'.json'
     with open(exp_name, 'w') as name:
         json.dump(json_dict, name)
+    
+    if args.shared:
+        command = 'python -u ../CubeML/src/script/run_exp_from_shared.py'
+        command = 'python -u run_exp_from_shared.py'
+
+        save_shared_exp_folder_command(command)
     
     if args.run:
         if args.test:
