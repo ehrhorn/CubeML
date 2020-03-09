@@ -169,6 +169,7 @@ if __name__ == '__main__':
                                                 # {'ResBlock':        {'input_sizes':       [n_seq_feat, n1//2, n1//2],
                                                 #                      'norm':              'LayerNorm',
                                                 #                      'type':              'seq'}},
+<<<<<<< Updated upstream
                                                 {'RnnBlock':        {'n_in':              n_seq_feat,
                                                                      'n_out':             n1,
                                                                      'rnn_type':          'LSTM',
@@ -184,6 +185,21 @@ if __name__ == '__main__':
                                                 # # {'ResBlock':        {'input_sizes':       [2*n1, n1],
                                                 # #                      'norm':              'LayerNorm',
                                                 # #                      'type':              'seq'}},
+=======
+                                                # {'LstmBlock':       {'n_in':              n_seq_feat,
+                                                #                      'n_out':             n1,
+                                                #                      'n_parallel':        1,
+                                                #                      'num_layers':        2,
+                                                #                      'residual':          False,
+                                                #                      'bidir':             True,
+                                                #                      'learn_init':        True}},
+                                                {'ResAttention':    {'input_outputs':     [n_seq_feat, n1, n1, n1, n1, n1],
+                                                                     'n_res_layers':      2,
+                                                                     'norm':             'LayerNorm'}},
+                                                # {'ResBlock':        {'input_sizes':       [2*n1, n1],
+                                                #                      'norm':              'LayerNorm',
+                                                #                      'type':              'seq'}},
+>>>>>>> Stashed changes
                                                 # {'LstmBlock':       {'n_in':              n1,
                                                 #                      'n_out':             n1,
                                                 #                      'n_parallel':        1,
@@ -198,8 +214,13 @@ if __name__ == '__main__':
                                                 #                    'dropout':             0.5,
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
+<<<<<<< Updated upstream
                                                 # {'AveragePool': []},
                                                 {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
+=======
+                                                {'MaxPool': []},
+                                                {'ResBlock':        {'input_sizes':        [n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat, n1+n_scalar_feat],
+>>>>>>> Stashed changes
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
                                                 {'Linear':          {'input_sizes':        [n2, n_target],
