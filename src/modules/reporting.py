@@ -98,11 +98,17 @@ class AziPolarHists:
         if fig != -1:
             if self.wandb_ID is not None:
                 im = PIL.Image.open(img_address)
-                wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit = False)
+                wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit=False)
                 im.close()
 
 class Performance:
-    """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
+    """A class to create and save performance plots for interaction vertex 
+    predictions. 
+    
+    If available, the relative improvement compared to Icecubes 
+    reconstruction is plotted aswell. A one-number performance summary is saved 
+    as the median of the total vertex distance error.     
+    
     Raises:
         KeyError: If an unknown dataset is encountered.
     
@@ -140,7 +146,9 @@ class Performance:
         self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
 
     def _calculate_onenum_performance(self, data_dict):
-       
+        # TODO: Make up some better onenum-performance measure. 
+        # TODO: Maybe composition (geomean) of 68 % confidence bound on angle error, 
+        # TODO: 68 % vertex error, average width of log_frac_E and average width of t.
         if self.meta_pars['group'] == 'vertex_reg' or self.meta_pars['group'] == 'vertex_reg_no_time':
             len_error = self._get_len_error(data_dict)
             one_num = np.nanpercentile(len_error, 50)
