@@ -411,12 +411,13 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
     val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
     collate_fn = get_collate_fn(data_pars)
+    loss = get_loss_func(arch_pars['loss_func'])
     val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)#, pin_memory=True)
     N_VAL = get_set_length(val_set)
     
     # * Run evaluator!
-    predictions, truths, indices = run_pickle_evaluator(model, val_generator, val_set.targets, gpus, 
-        LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL)
+    predictions, truths, indices, loss_vals = run_pickle_evaluator(model, val_generator, val_set.targets, gpus, 
+        LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL, loss_func=loss)
 
     # * Run predictions through desired functions - transform back to 'true' values, if transformed
     predictions_transformed = inverse_transform(predictions, save_dir)
@@ -433,6 +434,7 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     print(get_time(), 'Saving predictions...')
     with h5.File(pred_full_address, 'w') as f:
         f.create_dataset('index', data=np.array(indices))
+        f.create_dataset('loss', data=np.array(loss_vals))
         for key, pred in predictions.items():
             f.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
         for key, pred in error_from_preds.items():
@@ -527,7 +529,7 @@ def run_experiments(log=True, newest_first=False):
         exps = Path(exp_dir).glob('*.json')
         n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
 
-def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, VAL_BATCH_SIZE=1028, N_VAL=np.inf):
+def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, VAL_BATCH_SIZE=1028, N_VAL=np.inf, loss_func=None):
     """Runs inference with a trained model over a dataset.
     
     Arguments:
@@ -547,6 +549,9 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
     # * Use IGNITE to predict
     predictions = {key: [] for key in targets}
     truths = {key: [] for key in targets}
+    
+    loss_vals = []
+
     indices_PadSequence_sorted = []
     device = get_device(gpus[0])
 
@@ -556,12 +561,17 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
         pred, target, indices = engine.state.output
         truth = target[0]
         weights = target[1]
+        
+        # * Save loss values aswell - we call .item() to detach it from gradient graph
+        loss = loss_func(pred, target, predict=True)
+        loss_vals.extend([loss_val.item() for loss_val in loss])
+
         indices_PadSequence_sorted.extend(indices)
         for i_batch in range(pred.shape[0]):
             for i_key, key in enumerate(predictions):
                 predictions[key].append(pred[i_batch, i_key])
                 truths[key].append(truth[i_batch, i_key])
-        
+            
         # * Log for sanity...
         if engine.state.iteration%(max(1, int(LOG_EVERY/VAL_BATCH_SIZE))) == 0:
             n_predicted = engine.state.iteration*VAL_BATCH_SIZE
@@ -569,12 +579,13 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
 
     # * Start predicting!
     print(get_time(), 'Prediction begun.')
-    evaluator_val = pickle_evaluator(model, device) # create_supervised_evaluator(model, device=device)
+    evaluator_val = pickle_evaluator(model, device)
     evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
     evaluator_val.run(val_generator)
     print(get_time(), 'Prediction finished!')
     
     # * Sort predictions w.r.t. index before saving
+    _, loss_vals_sorted = sort_pairs(indices_PadSequence_sorted, loss_vals)
     for key, values in predictions.items():
         _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
         predictions[key] = sorted_vals
@@ -584,7 +595,7 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
         truths[key] = sorted_vals
     indices = sorted(indices_PadSequence_sorted)
 
-    return predictions, truths, indices
+    return predictions, truths, indices, loss_vals_sorted
 
 def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True, debug_mode=False):
     """Main training script. Takes experiment-defining dictionaries as input and trains the model induced by them.

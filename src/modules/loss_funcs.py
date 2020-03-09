@@ -116,7 +116,7 @@ class logcosh(torch.nn.Module):
     def __init__(self):
         super(logcosh, self).__init__()
 
-    def forward(self, x, y):
+    def forward(self, x, y, predict=False):
         """Computes logcosh-loss with weights
         
         Arguments:
@@ -137,9 +137,12 @@ class logcosh(torch.nn.Module):
         loss_weighted = weights*ave_logcosh
         
         # * Mean over the batch
-        mean_loss = torch.mean(loss_weighted)
+        if not predict:
+            loss = torch.mean(loss_weighted)
+        else:
+            loss = loss_weighted
 
-        return mean_loss
+        return loss
 
 def get_loss_func(name):
     if name == 'L1': 

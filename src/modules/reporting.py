@@ -135,7 +135,7 @@ class Performance:
         self.to_frac = to_frac
         self.wandb_ID = wandb_ID
 
-        energy_dict, pred_dict, crs_dict, true_dict, n_doms = self._get_data_dicts()
+        energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss = self._get_data_dicts()
         self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict, n_doms)
         self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
 
@@ -292,12 +292,20 @@ class Performance:
         full_pred_address = self._get_pred_path()
         data_dir = self.data_pars['data_dir']
         prefix = 'transform'+str(self.data_pars['file_keys']['transform'])
+
+        # * Load loss aswell
+        keys = self._pred_keys+['loss']
+        
         print(get_time(), 'Loading predictions...')
-        pred_dict = read_pickle_predicted_h5_data_v2(full_pred_address, self._pred_keys)
+        pred_dict = read_pickle_predicted_h5_data_v2(full_pred_address, keys)
         energy_dict = read_pickle_data(data_dir, pred_dict['indices'], self._energy_key, prefix=prefix)
         crs_dict = read_pickle_data(data_dir, pred_dict['indices'], self._reco_keys, prefix=prefix)
         true_dict = read_pickle_data(data_dir, pred_dict['indices'], self._true_keys, prefix=prefix)
         print(get_time(), 'Predictions loaded!')
+
+        # * Pop loss from dict
+        loss = pred_dict['loss']
+        del pred_dict['loss']
 
         print(get_time(), 'Finding number of DOMs in events')
         n_doms = get_n_doms(pred_dict['indices'], self.dom_mask, data_dir)
@@ -305,7 +313,7 @@ class Performance:
         print(get_time(), 'Number of DOMs found!')
         del pred_dict['indices']
 
-        return energy_dict, pred_dict, crs_dict, true_dict, n_doms
+        return energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss
     
     def _get_dom_dict(self):
         d = {'data': [self.dom_bin_edges[:-1]], 'bins': [self.dom_bin_edges], 'weights': [self.dom_counts], 'histtype': ['step'], 'log': [True], 'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
@@ -489,7 +497,6 @@ class Performance:
     def _get_prediction_keys(self):
         funcs = get_eval_functions(self.meta_pars)
         keys = []
-
         for func in funcs:
             keys.append(func.__name__)
         return keys
