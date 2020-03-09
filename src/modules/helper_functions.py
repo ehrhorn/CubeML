@@ -855,7 +855,11 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
             step_size_up = int(n_steps)
         else: step_size_up = 2000 # * default value from Torch
 
-        scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=lr_dict['base_lr'], max_lr = lr_dict['max_lr'], step_size_up=step_size_up, cycle_momentum=cycle_momentum)
+        scheduler = optim.lr_scheduler.CyclicLR(optimizer, 
+                                                base_lr=lr_dict['base_lr'], 
+                                                max_lr=lr_dict['max_lr'], 
+                                                step_size_up=step_size_up, 
+                                                cycle_momentum=cycle_momentum)
     
     elif lr_dict['lr_scheduler'] == 'ReduceLROnPlateau':
         # * Some default values
@@ -863,18 +867,11 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
         # * 'factor':         0.1,
         # * 'patience':       2,
         # * }
+        # * Pop the keys ReduceLROnPlateau doesn't take before passing
+        _ = lr_dict.pop('lr_scheduler')
+        _ = lr_dict.pop('train_set_size')
 
-        pars = {}
-        if 'factor' in lr_dict:
-            pars['factor'] = lr_dict['factor']
-        if 'patience' in lr_dict:
-            pars['patience'] = lr_dict['patience']
-        if 'min_lr' in lr_dict:
-            pars['min_lr'] = lr_dict['min_lr']
-        if 'cooldown' in lr_dict:
-            pars['cooldown'] = lr_dict['cooldown']
-        
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, **pars)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, **lr_dict)
     
     elif lr_dict['lr_scheduler'] == 'OneCycleLR':
         # * Some default values
@@ -1684,7 +1681,8 @@ def read_pickle_predicted_h5_data_v2(file_address, keys):
     preds = {key: [] for key in keys}
     preds['indices'] = []
 
-    # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
+    # * Read the predictions. Each group in the h5-file corresponds to a
+    # * raw data-file. Each group has same datasets.
     with h5.File(file_address, 'r') as f:
         preds['indices'] = np.squeeze(f['index'][:])
         
@@ -1694,7 +1692,9 @@ def read_pickle_predicted_h5_data_v2(file_address, keys):
     return preds
 
 def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
-    """Given a dataset, indices to load and which attributes from each event to load, a dictionary is created with wanted attributes in same order as indices is given.
+    """Given a dataset, indices to load and which attributes from each event 
+    to load, a dictionary is created with wanted attributes in same order as 
+    indices is given.
     
     Arguments:
         data_dir {str} -- Relative path to dataset
@@ -1703,7 +1703,8 @@ def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
     
     Keyword Arguments:
         prefix {str} -- Which transformation of property wanted (default: {'raw'})
-        multiprocess {bool} -- Whether or not to use several workers for loading (default: {True})
+        multiprocess {bool} -- Whether or not to use several workers for 
+                               loading (default: {True})
     
     Raises:
         ValueError: Only a multiprocessing solution is implemented atm.
@@ -1722,7 +1723,9 @@ def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
         path_list = [path]*available_cores
         prefix_list = [prefix]*available_cores
         n_events_per_dir_list = [n_events_per_dir]*available_cores
-        packed = [entry for entry in zip(indices_chunked, keys_list, path_list, prefix_list, n_events_per_dir_list)]
+        packed = [entry for entry in zip(indices_chunked, keys_list, 
+                                        path_list, prefix_list, 
+                                        n_events_per_dir_list)]
         
         # TODO: Fix multiprocessing
         p = Pool(available_cores)
@@ -1825,7 +1828,7 @@ def remove_tests_modeldir(directory=get_project_root() + '/models/'):
             else:
                 remove_tests_modeldir(file)
 
-def remove_tests_wandbdir(directory = get_project_root() + '/models/wandb/', rm_all=False):
+def remove_tests_wandbdir(directory=get_project_root()+'/models/wandb/', rm_all=False):
     '''Deletes all wandb-folder which failed during training or was a test-run.
     '''
     # * Check each run - if test, delete it.

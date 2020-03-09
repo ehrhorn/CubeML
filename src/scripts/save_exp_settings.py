@@ -17,6 +17,7 @@ parser.add_argument('-e', '--explore_lr', action='store_true', help='Performs a 
 parser.add_argument('-s', '--scan_lr', action='store_true', help='Performs a learning rate scan before training.')
 parser.add_argument('--max_lr', default=5e-3, type=float, help='Sets the maximum learning rate for the OneCycle learning rate schedule.')
 parser.add_argument('--min_lr', default=1e-4, type=float, help='Sets the minimum learning rate for the OneCycle learning rate schedule.')
+parser.add_argument('--lr', default=1e-3, type=float, help='Sets the learning rate.')
 parser.add_argument('--start_lr', default=1e-6, type=float, help='Sets the start learning rate for the learning rate finder.')
 parser.add_argument('--end_lr', default=0.1, type=float, help='Sets the end learning rate for the learning rate finder.')
 parser.add_argument('--lr_finder_epochs', default=1, type=int, help='Sets the number of epochs the learning rate finder should run.')
@@ -71,28 +72,31 @@ if __name__ == '__main__':
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
                 'max_epochs':          17 if not args.dev else 2,
                 'early_stop_patience': 25,
+                'optimizer':           {'optimizer':      'SGD',
+                                        'lr':             args.lr,#0.00003,#0.001, 
+                                        'momentum':       0.9,
+                                        'weight_decay':   0.0,
+                                        'nesterov':       True
+                                        },
                 # 'optimizer':           {'optimizer':      'Adam',
                 #                         'lr':             1e-5,#0.00003,#0.001, 
                 #                         'betas':          (0.9, 0.998),
-                #                         'eps':            1.0e-9},
-                # 'optimizer':           {'optimizer':      'SGD',
-                #                         'lr':             1e-6,#0.00003,#0.001, 
-                #                         'momentum':       0.9,
-                #                         'weight_decay':   0.0,
-                #                         'nesterov':       True
+                #                         'eps':            1.0e-9
                 #                         },
-                'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-5,#0.00003,#0.001, 
-                                        'betas':          (0.9, 0.998),
-                                        'eps':            1.0e-9
+                'lr_schedule':          {'lr_scheduler':   'ReduceLROnPlateau',
+                                        'factor':         0.1,
+                                        'patience':       15,
+                                        'cooldown':       1,
+                                        'min_lr':         5e-4,
+                                        'verbose':        True
                                         },
-                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
-                                        'max_lr':          args.max_lr,
-                                        'min_lr':          args.min_lr,
-                                        'frac_up':         0.035 if not args.dev else 0.5,
-                                        'frac_down':       1-0.035 if not args.dev else 0.5,
-                                        'schedule':        'inverse',
-                                        },
+                # 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
+                #                         'max_lr':          args.max_lr,
+                #                         'min_lr':          args.min_lr,
+                #                         'frac_up':         0.0 if not args.dev else 0.5,
+                #                         'frac_down':       1-0.0 if not args.dev else 0.5,
+                #                         'schedule':        'inverse',
+                #                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
                                         'n_epochs':        args.lr_finder_epochs
@@ -199,10 +203,10 @@ if __name__ == '__main__':
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
                                                 # {'AveragePool': []},
-                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
+                                                {'ResBlock':        {'input_sizes':        [n2, n2, n1, n1],
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
-                                                {'Linear':          {'input_sizes':        [n2, n_target],
+                                                {'Linear':          {'input_sizes':        [n1, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
 

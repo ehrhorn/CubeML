@@ -89,11 +89,11 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
         PROJECT = meta_pars['project']
         wandb.init(resume=True, id=wandb_ID, dir=WANDB_DIR, project=PROJECT)
 
-        # * Add to .gitignore - every time an evaluation is initiated, wandb creates a new directory.
-        WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
-        gitignore_wandb_path = WANDB_DIR+'/wandb/.gitignore'
-        with open(gitignore_wandb_path,'a') as f:
-            f.write('/%s\n'%(WANDB_NAME_IN_WANDB_DIR))
+        # # * Add to .gitignore - every time an evaluation is initiated, wandb creates a new directory.
+        # WANDB_NAME_IN_WANDB_DIR = wandb.run.dir.split('/')[-1]
+        # gitignore_wandb_path = WANDB_DIR+'/wandb/.gitignore'
+        # with open(gitignore_wandb_path,'a') as f:
+        #     f.write('/%s\n'%(WANDB_NAME_IN_WANDB_DIR))
     
     log_operation_plots(model_dir, wandb_ID=wandb_ID)
 
