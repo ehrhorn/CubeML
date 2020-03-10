@@ -72,31 +72,31 @@ if __name__ == '__main__':
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
                 'max_epochs':          17 if not args.dev else 2,
                 'early_stop_patience': 25,
-                'optimizer':           {'optimizer':      'SGD',
-                                        'lr':             args.lr,#0.00003,#0.001, 
-                                        'momentum':       0.9,
-                                        'weight_decay':   0.0,
-                                        'nesterov':       True
-                                        },
-                # 'optimizer':           {'optimizer':      'Adam',
-                #                         'lr':             1e-5,#0.00003,#0.001, 
-                #                         'betas':          (0.9, 0.998),
-                #                         'eps':            1.0e-9
+                # 'optimizer':           {'optimizer':      'SGD',
+                #                         'lr':             args.lr,#0.00003,#0.001, 
+                #                         'momentum':       0.9,
+                #                         'weight_decay':   0.0,
+                #                         'nesterov':       True
                 #                         },
-                'lr_schedule':          {'lr_scheduler':   'ReduceLROnPlateau',
-                                        'factor':         0.1,
-                                        'patience':       15,
-                                        'cooldown':       1,
-                                        'min_lr':         5e-4,
-                                        'verbose':        True
+                'optimizer':           {'optimizer':      'Adam',
+                                        'lr':             1e-5,#0.00003,#0.001, 
+                                        'betas':          (0.9, 0.998),
+                                        'eps':            1.0e-9
                                         },
-                # 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
-                #                         'max_lr':          args.max_lr,
-                #                         'min_lr':          args.min_lr,
-                #                         'frac_up':         0.0 if not args.dev else 0.5,
-                #                         'frac_down':       1-0.0 if not args.dev else 0.5,
-                #                         'schedule':        'inverse',
+                # 'lr_schedule':          {'lr_scheduler':   'ReduceLROnPlateau',
+                #                         'factor':         0.1,
+                #                         'patience':       15,
+                #                         'cooldown':       1,
+                #                         'min_lr':         5e-4,
+                #                         'verbose':        True
                 #                         },
+                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
+                                        'max_lr':          args.max_lr,
+                                        'min_lr':          args.min_lr,
+                                        'frac_up':         0.035 if not args.dev else 0.5,
+                                        'frac_down':       1-0.035 if not args.dev else 0.5,
+                                        'schedule':        'inverse',
+                                        },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
                                         'n_epochs':        args.lr_finder_epochs
@@ -105,7 +105,9 @@ if __name__ == '__main__':
                  }
     
     optimizer = hyper_pars['optimizer']['optimizer']
-    meta_pars = {'tags':                [regression_type, dataset, error_func, particle, *mask_names, args.weights, args.dom_mask, *args.tags, optimizer],
+    meta_pars = {'tags':                [regression_type, dataset, error_func, 
+                                        particle, *mask_names, args.weights, 
+                                        args.dom_mask, *args.tags, optimizer],
                 'group':                regression_type,
                 'project':              project,
                 'objective':            objective,
@@ -203,10 +205,10 @@ if __name__ == '__main__':
                                                 #                    'bidirectional':       False}},
                                                 # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
                                                 # {'AveragePool': []},
-                                                {'ResBlock':        {'input_sizes':        [n2, n2, n1, n1],
+                                                {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2, n2, n2],
                                                                      'norm':               'BatchNorm1D',
                                                                      'type':               'x'}},
-                                                {'Linear':          {'input_sizes':        [n1, n_target],
+                                                {'Linear':          {'input_sizes':        [n2, n_target],
                                                                     'norm_before_nonlin':  True}}]
                         }
 
@@ -215,7 +217,8 @@ if __name__ == '__main__':
     #* SAVE SETTINGS
     #* ========================================================================
 
-    json_dict = {'hyper_pars': hyper_pars, 'data_pars': data_pars, 'arch_pars': arch_pars, 'meta_pars': meta_pars}
+    json_dict = {'hyper_pars': hyper_pars, 'data_pars': data_pars, 
+                'arch_pars': arch_pars, 'meta_pars': meta_pars}
     exp_dir = get_project_root() + '/experiments/'
 
     # * Finally! Make model directory 
