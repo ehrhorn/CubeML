@@ -10,26 +10,56 @@ from src.modules.main_funcs import *
 
 description = 'Saves settings for an experiment to be run.'
 parser = argparse.ArgumentParser(description=description)
-parser.add_argument('-r', '--run', action='store_true', help='Runs experiment immediately.')
-parser.add_argument('-t', '--test', action='store_true', help='Initiates testmode - logging is turned off.')
-parser.add_argument('-d', '--dev', action='store_true', help='Initiates developermode - Logging is done at CubeML_test.')
-parser.add_argument('-e', '--explore_lr', action='store_true', help='Performs a learning rate exploration.')
-parser.add_argument('-s', '--scan_lr', action='store_true', help='Performs a learning rate scan before training.')
-parser.add_argument('--max_lr', default=5e-3, type=float, help='Sets the maximum learning rate for the OneCycle learning rate schedule.')
-parser.add_argument('--min_lr', default=1e-4, type=float, help='Sets the minimum learning rate for the OneCycle learning rate schedule.')
-parser.add_argument('--lr', default=1e-3, type=float, help='Sets the learning rate.')
-parser.add_argument('--start_lr', default=1e-6, type=float, help='Sets the start learning rate for the learning rate finder.')
-parser.add_argument('--end_lr', default=0.1, type=float, help='Sets the end learning rate for the learning rate finder.')
-parser.add_argument('--lr_finder_epochs', default=1, type=int, help='Sets the number of epochs the learning rate finder should run.')
-parser.add_argument('--regression', default='None', type=str, help='Sets the regression type to run. Options: "full_reg", "direction_reg", "vertex_reg", "vertex_reg_no_time", "energy_reg"')
-parser.add_argument('--loss', default='None', type=str, help='Sets the loss function to use. Options: "L2", "logcosh"')
-parser.add_argument('--masks', nargs='+', default='None', type=str, help='Sets the masks to choose data. Options: "dom_interval_SplitInIcePulses_min0_max200", "dom_interval_SRTInIcePulses_min0_max200", "muon_neutrino", "energy_interval_min0.0_max3.0"')
-parser.add_argument('--weights', default='None', type=str, help='Sets the weights to use. Options: "geomean_energy_entry", "inverse_performance_muon_energy", "None"')
-parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, help='Sets the DOM mask to use. Options: "SplitInIcePulses", "dom_interval_SRTInIcePulses"')
-parser.add_argument('--gpu', nargs='+', default='0', type=str, help='Sets the IDs of the GPUs to use')
-parser.add_argument('--batch_size', default=128, type=int, help='Sets batchsize.')
-parser.add_argument('--tags', nargs='+', default='', type=str, help='Tags a run for easier comparisons on W&B')
-parser.add_argument('--shared', action='store_true', help='Saves execution command in shared folder.')
+parser.add_argument('-r', '--run', action='store_true', 
+        help='Runs experiment immediately.')
+parser.add_argument('-t', '--test', action='store_true', 
+        help='Initiates testmode - logging is turned off.')
+parser.add_argument('-d', '--dev', action='store_true', 
+        help='Initiates developermode - Logging is done at CubeML_test.')
+parser.add_argument('-e', '--explore_lr', action='store_true', 
+        help='Performs a learning rate exploration.')
+parser.add_argument('-s', '--scan_lr', action='store_true', 
+        help='Performs a learning rate scan before training.')
+parser.add_argument('--max_lr', default=5e-3, type=float, 
+        help='Sets the max learning rate for the OneCycle learning rate schedule.')
+parser.add_argument('--min_lr', default=1e-4, type=float, 
+        help='Sets the min learning rate for the OneCycle learning rate schedule.')
+parser.add_argument('--lr', default=1e-3, type=float, 
+        help='Sets the learning rate.')
+parser.add_argument('--start_lr', default=1e-6, type=float, 
+        help='Sets the start learning rate for the learning rate finder.')
+parser.add_argument('--end_lr', default=0.1, type=float, 
+        help='Sets the end learning rate for the learning rate finder.')
+parser.add_argument('--lr_finder_epochs', default=1, type=int, 
+        help='Sets the number of epochs the learning rate finder should run.')
+parser.add_argument('--max_seq_len', default=np.inf, type=int, 
+        help='Sets the maximum sequence length to use. If max_seq_len is' 
+        'larger than the actualy sequence length, a random subsample of the'\
+        'sequence is chosen')
+parser.add_argument('--regression', default='None', type=str, 
+        help='Sets the regression type to run. Options: full_reg,' \
+        'direction_reg, vertex_reg, vertex_reg_no_time, energy_reg')
+parser.add_argument('--loss', default='None', type=str, 
+        help='Sets the loss function to use. Options: L2, logcosh')
+parser.add_argument('--masks', nargs='+', default='None', type=str, 
+        help='Sets the masks to choose data. Options:'\
+        'dom_interval_SplitInIcePulses_min0_max200,'\
+        'dom_interval_SRTInIcePulses_min0_max200, muon_neutrino,'\
+        'energy_interval_min0.0_max3.0')
+parser.add_argument('--weights', default='None', type=str, 
+        help='Sets the weights to use. Options: geomean_energy_entry,'\
+        'inverse_performance_muon_energy, None')
+parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, 
+        help='Sets the DOM mask to use. Options: SplitInIcePulses,'\
+        'dom_interval_SRTInIcePulses')
+parser.add_argument('--gpu', nargs='+', default='0', type=str, 
+        help='Sets the IDs of the GPUs to use')
+parser.add_argument('--batch_size', default=128, type=int, 
+        help='Sets batchsize.')
+parser.add_argument('--tags', nargs='+', default='', type=str, 
+        help='Tags a run for easier comparisons on W&B')
+parser.add_argument('--shared', action='store_true', 
+        help='Saves execution command in shared folder.')
 
 args = parser.parse_args()
 
@@ -119,6 +149,7 @@ if __name__ == '__main__':
                 'particle':      particle,
                 'weights':       args.weights,
                 'dom_mask':      args.dom_mask,
+                'max_seq_len':   args.max_seq_len,
                 'seq_feat':    ['dom_charge', 
                                 'dom_x', 
                                 'dom_y', 
@@ -157,57 +188,59 @@ if __name__ == '__main__':
     n_target = len(get_target_keys(data_pars, meta_pars))
     n1 = 256
     n2 = 2*n1+n_scalar_feat
+
+    layers = [ 
+        #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
+        #                     'LayerNorm':          True},},
+        # {'BiLSTM':          {'n_in':               n_seq_feat,
+        #                      'n_hidden':           128,
+        #                      'residual':           False,
+        #                      'learn_init':         False}},
+        # {'ResBlock':        {'input_sizes':       [n_seq_feat, n1//2, n1//2],
+        #                      'norm':              'LayerNorm',
+        #                      'type':              'seq'}},
+        {'RnnBlock':        {'n_in':             n_seq_feat,
+                            'n_out':             n1,
+                            'rnn_type':          'LSTM',
+                            'n_parallel':        1,
+                            'num_layers':        2,
+                            'residual':          False,
+                            'bidir':             True,
+                            'dropout':           0.0,
+                            'learn_init':        True}},
+        # {'ResAttention':    {'input_outputs':     [2*n1, n1],
+        #                      'n_res_layers':      2,
+        #                      'norm':             'LayerNorm'}},
+        # # {'ResBlock':        {'input_sizes':       [2*n1, n1],
+        # #                      'norm':              'LayerNorm',
+        # #                      'type':              'seq'}},
+        # {'LstmBlock':       {'n_in':              n1,
+        #                      'n_out':             n1,
+        #                      'n_parallel':        1,
+        #                      'num_layers':        1,
+        #                      'residual':          False,
+        #                      'bidir':             True,
+        #                      'learn_init':        True}},
+        # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
+        #                       'LayerNorm':          True,
+        #                       'Residual':           True},},
+        #{'LSTM':            {'input_sizes':        [64, 512],
+        #                    'dropout':             0.5,
+        #                    'bidirectional':       False}},
+        # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
+        # {'AveragePool': []},
+        {'ResBlock':        {'input_sizes':        [n2, n2, n1, n1],
+                             'norm':               'BatchNorm1D',
+                             'type':               'x'}},
+        {'Linear':          {'input_sizes':        [n1, n_target],
+                            'norm_before_nonlin':  True}}]
+
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
-                        'loss_func':           error_func,#'L2_like_loss','dir_reg_L1_like_loss',
-
-                        'norm':                {'norm':      'BatchNorm1D', #'BatchNorm1D', 'None'
+                        'loss_func':           error_func,
+                        'norm':                {'norm':      'BatchNorm1D',
                                                 'momentum':  0.9 },
-
-                        'layers':             [ #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
-                                                #                     'LayerNorm':          True},},
-                                                # {'BiLSTM':          {'n_in':               n_seq_feat,
-                                                #                      'n_hidden':           128,
-                                                #                      'residual':           False,
-                                                #                      'learn_init':         False}},
-                                                # {'ResBlock':        {'input_sizes':       [n_seq_feat, n1//2, n1//2],
-                                                #                      'norm':              'LayerNorm',
-                                                #                      'type':              'seq'}},
-                                                {'RnnBlock':        {'n_in':              n_seq_feat,
-                                                                     'n_out':             n1,
-                                                                     'rnn_type':          'LSTM',
-                                                                     'n_parallel':        1,
-                                                                     'num_layers':        2,
-                                                                     'residual':          False,
-                                                                     'bidir':             True,
-                                                                     'dropout':           0.0,
-                                                                     'learn_init':        True}},
-                                                # {'ResAttention':    {'input_outputs':     [2*n1, n1],
-                                                #                      'n_res_layers':      2,
-                                                #                      'norm':             'LayerNorm'}},
-                                                # # {'ResBlock':        {'input_sizes':       [2*n1, n1],
-                                                # #                      'norm':              'LayerNorm',
-                                                # #                      'type':              'seq'}},
-                                                # {'LstmBlock':       {'n_in':              n1,
-                                                #                      'n_out':             n1,
-                                                #                      'n_parallel':        1,
-                                                #                      'num_layers':        1,
-                                                #                      'residual':          False,
-                                                #                      'bidir':             True,
-                                                #                      'learn_init':        True}},
-                                                # {'AttentionBlock2':  {'input_sizes':        [n_seq_feat, n_seq_feat, n_seq_feat],
-                                                #                       'LayerNorm':          True,
-                                                #                       'Residual':           True},},
-                                                #{'LSTM':            {'input_sizes':        [64, 512],
-                                                #                    'dropout':             0.5,
-                                                #                    'bidirectional':       False}},
-                                                # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
-                                                # {'AveragePool': []},
-                                                {'ResBlock':        {'input_sizes':        [n2, n2, n1, n1],
-                                                                     'norm':               'BatchNorm1D',
-                                                                     'type':               'x'}},
-                                                {'Linear':          {'input_sizes':        [n1, n_target],
-                                                                    'norm_before_nonlin':  True}}]
+                        'layers':             layers
                         }
 
 

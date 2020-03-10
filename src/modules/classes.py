@@ -43,7 +43,8 @@ class PadSequence:
 
         # * permute-mode is used for permutation importance
         if self._mode == 'permute':
-            sequences, scalar_vars = self._permute(sequences, scalar_vars, [len(x) for x in sequences])
+            sequences, scalar_vars = self._permute(sequences, 
+                                     scalar_vars, [len(x) for x in sequences])
 
         # * pad_sequence returns a tensor(seqlen, batch, n_features)
         sequences_padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
@@ -84,7 +85,10 @@ class PickleLoader(data.Dataset):
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and an optional datapoints_wanted.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, set_type, train_frac, val_frac, test_frac, prefix=None, masks=['all'], n_events_wanted=np.inf, weights='None', dom_mask='SplitInIcePulses'):
+    def __init__(self, directory, seq_features, scalar_features, targets, 
+                set_type, train_frac, val_frac, test_frac, prefix=None, 
+                masks=['all'], n_events_wanted=np.inf, weights='None', 
+                dom_mask='SplitInIcePulses', max_seq_len=np.inf):
 
         self.directory = get_project_root() + directory
 
@@ -103,6 +107,7 @@ class PickleLoader(data.Dataset):
         self.prefix = prefix
         self.masks = masks
         self.n_events_wanted = n_events_wanted
+        self.max_seq_len = max_seq_len
 
         # * 'SplitInIcePulses' corresponds to all DOMs
         # * 'SRTInIcePulses' corresponds to Icecubes cleaned doms
@@ -126,10 +131,19 @@ class PickleLoader(data.Dataset):
         with open(path, 'rb') as f:
             event = pickle.load(f)
 
-        # * Extract relevant data
+        # * Extract relevant data.
         dom_indices = event['masks'][self.dom_mask]
-        seq_len = event[self.prefix][self.seq_features[0]][dom_indices].shape[0]
+        actual_seq_len = event[self.prefix][self.seq_features[0]]\
+                        [dom_indices].shape[0]
+        seq_len = min(actual_seq_len, self.max_seq_len)
         seq_array = np.empty((self.n_seq_features, seq_len))
+
+        # * If a maximum sequence length is given, we overwrite dom_indices with
+        # * randomly sampled indices from dom_indices without replacement until
+        # * we have enough.
+        if actual_seq_len > self.max_seq_len:
+            dom_indices = sorted(np.random.choice(dom_indices, 
+                                self.max_seq_len, replace=False))
 
         # * Sequential data
         for i, key in enumerate(self.seq_features):
@@ -215,6 +229,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     mask_names = data_pars['masks']
     weights = data_pars.get('weights', 'None')
     dom_mask = data_pars.get('dom_mask', 'SplitInIcePulses')
+    max_seq_len = data_pars.get('max_seq_len', np.inf)
     
     if keyword == 'train':
         drop_last = True
@@ -235,14 +250,25 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
         dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
     elif 'SeqScalarTargetLoader' == data_pars['dataloader']:
         prefix = 'transform'+str(file_keys['transform'])+'/'
-        dataloader = SeqScalarTargetLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix)
+        dataloader = SeqScalarTargetLoader(data_dir, seq_features, 
+                        scalar_features, targets, keyword, train_frac, 
+                        val_frac, test_frac, prefix=prefix)
     elif 'FullBatchLoader' == data_pars['dataloader']:
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, batch_size, prefix=prefix, n_events_wanted=n_events_wanted, particle_code=particle_code, file_list=file_list, mask_name=mask_name, drop_last=drop_last, debug_mode=debug_mode)
+        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, 
+                        targets, keyword, train_frac, val_frac, test_frac,
+                        batch_size, prefix=prefix, n_events_wanted=n_events_wanted,
+                        particle_code=particle_code, file_list=file_list, 
+                        mask_name=mask_name, drop_last=drop_last, 
+                        debug_mode=debug_mode)
     elif 'PickleLoader' == data_pars['dataloader']:
         prefix = 'transform'+str(file_keys['transform'])
         if file_keys['transform'] == -1:
             prefix = 'raw'
-        dataloader = PickleLoader(data_dir, seq_features, scalar_features, targets, keyword, train_frac, val_frac, test_frac, prefix=prefix, n_events_wanted=n_events_wanted, masks=mask_names, weights=weights, dom_mask=dom_mask)
+        dataloader = PickleLoader(data_dir, seq_features, scalar_features, 
+                                targets, keyword, train_frac, val_frac, 
+                                test_frac, prefix=prefix, n_events_wanted=n_events_wanted, 
+                                masks=mask_names, weights=weights,
+                                dom_mask=dom_mask, max_seq_len=max_seq_len)
     else:
         raise ValueError('Unknown data loader requested!')
     
