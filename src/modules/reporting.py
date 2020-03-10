@@ -98,11 +98,17 @@ class AziPolarHists:
         if fig != -1:
             if self.wandb_ID is not None:
                 im = PIL.Image.open(img_address)
-                wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit = False)
+                wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit=False)
                 im.close()
 
 class Performance:
-    """A class to create and save performance plots for interaction vertex predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. A one-number performance summary is saved as the median of the total vertex distance error.     
+    """A class to create and save performance plots for interaction vertex 
+    predictions. 
+    
+    If available, the relative improvement compared to Icecubes 
+    reconstruction is plotted aswell. A one-number performance summary is saved 
+    as the median of the total vertex distance error.     
+    
     Raises:
         KeyError: If an unknown dataset is encountered.
     
@@ -135,12 +141,48 @@ class Performance:
         self.to_frac = to_frac
         self.wandb_ID = wandb_ID
 
-        energy_dict, pred_dict, crs_dict, true_dict, n_doms = self._get_data_dicts()
+        energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss = self._get_data_dicts()
         self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict, n_doms)
         self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
+        self.loss_error_correlations = self._calculate_loss_error_corrs(pred_dict, loss)
+
+    def _calculate_loss_error_corrs(self, pred_d, loss):
+
+        # * Correlation between loss and predicted values is calculated to 
+        # * hopefully see if loss function is focused too heavily on some of the variables
+        corrs = {}
+        for key, data in pred_d.items():
+            # * corrcoef returns correlation matrix - we are only interested 
+            # * in one of the numbers
+            corrs[key] = np.corrcoef(data, loss)[1, 0]
+
+            # * Make 2d-scatterplot or HEATMAP! like i3-performance
+            d = {}
+            title = r'%s - loss correlation'%(key)
+            savepath = get_project_root()+self.model_dir+'/figures/'+key+'_LossCorr.png'
+            d['hist2d'] = [loss, data]
+            d['xlabel'] = 'Loss value'
+            d['savefig'] = savepath
+            d['title'] = title
+            fig_h = make_plot(d)
+        
+        plt.close('all')
+
+        # * Make barh-plots
+        bar_pos = np.arange(0, len(corrs)) + 0.5
+        names = [key for key in corrs]
+        data = [data for key, data in corrs.items()]
+        d = {'keyword': 'barh', 'y': bar_pos, 'width': data, 'height': 0.7, 'names': names}
+        d['title'] = 'Correlation coeffecients w. loss'
+        d['xlabel'] = 'Correlation'
+        d['savefig'] = get_project_root()+self.model_dir+'/figures/CorrCoeff.png'
+        fig = make_plot(d)    
+        return corrs
 
     def _calculate_onenum_performance(self, data_dict):
-       
+        # TODO: Make up some better onenum-performance measure. 
+        # TODO: Maybe composition (geomean) of 68 % confidence bound on angle error, 
+        # TODO: 68 % vertex error, average width of log_frac_E and average width of t.
         if self.meta_pars['group'] == 'vertex_reg' or self.meta_pars['group'] == 'vertex_reg_no_time':
             len_error = self._get_len_error(data_dict)
             one_num = np.nanpercentile(len_error, 50)
@@ -179,33 +221,6 @@ class Performance:
         self.dom_counts, self.dom_bin_edges = np.histogram(n_doms, bins=N_BINS_PERF_PLOTS)
         self.dom_bin_centers = calc_bin_centers(self.dom_bin_edges)
 
-        # * Calculate performance for our predictions
-        for key, data in pred_dict.items():
-            # * Performance as a function of energy
-            print(get_time(), 'Calculating %s performance...'%(key))
-            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, data, self.bin_edges)
-            print(key, 'model')
-            print(get_time(), 'Calculation finished!')
-            setattr(self, key+'_sigma', sigma)
-            setattr(self, key+'_sigmaerr', sigmaerr)
-            setattr(self, key+'_50th', median)
-            setattr(self, key+'_84th', upper_perc)
-            setattr(self, key+'_16th', lower_perc)
-
-            # * We make the I3-plot here so we do not have to save all the data...
-            self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc)
-
-            # * Performance as a function of number of doms
-            print(get_time(), 'Calculating %s DOM performance...'%(key))
-            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(n_doms, data, self.dom_bin_edges)
-            print(get_time(), 'Calculation finished!')
-            setattr(self, 'dom_'+key+'_sigma', sigma)
-            setattr(self, 'dom_'+key+'_sigmaerr', sigmaerr)
-            setattr(self, 'dom_'+key+'_50th', median)
-            setattr(self, 'dom_'+key+'_84th', upper_perc)
-            setattr(self, 'dom_'+key+'_16th', lower_perc)
-            print('')
-        
         # * Calculate how well Icecube does.
         for name, func in zip(self._icecube_perf_keys, self._get_error_funcs()):
             # * Performance as a function of energy
@@ -232,9 +247,39 @@ class Performance:
             setattr(self, 'dom_'+name+'_16th', lower_perc)
             print('')
         
+        # * Calculate performance for our predictions
+        for (key, data), i3_key in zip(pred_dict.items(), self._icecube_perf_keys):
+            # * Performance as a function of energy
+            print(key, i3_key)
+            print(get_time(), 'Calculating %s performance...'%(key))
+            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, data, self.bin_edges)
+            print(get_time(), 'Calculation finished!')
+            setattr(self, key+'_sigma', sigma)
+            setattr(self, key+'_sigmaerr', sigmaerr)
+            setattr(self, key+'_50th', median)
+            setattr(self, key+'_84th', upper_perc)
+            setattr(self, key+'_16th', lower_perc)
+
+            # * We make the I3-plot here so we do not have to save all the data...
+            # * First we retrieve the corresponding Icecube data
+            i3_med = getattr(self, i3_key+'_50th')
+            i3_upper = getattr(self, i3_key+'_84th')
+            i3_lower = getattr(self, i3_key+'_16th')
+            self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc, i3_med=i3_med, i3_upper=i3_upper, i3_lower=i3_lower)
+
+            # * Performance as a function of number of doms
+            print(get_time(), 'Calculating %s DOM performance...'%(key))
+            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(n_doms, data, self.dom_bin_edges)
+            print(get_time(), 'Calculation finished!')
+            setattr(self, 'dom_'+key+'_sigma', sigma)
+            setattr(self, 'dom_'+key+'_sigmaerr', sigmaerr)
+            setattr(self, 'dom_'+key+'_50th', median)
+            setattr(self, 'dom_'+key+'_84th', upper_perc)
+            setattr(self, 'dom_'+key+'_16th', lower_perc)
+            print('')
+
         # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._icecube_perf_keys):
-            print(model_key, retro_key)
             retro_sigma = getattr(self, retro_key+'_sigma')
             model_sigma = getattr(self, model_key+'_sigma')
             retro_sigmaerr = getattr(self, retro_key+'_sigmaerr')
@@ -292,12 +337,20 @@ class Performance:
         full_pred_address = self._get_pred_path()
         data_dir = self.data_pars['data_dir']
         prefix = 'transform'+str(self.data_pars['file_keys']['transform'])
+
+        # * Load loss aswell
+        keys = self._pred_keys+['loss']
+        
         print(get_time(), 'Loading predictions...')
-        pred_dict = read_pickle_predicted_h5_data_v2(full_pred_address, self._pred_keys)
+        pred_dict = read_pickle_predicted_h5_data_v2(full_pred_address, keys)
         energy_dict = read_pickle_data(data_dir, pred_dict['indices'], self._energy_key, prefix=prefix)
         crs_dict = read_pickle_data(data_dir, pred_dict['indices'], self._reco_keys, prefix=prefix)
         true_dict = read_pickle_data(data_dir, pred_dict['indices'], self._true_keys, prefix=prefix)
         print(get_time(), 'Predictions loaded!')
+
+        # * Pop loss from dict
+        loss = pred_dict['loss']
+        del pred_dict['loss']
 
         print(get_time(), 'Finding number of DOMs in events')
         n_doms = get_n_doms(pred_dict['indices'], self.dom_mask, data_dir)
@@ -305,7 +358,7 @@ class Performance:
         print(get_time(), 'Number of DOMs found!')
         del pred_dict['indices']
 
-        return energy_dict, pred_dict, crs_dict, true_dict, n_doms
+        return energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss
     
     def _get_dom_dict(self):
         d = {'data': [self.dom_bin_edges[:-1]], 'bins': [self.dom_bin_edges], 'weights': [self.dom_counts], 'histtype': ['step'], 'log': [True], 'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
@@ -358,6 +411,11 @@ class Performance:
             d2['ylabel'] = r'$(\mathrm{E}_{reco}-\mathrm{E}_{true})/\mathrm{E}_{true}$ [%]'
             d2['title'] = 'Model Energy reco. results'
 
+        elif key == 'log_frac_E_error':
+            clip_vals = [-1.0, 1.0]
+            d2['ylabel'] = r'$\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$'
+            d2['title'] = 'Model Energy reco. results'
+
         elif key == 'vertex_x_error':
             clip_vals = [-80.0, 80.0]
             d2['ylabel'] = 'Error [m]'
@@ -389,6 +447,9 @@ class Performance:
             d2['title'] = 'Model azimuthal angle reco. results'
         
         return d2, clip_vals
+    
+    def _get_I3_2D_perf_data(self, key):
+        pass
 
     def _get_len_error(self, data_dict):
         x_error = data_dict['vertex_x_error']
@@ -407,7 +468,10 @@ class Performance:
         label = self._get_ylabel(model_key)
         title = self._get_perf_plot_title(model_key)
 
-        d = {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube'], 'yrange': {'bottom': 0.001}, 'title': title}
+        d = {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 
+        'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 
+        'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube'], 
+        'yrange': {'bottom': 0.001}, 'title': title}
 
         return d
     
@@ -420,7 +484,11 @@ class Performance:
         label = self._get_ylabel(model_key)
         title = self._get_perf_plot_title(model_key)
 
-        d = {'edges': [self.dom_bin_edges, self.dom_bin_edges], 'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'$N_{DOMs}$', 'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube'], 'yrange': {'bottom': 0.001}, 'title': title}
+        d = {'edges': [self.dom_bin_edges, self.dom_bin_edges], 
+        'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 
+        'xlabel': r'$N_{DOMs}$', 'ylabel': label, 'grid': False, 
+        'label': ['Model', 'Icecube'], 
+        'yrange': {'bottom': 0.001}, 'title': title}
 
         return d
 
@@ -489,7 +557,6 @@ class Performance:
     def _get_prediction_keys(self):
         funcs = get_eval_functions(self.meta_pars)
         keys = []
-
         for func in funcs:
             keys.append(func.__name__)
         return keys
@@ -502,10 +569,12 @@ class Performance:
             reco_keys = None
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
             if self.meta_pars['group'] == 'vertex_reg':
-                reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time']
+                reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 
+                'retro_crs_prefit_z', 'retro_crs_prefit_time']
             
             elif self.meta_pars['group'] == 'vertex_reg_no_time':
-                reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z']
+                reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 
+                'retro_crs_prefit_z']
             
             elif self.meta_pars['group'] == 'direction_reg':
                 reco_keys = ['retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
@@ -514,7 +583,10 @@ class Performance:
                 reco_keys = ['retro_crs_prefit_energy']
             
             elif self.meta_pars['group'] == 'full_reg':
-                reco_keys = ['retro_crs_prefit_energy', 'retro_crs_prefit_x', 'retro_crs_prefit_y', 'retro_crs_prefit_z', 'retro_crs_prefit_time', 'retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
+                reco_keys = ['retro_crs_prefit_energy', 'retro_crs_prefit_x', 
+                'retro_crs_prefit_y', 'retro_crs_prefit_z', 
+                'retro_crs_prefit_time', 'retro_crs_prefit_azimuth', 
+                'retro_crs_prefit_zenith']
 
             else:
                 raise KeyError('Unknown reco_keys requested in Performance!')
@@ -527,7 +599,9 @@ class Performance:
         rel_imp = getattr(self, key+'_RI')
         rel_imp_err = getattr(self, key+'_RIerr')
 
-        d = {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 'y_minor_ticks_multiple': 0.2}
+        d = {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 
+            'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 
+            'y_minor_ticks_multiple': 0.2}
         
         yrange_d = {}
         if max(-0.5, min(rel_imp)) == -0.5:
@@ -554,7 +628,8 @@ class Performance:
 
         return label
 
-    def _make_I3_perf_plot(self, key, energy, data, median, upper_perc, lower_perc):
+    def _make_I3_perf_plot(self, key, energy, data, median, upper_perc, 
+                           lower_perc, i3_med=None, i3_upper=None, i3_lower=None):
         
         d2, clip_vals = self._get_I3_2D_clip_and_d(key)
 
@@ -573,13 +648,27 @@ class Performance:
         f2 = make_plot(d2)
         
         d = {}
-        d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers]
-        d['y'] = [upper_perc, median, lower_perc]
-        d['drawstyle'] = ['steps-mid', 'steps-mid', 'steps-mid']
-        d['linestyle'] = [':', '-', '--']
-        d['label'] = ['84th percentile', '50th percentile', '16th percentile']
-        d['color'] = ['red','red', 'red']
-        d['zorder'] = [1, 1, 1]
+        # * If an Icecube reconstruction is available, plot it aswell
+        if not i3_med:
+            d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers]
+            d['y'] = [upper_perc, median, lower_perc]
+            d['drawstyle'] = ['steps-mid', 'steps-mid', 'steps-mid']
+            d['linestyle'] = [':', '-', '--']
+            d['label'] = ['84th percentile', '50th percentile', '16th percentile']
+            d['color'] = ['red','red', 'red']
+            d['zorder'] = [1, 1, 1]
+        else:
+            d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers, 
+                      self.bin_centers, self.bin_centers, self.bin_centers]
+            d['y'] = [upper_perc, median, lower_perc, i3_upper, i3_med, i3_lower]
+            d['drawstyle'] = ['steps-mid', 'steps-mid', 'steps-mid', 
+                              'steps-mid', 'steps-mid', 'steps-mid']
+            d['linestyle'] = [':', '-', '--', ':', '-', '--']
+            d['label'] = ['Model 84th perc.', 'Model 50th perc.', 'Model 16th perc.',
+                          'I3 84th perc.', 'I3 50th perc.', 'I3 16th perc.']
+            d['color'] = ['red','red', 'red', 'forestgreen', 'forestgreen', 
+                          'forestgreen']
+            d['zorder'] = [1, 1, 1, 1, 1, 1]
         img_address = get_project_root()+self.model_dir+'/figures/'+key+'_2DPerformance.png'
         d['savefig'] = img_address
         f3 = make_plot(d, h_figure=f2)

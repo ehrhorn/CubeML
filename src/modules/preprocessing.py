@@ -413,17 +413,17 @@ def calc_features(functions, file):
 
 def get_feature_keys():
     keys = [
-        'tot_charge',
-        'dom_charge_significance',
-        'dom_frac_of_n_doms',
-        'dom_d_to_prev',
-        'dom_v_from_prev',
-        'dom_d_minkowski_to_prev',
-        'dom_d_closest',
-        'dom_d_minkowski_closest',
-        'dom_d_vertex',
-        'dom_d_minkowski_vertex',
-        'dom_charge_over_vertex',
+        'tot_charge', 
+        'dom_charge_significance', 
+        'dom_frac_of_n_doms', 
+        'dom_d_to_prev', 
+        'dom_v_from_prev', 
+        'dom_d_minkowski_to_prev', 
+        'dom_d_closest', 
+        'dom_d_minkowski_closest', 
+        'dom_d_vertex', 
+        'dom_d_minkowski_vertex', 
+        'dom_charge_over_vertex', 
         'dom_charge_over_vertex_sqr'
     ]
     return keys

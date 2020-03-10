@@ -20,3 +20,14 @@ from src.modules.main_funcs import *
 import shelve
 import sys
 from time import sleep
+
+Calculate different contributions to loss function.
+
+DUring evaluation:
+    - Save loss func value aswell
+        - Loss func value can be gotte
+
+Contribution calculated as:
+    - correlation between error and loss val. 
+    - make barh plot of it. 
+    - make 2d scatterplot of loss vs error
