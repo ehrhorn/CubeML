@@ -144,6 +144,40 @@ class Performance:
         energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss = self._get_data_dicts()
         self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict, n_doms)
         self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
+        self.loss_error_correlations = self._calculate_loss_error_corrs(pred_dict, loss)
+
+    def _calculate_loss_error_corrs(self, pred_d, loss):
+
+        # * Correlation between loss and predicted values is calculated to 
+        # * hopefully see if loss function is focused too heavily on some of the variables
+        corrs = {}
+        for key, data in pred_d.items():
+            # * corrcoef returns correlation matrix - we are only interested 
+            # * in one of the numbers
+            corrs[key] = np.corrcoef(data, loss)[1, 0]
+
+            # * Make 2d-scatterplot or HEATMAP! like i3-performance
+            d = {}
+            title = r'%s - loss correlation'%(key)
+            savepath = get_project_root()+self.model_dir+'/figures/'+key+'_LossCorr.png'
+            d['hist2d'] = [loss, data]
+            d['xlabel'] = 'Loss value'
+            d['savefig'] = savepath
+            d['title'] = title
+            fig_h = make_plot(d)
+        
+        plt.close('all')
+
+        # * Make barh-plots
+        bar_pos = np.arange(0, len(corrs)) + 0.5
+        names = [key for key in corrs]
+        data = [data for key, data in corrs.items()]
+        d = {'keyword': 'barh', 'y': bar_pos, 'width': data, 'height': 0.7, 'names': names}
+        d['title'] = 'Correlation coeffecients w. loss'
+        d['xlabel'] = 'Correlation'
+        d['savefig'] = get_project_root()+self.model_dir+'/figures/CorrCoeff.png'
+        fig = make_plot(d)    
+        return corrs
 
     def _calculate_onenum_performance(self, data_dict):
         # TODO: Make up some better onenum-performance measure. 
@@ -246,7 +280,6 @@ class Performance:
 
         # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._icecube_perf_keys):
-            print(model_key, retro_key)
             retro_sigma = getattr(self, retro_key+'_sigma')
             model_sigma = getattr(self, model_key+'_sigma')
             retro_sigmaerr = getattr(self, retro_key+'_sigmaerr')
