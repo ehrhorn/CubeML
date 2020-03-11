@@ -117,7 +117,7 @@ class Performance:
     """    
 
     def __init__(self, model_dir, wandb_ID=None):
-        _, data_pars, _, meta_pars = load_model_pars(model_dir)
+        hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
         prefix = 'transform'+str(data_pars['file_keys']['transform'])
         from_frac = data_pars['train_frac']
         to_frac = data_pars['train_frac'] + data_pars['val_frac']
@@ -128,6 +128,7 @@ class Performance:
         self.keyword = meta_pars['group']
         self.prefix = prefix
         self.dom_mask = data_pars['dom_mask']
+        self.loss_func = arch_pars['loss_func']
         
         self._energy_key = self._get_energy_key()
         self._pred_keys = self._get_prediction_keys()
@@ -153,7 +154,8 @@ class Performance:
         # * We look at ABSOLUTE value of error, since we are using symmetric
         # * loss functions.
         corrs = {}
-
+        loss_clip = self._get_loss_clip_vals()
+        loss_clipped = np.clip(loss, loss_clip[0], loss_clip[1])
         for key, data in pred_d.items():
             # * Clip values, since it's concentrated at a certain range.
             _, clip_vals = self._get_I3_2D_clip_and_d(key)
@@ -167,23 +169,32 @@ class Performance:
             d = {}
             title = r'%s - loss correlation'%(key)
             savepath = get_project_root()+self.model_dir+'/figures/'+key+'_LossCorr.png'
-            d['hist2d'] = [loss, abs_data]
+            d['hist2d'] = [loss_clipped, abs_data]
             d['xlabel'] = 'Loss value'
+            d['ylabel'] = 'Abs(%s)'%(key)
             d['savefig'] = savepath
             d['title'] = title
             fig_h = make_plot(d)
-        
-        plt.close('all')
 
         # * Make barh-plots
         bar_pos = np.arange(0, len(corrs)) + 0.5
         names = [key for key in corrs]
         data = [data for key, data in corrs.items()]
         d = {'keyword': 'barh', 'y': bar_pos, 'width': data, 'height': 0.7, 'names': names}
-        d['title'] = 'Correlation coeffecients w. loss'
+        d['title'] = 'Correlation coefficients w.r.t. %s-loss'%(self.loss_func)
         d['xlabel'] = 'Correlation'
         d['savefig'] = get_project_root()+self.model_dir+'/figures/CorrCoeff.png'
-        fig = make_plot(d)    
+        fig = make_plot(d)
+
+        # * Save a histogram of loss values aswell
+        d = {'data': [loss]}
+        d['xlabel'] = 'Loss value (%s)'%(self.loss_func)
+        d['ylabel'] = 'Count'
+        d['log'] = [True]
+        d['savefig'] = get_project_root()+self.model_dir+'/figures/loss_vals.png'
+        _ = make_plot(d)
+        plt.close('all')
+
         return corrs
 
     def _calculate_onenum_performance(self, data_dict):
@@ -408,7 +419,7 @@ class Performance:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
         
         return funcs
-    
+
     def _get_I3_2D_clip_and_d(self, key):
         d2, clip_vals = {}, [-np.inf, np.inf]
 
@@ -464,7 +475,17 @@ class Performance:
 
         len_error = np.sqrt(x_error**2 + y_error**2 + z_error**2)
         return len_error
+    
+    def _get_loss_clip_vals(self):
 
+        if self.loss_func == 'logcosh':
+            clip_vals = [0.0, 0.2]
+        else:
+            raise KeyError('Performance._get_loss_clip_vals: Undefined loss'\
+                 'function (%s) given!'%(self.loss_func))
+    
+        return clip_vals
+    
     def _get_perf_dict(self, model_key, reco_key):
         sigma = getattr(self, model_key+'_sigma')
         reco_sigma = getattr(self, reco_key+'_sigma')
