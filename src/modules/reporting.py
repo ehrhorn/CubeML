@@ -150,17 +150,24 @@ class Performance:
 
         # * Correlation between loss and predicted values is calculated to 
         # * hopefully see if loss function is focused too heavily on some of the variables
+        # * We look at ABSOLUTE value of error, since we are using symmetric
+        # * loss functions.
         corrs = {}
+
         for key, data in pred_d.items():
+            # * Clip values, since it's concentrated at a certain range.
+            _, clip_vals = self._get_I3_2D_clip_and_d(key)
+
             # * corrcoef returns correlation matrix - we are only interested 
             # * in one of the numbers
-            corrs[key] = np.corrcoef(data, loss)[1, 0]
+            abs_data = np.abs(np.clip(data, clip_vals[0], clip_vals[1]))
+            corrs[key] = np.corrcoef(abs_data, loss)[1, 0]
 
             # * Make 2d-scatterplot or HEATMAP! like i3-performance
             d = {}
             title = r'%s - loss correlation'%(key)
             savepath = get_project_root()+self.model_dir+'/figures/'+key+'_LossCorr.png'
-            d['hist2d'] = [loss, data]
+            d['hist2d'] = [loss, abs_data]
             d['xlabel'] = 'Loss value'
             d['savefig'] = savepath
             d['title'] = title
@@ -250,7 +257,6 @@ class Performance:
         # * Calculate performance for our predictions
         for (key, data), i3_key in zip(pred_dict.items(), self._icecube_perf_keys):
             # * Performance as a function of energy
-            print(key, i3_key)
             print(get_time(), 'Calculating %s performance...'%(key))
             sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, data, self.bin_edges)
             print(get_time(), 'Calculation finished!')
@@ -402,7 +408,7 @@ class Performance:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
         
         return funcs
-
+    
     def _get_I3_2D_clip_and_d(self, key):
         d2, clip_vals = {}, [-np.inf, np.inf]
 

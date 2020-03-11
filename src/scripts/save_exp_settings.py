@@ -60,6 +60,8 @@ parser.add_argument('--tags', nargs='+', default='', type=str,
         help='Tags a run for easier comparisons on W&B')
 parser.add_argument('--shared', action='store_true', 
         help='Saves execution command in shared folder.')
+parser.add_argument('--max_epochs', default=17, type=int, 
+        help='Sets the max amount of train epochs.')
 
 args = parser.parse_args()
 
@@ -100,33 +102,33 @@ if __name__ == '__main__':
     dataset = data_dir.split('/')[-1]
     
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
-                'max_epochs':          17 if not args.dev else 2,
+                'max_epochs':          args.max_epochs if not args.dev else 2,
                 'early_stop_patience': 25,
-                # 'optimizer':           {'optimizer':      'SGD',
-                #                         'lr':             args.lr,#0.00003,#0.001, 
-                #                         'momentum':       0.9,
-                #                         'weight_decay':   0.0,
-                #                         'nesterov':       True
-                #                         },
-                'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-5,#0.00003,#0.001, 
-                                        'betas':          (0.9, 0.998),
-                                        'eps':            1.0e-9
+                'optimizer':           {'optimizer':      'SGD',
+                                        'lr':             args.lr,#0.00003,#0.001, 
+                                        'momentum':       0.9,
+                                        'weight_decay':   0.0,
+                                        'nesterov':       True
                                         },
-                # 'lr_schedule':          {'lr_scheduler':   'ReduceLROnPlateau',
-                #                         'factor':         0.1,
-                #                         'patience':       15,
-                #                         'cooldown':       1,
-                #                         'min_lr':         5e-4,
-                #                         'verbose':        True
+                # 'optimizer':           {'optimizer':      'Adam',
+                #                         'lr':             1e-5,#0.00003,#0.001, 
+                #                         'betas':          (0.9, 0.998),
+                #                         'eps':            1.0e-9
                 #                         },
-                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
-                                        'max_lr':          args.max_lr,
-                                        'min_lr':          args.min_lr,
-                                        'frac_up':         0.035 if not args.dev else 0.5,
-                                        'frac_down':       1-0.035 if not args.dev else 0.5,
-                                        'schedule':        'inverse',
+                'lr_schedule':          {'lr_scheduler':   'ReduceLROnPlateau',
+                                        'factor':         0.1,
+                                        'patience':       15,
+                                        'cooldown':       1,
+                                        'min_lr':         5e-4,
+                                        'verbose':        True
                                         },
+                # 'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
+                #                         'max_lr':          args.max_lr,
+                #                         'min_lr':          args.min_lr,
+                #                         'frac_up':         0.035 if not args.dev else 0.5,
+                #                         'frac_down':       1-0.035 if not args.dev else 0.5,
+                #                         'schedule':        'inverse',
+                #                         },
                 'lr_finder':            {'start_lr':       args.start_lr,
                                         'end_lr':          args.end_lr,
                                         'n_epochs':        args.lr_finder_epochs
@@ -203,7 +205,7 @@ if __name__ == '__main__':
         #                      'type':              'seq'}},
         {'RnnBlock':        {'n_in':             n_seq_feat,
                             'n_out':             n1,
-                            'rnn_type':          'LSTM',
+                            'rnn_type':          'GRU',
                             'n_parallel':        1,
                             'num_layers':        2,
                             'residual':          False,
@@ -231,10 +233,10 @@ if __name__ == '__main__':
         #                    'bidirectional':       False}},
         # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
         # {'AveragePool': []},
-        {'ResBlock':        {'input_sizes':        [n2, n2, n1, n1],
+        {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
                              'norm':               'BatchNorm1D',
                              'type':               'x'}},
-        {'Linear':          {'input_sizes':        [n1, n_target],
+        {'Linear':          {'input_sizes':        [n2, n_target],
                             'norm_before_nonlin':  True}}]
 
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
