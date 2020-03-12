@@ -543,6 +543,16 @@ class Performance:
             d2['ylabel'] = 'Error [deg]'
             d2['title'] = 'Model azimuthal angle reco. results'
         
+        elif key == 'directional_error':
+            clip_vals = [-150.0, 150.0]
+            d2['ylabel'] = 'Directional error'
+            d2['title'] = 'Model directional error reco. results'
+        
+        elif key == 'len_error':
+            clip_vals = [0.0, 100.0]
+            d2['ylabel'] = 'Distance to vertex error [m]'
+            d2['title'] = 'Model distance to vertex reco. results'
+        
         return d2, clip_vals
     
     def _get_conf_interval_keys(self):
