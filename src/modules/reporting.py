@@ -137,6 +137,7 @@ class Performance:
         self._performance_keys = self._get_performance_keys()
         self._icecube_perf_keys = self._get_icecube_perf_keys()
         self._true_keys = get_target_keys(data_pars, meta_pars)
+        self._conf_interval_keys = self._get_conf_interval_keys()
 
         self.from_frac = from_frac
         self.to_frac = to_frac
@@ -201,9 +202,10 @@ class Performance:
         # TODO: Make up some better onenum-performance measure. 
         # TODO: Maybe composition (geomean) of 68 % confidence bound on angle error, 
         # TODO: 68 % vertex error, average width of log_frac_E and average width of t.
-        if self.meta_pars['group'] == 'vertex_reg' or self.meta_pars['group'] == 'vertex_reg_no_time':
+        if (self.meta_pars['group'] == 'vertex_reg' 
+        or self.meta_pars['group'] == 'vertex_reg_no_time'):
             len_error = self._get_len_error(data_dict)
-            one_num = np.nanpercentile(len_error, 50)
+            one_num = np.nanpercentile(len_error, 68.2)
         
         elif self.meta_pars['group'] == 'direction_reg':
             one_num = np.nanpercentile(data_dict['directional_error'], 50)
@@ -215,8 +217,10 @@ class Performance:
         
         elif self.meta_pars['group'] == 'full_reg':
             errors = []
+            # * x, y, z vertex.
             len_error = self._get_len_error(data_dict)
-            errors.append(np.nanpercentile(len_error, 50))
+            errors.append(np.nanpercentile(len_error, 68.2))
+
             errors.append(np.nanpercentile(data_dict['relative_E_error'], 50))
             errors.append(np.nanpercentile(data_dict['vertex_t_error'], 50))
             errors.append(np.nanpercentile(data_dict['azi_error'], 50))
@@ -228,83 +232,145 @@ class Performance:
     def _calculate_performance(self, energy_dict, pred_dict, crs_dict, true_dict, n_doms):
         
         # * Transform back and extract values into list
-        true_transformed = inverse_transform(true_dict, get_project_root() + self.model_dir)
-        energy_transformed = inverse_transform(energy_dict, get_project_root() + self.model_dir)
+        true_transformed = inverse_transform(true_dict, 
+                                get_project_root()+self.model_dir)
+        energy_transformed = inverse_transform(energy_dict, 
+                                get_project_root()+self.model_dir)
         # * We want energy as array
         energy = np.array(convert_to_proper_list(energy_transformed[self._energy_key[0]]))
 
-        self.counts, self.bin_edges = np.histogram(energy, bins=N_BINS_PERF_PLOTS)
+        self.counts, self.bin_edges = np.histogram(energy, 
+                                                bins=N_BINS_PERF_PLOTS)
         self.bin_centers = calc_bin_centers(self.bin_edges)
-
-        self.dom_counts, self.dom_bin_edges = np.histogram(n_doms, bins=N_BINS_PERF_PLOTS)
+        
+        self.dom_counts, self.dom_bin_edges = np.histogram(n_doms, 
+                                                bins=N_BINS_PERF_PLOTS)
         self.dom_bin_centers = calc_bin_centers(self.dom_bin_edges)
-
+        
         # * Calculate how well Icecube does.
         for name, func in zip(self._icecube_perf_keys, self._get_error_funcs()):
+            
+            # * We calculate 2 different forms of performance measures: One
+            # * kind as the width of the distribution (for unbounded
+            # * distributions), another as the upper 68th percentile 
+            # * of the distribution (for distributions with a lower bound of 0)
+            print(get_time(), 'Calculating %s performance...'%(name))
+
             # * Performance as a function of energy
             error = func(crs_dict, true_transformed, reporting=True)
-            
-            print(get_time(), 'Calculating %s performance...'%(name))
-            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, error, self.bin_edges)
-            print(get_time(), 'Calculation finished!')
-            
-            setattr(self, name+'_sigma', sigma)
-            setattr(self, name+'_sigmaerr', sigmaerr)
-            setattr(self, name+'_50th', median)
-            setattr(self, name+'_84th', upper_perc)
-            setattr(self, name+'_16th', lower_perc)
 
-            # * Performance as a function of number of doms
-            print(get_time(), 'Calculating %s DOM performance...'%(name))
-            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(n_doms, error, self.dom_bin_edges)
+            if name not in self._conf_interval_keys:
+                sigma, sigmaerr, median, upper_perc, lower_perc =\
+                    calc_width_as_fn_of_data(energy, error, self.bin_edges)
+                
+                setattr(self, name+'_sigma', sigma)
+                setattr(self, name+'_sigmaerr', sigmaerr)
+                setattr(self, name+'_50th', median)
+                setattr(self, name+'_84th', upper_perc)
+                setattr(self, name+'_16th', lower_perc)
+
+                # * Performance as a function of number of doms
+                sigma, sigmaerr, median, upper_perc, lower_perc =\
+                    calc_width_as_fn_of_data(n_doms, error, self.dom_bin_edges)
+                setattr(self, 'dom_'+name+'_sigma', sigma)
+                setattr(self, 'dom_'+name+'_sigmaerr', sigmaerr)
+                setattr(self, 'dom_'+name+'_50th', median)
+                setattr(self, 'dom_'+name+'_84th', upper_perc)
+                setattr(self, 'dom_'+name+'_16th', lower_perc)
+            
+            else:
+                percentiles = [68, 50, 32]
+                
+                # * As a function of energy
+                vals, errs = calc_percentiles_as_fn_of_data(
+                    energy, error, self.bin_edges, percentiles)
+                for perc, val, err, in zip(percentiles, vals, errs):
+                    setattr(self, '%s_%sth'%(name, str(perc)), val)
+                    setattr(self, '%s_err%sth'%(name, str(perc)), err)
+
+                # * As a function of DOMs
+                vals, errs = calc_percentiles_as_fn_of_data(
+                    n_doms, error, self.bin_edges, percentiles)
+                for perc, val, err, in zip(percentiles, vals, errs):
+                    setattr(self, '%s_%sth'%(name, str(perc)), val)
+                    setattr(self, '%s_err%sth'%(name, str(perc)), err)
+            
             print(get_time(), 'Calculation finished!')
-            setattr(self, 'dom_'+name+'_sigma', sigma)
-            setattr(self, 'dom_'+name+'_sigmaerr', sigmaerr)
-            setattr(self, 'dom_'+name+'_50th', median)
-            setattr(self, 'dom_'+name+'_84th', upper_perc)
-            setattr(self, 'dom_'+name+'_16th', lower_perc)
             print('')
-        
+                
         # * Calculate performance for our predictions
         for (key, data), i3_key in zip(pred_dict.items(), self._icecube_perf_keys):
-            # * Performance as a function of energy
+            
             print(get_time(), 'Calculating %s performance...'%(key))
-            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(energy, data, self.bin_edges)
-            print(get_time(), 'Calculation finished!')
-            setattr(self, key+'_sigma', sigma)
-            setattr(self, key+'_sigmaerr', sigmaerr)
-            setattr(self, key+'_50th', median)
-            setattr(self, key+'_84th', upper_perc)
-            setattr(self, key+'_16th', lower_perc)
+            
+            # * Same split as above
+            if key not in self._conf_interval_keys:
+            
+                # * Performance as a function of energy
+                sigma, sigmaerr, median, upper_perc, lower_perc = calc_width_as_fn_of_data(energy, data, self.bin_edges)
+                setattr(self, key+'_sigma', sigma)
+                setattr(self, key+'_sigmaerr', sigmaerr)
+                setattr(self, key+'_50th', median)
+                setattr(self, key+'_84th', upper_perc)
+                setattr(self, key+'_16th', lower_perc)
 
-            # * We make the I3-plot here so we do not have to save all the data...
-            # * First we retrieve the corresponding Icecube data
-            i3_med = getattr(self, i3_key+'_50th')
-            i3_upper = getattr(self, i3_key+'_84th')
-            i3_lower = getattr(self, i3_key+'_16th')
-            self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc, i3_med=i3_med, i3_upper=i3_upper, i3_lower=i3_lower)
+                # * We make the I3-plot here so we do not have to save all 
+                # * the data. First we retrieve the corresponding Icecube data
+                i3_med = getattr(self, i3_key+'_50th')
+                i3_upper = getattr(self, i3_key+'_84th')
+                i3_lower = getattr(self, i3_key+'_16th')
+                self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc, i3_med=i3_med, i3_upper=i3_upper, i3_lower=i3_lower)
 
-            # * Performance as a function of number of doms
-            print(get_time(), 'Calculating %s DOM performance...'%(key))
-            sigma, sigmaerr, median, upper_perc, lower_perc = calc_perf_as_fn_of_data(n_doms, data, self.dom_bin_edges)
+                # * Performance as a function of number of doms
+                sigma, sigmaerr, median, upper_perc, lower_perc = calc_width_as_fn_of_data(n_doms, data, self.dom_bin_edges)
+                setattr(self, 'dom_'+key+'_sigma', sigma)
+                setattr(self, 'dom_'+key+'_sigmaerr', sigmaerr)
+                setattr(self, 'dom_'+key+'_50th', median)
+                setattr(self, 'dom_'+key+'_84th', upper_perc)
+                setattr(self, 'dom_'+key+'_16th', lower_perc)
+                print('')
+            
+            else:
+                percentiles = [68, 50, 32]
+                
+                # * As a function of energy
+                vals, errs = calc_percentiles_as_fn_of_data(
+                    energy, data, self.bin_edges, percentiles)
+                for perc, val, err, in zip(percentiles, vals, errs):
+                    setattr(self, '%s_%sth'%(key, str(perc)), val)
+                    setattr(self, '%s_err%sth'%(key, str(perc)), err)
+
+                # * As a function of DOMs
+                vals, errs = calc_percentiles_as_fn_of_data(
+                    n_doms, data, self.bin_edges, percentiles)
+                for perc, val, err, in zip(percentiles, vals, errs):
+                    setattr(self, '%s_%sth'%(key, str(perc)), val)
+                    setattr(self, '%s_err%sth'%(key, str(perc)), err)
+            
             print(get_time(), 'Calculation finished!')
-            setattr(self, 'dom_'+key+'_sigma', sigma)
-            setattr(self, 'dom_'+key+'_sigmaerr', sigmaerr)
-            setattr(self, 'dom_'+key+'_50th', median)
-            setattr(self, 'dom_'+key+'_84th', upper_perc)
-            setattr(self, 'dom_'+key+'_16th', lower_perc)
-            print('')
 
         # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._icecube_perf_keys):
-            retro_sigma = getattr(self, retro_key+'_sigma')
-            model_sigma = getattr(self, model_key+'_sigma')
-            retro_sigmaerr = getattr(self, retro_key+'_sigmaerr')
-            model_sigmaerr = getattr(self, model_key+'_sigmaerr')
+            
+            # * Remember to split in conf bounds and widths
+            if (model_key not in self._conf_interval_keys):
+                retro_sigma = getattr(self, retro_key+'_sigma')
+                model_sigma = getattr(self, model_key+'_sigma')
+                retro_sigmaerr = getattr(self, retro_key+'_sigmaerr')
+                model_sigmaerr = getattr(self, model_key+'_sigmaerr')
 
-            rel_e, sigma_rel = calc_relative_error(retro_sigma, model_sigma, retro_sigmaerr, model_sigmaerr)
-            setattr(self, model_key+'_RI', -rel_e)
-            setattr(self, model_key+'_RIerr', sigma_rel)
+                rel_e, sigma_rel = calc_relative_error(retro_sigma, model_sigma, retro_sigmaerr, model_sigmaerr)
+                setattr(self, model_key+'_RI', -rel_e)
+                setattr(self, model_key+'_RIerr', sigma_rel)
+            else:
+                retro_sigma = getattr(self, retro_key+'_68th')
+                model_sigma = getattr(self, model_key+'_68th')
+                retro_sigmaerr = getattr(self, retro_key+'_err68th')
+                model_sigmaerr = getattr(self, model_key+'_err68th')
+
+                rel_e, sigma_rel = calc_relative_error(retro_sigma, model_sigma, retro_sigmaerr, model_sigmaerr)
+                setattr(self, model_key+'_RI', -rel_e)
+                setattr(self, model_key+'_RIerr', sigma_rel)
 
     def _get_conversion_keys_crs(self):
         
@@ -373,16 +439,21 @@ class Performance:
         n_doms = get_n_doms(pred_dict['indices'], self.dom_mask, data_dir)
         # * Indices have done, what we wanted them to do - delete them
         print(get_time(), 'Number of DOMs found!')
+        print('')
         del pred_dict['indices']
 
         return energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss
     
     def _get_dom_dict(self):
-        d = {'data': [self.dom_bin_edges[:-1]], 'bins': [self.dom_bin_edges], 'weights': [self.dom_counts], 'histtype': ['step'], 'log': [True], 'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+        d = {'data': [self.dom_bin_edges[:-1]], 'bins': [self.dom_bin_edges], 
+        'weights': [self.dom_counts], 'histtype': ['step'], 'log': [True], 
+        'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
         return d
 
     def _get_energy_dict(self):
-        d = {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 'weights': [self.counts], 'histtype': ['step'], 'log': [True], 'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+        d = {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 
+        'weights': [self.counts], 'histtype': ['step'], 'log': [True], 
+        'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
         return d
     
     def _get_energy_key(self):
@@ -400,20 +471,25 @@ class Performance:
     def _get_error_funcs(self):
 
         if self.meta_pars['group'] == 'vertex_reg':
-            funcs = [retro_x_error, retro_y_error, retro_z_error, retro_t_error]
+            funcs = [retro_x_error, retro_y_error, retro_z_error,
+                    retro_t_error, retro_len_error]
         
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
-            funcs = [retro_x_error, retro_y_error, retro_z_error]
+            funcs = [retro_x_error, retro_y_error, retro_z_error,
+                    retro_len_error]
         
         elif self.meta_pars['group'] == 'direction_reg':
-            funcs = [retro_azi_error, retro_polar_error]
+            funcs = [retro_azi_error, retro_polar_error, 
+                    retro_directional_error]
         
         elif self.meta_pars['group'] == 'energy_reg':
             funcs = [retro_relE_error, retro_log_frac_E_error]
 
         elif self.meta_pars['group'] == 'full_reg':
-            funcs = [retro_relE_error, retro_log_frac_E_error, retro_x_error, retro_y_error, retro_z_error, retro_t_error, retro_azi_error, retro_polar_error]
-            names = []
+            funcs = [retro_relE_error, retro_log_frac_E_error, retro_x_error, 
+                    retro_y_error, retro_z_error, retro_t_error,
+                    retro_len_error, retro_azi_error, retro_polar_error,
+                    retro_directional_error]
         
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
@@ -465,8 +541,23 @@ class Performance:
         
         return d2, clip_vals
     
-    def _get_I3_2D_perf_data(self, key):
-        pass
+    def _get_conf_interval_keys(self):
+
+        # * A combination of I3-keys and our predictions
+        if self.meta_pars['group'] == 'vertex_reg':
+            keys = ['len_error', 'retro_len_error']
+        elif self.meta_pars['group'] == 'vertex_reg_no_time':
+            keys = ['len_error', 'retro_len_error']
+        elif self.meta_pars['group'] == 'direction_reg':
+            keys = ['directional_error', 'retro_directional_error']
+        elif self.meta_pars['group'] == 'energy_reg':
+            keys = []
+        elif self.meta_pars['group'] == 'full_reg':
+            keys = ['len_error', 'directional_error', 'retro_len_error', 'retro_directional_error']
+        else:
+            raise ValueError('Performance: Unknown regression encountered!')
+
+        return keys
 
     def _get_len_error(self, data_dict):
         x_error = data_dict['vertex_x_error']
@@ -487,32 +578,46 @@ class Performance:
         return clip_vals
     
     def _get_perf_dict(self, model_key, reco_key):
-        sigma = getattr(self, model_key+'_sigma')
-        reco_sigma = getattr(self, reco_key+'_sigma')
-        sigmaerr = getattr(self, model_key+'_sigmaerr')
-        reco_sigmaerr = getattr(self, reco_key+'_sigmaerr')
+        
+        if model_key not in self._conf_interval_keys:
+            metric = getattr(self, model_key+'_sigma')
+            reco_metric = getattr(self, reco_key+'_sigma')
+            metricerr = getattr(self, model_key+'_sigmaerr')
+            reco_metricerr = getattr(self, reco_key+'_sigmaerr')
+        else:
+            metric = getattr(self, model_key+'_68th')
+            reco_metric = getattr(self, reco_key+'_68th')
+            metricerr = getattr(self, model_key+'_err68th')
+            reco_metricerr = getattr(self, reco_key+'_err68th')
 
         label = self._get_ylabel(model_key)
         title = self._get_perf_plot_title(model_key)
 
-        d = {'edges': [self.bin_edges, self.bin_edges], 'y': [sigma, reco_sigma], 
-        'yerr': [sigmaerr, reco_sigmaerr], 'xlabel': r'log(E) [E/GeV]', 
+        d = {'edges': [self.bin_edges, self.bin_edges], 'y': [metric, reco_metric], 
+        'yerr': [metricerr, reco_metricerr], 'xlabel': r'log(E) [E/GeV]', 
         'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube'], 
         'yrange': {'bottom': 0.001}, 'title': title}
 
         return d
     
     def _get_DOMperf_dict(self, model_key, reco_key):
-        sigma = getattr(self, 'dom_'+model_key+'_sigma')
-        reco_sigma = getattr(self, 'dom_'+reco_key+'_sigma')
-        sigmaerr = getattr(self, 'dom_'+model_key+'_sigmaerr')
-        reco_sigmaerr = getattr(self, 'dom_'+reco_key+'_sigmaerr')
+        
+        if model_key not in self._conf_interval_keys:
+            metric = getattr(self, model_key+'_sigma')
+            reco_metric = getattr(self, reco_key+'_sigma')
+            metricerr = getattr(self, model_key+'_sigmaerr')
+            reco_metricerr = getattr(self, reco_key+'_sigmaerr')
+        else:
+            metric = getattr(self, model_key+'_68th')
+            reco_metric = getattr(self, reco_key+'_68th')
+            metricerr = getattr(self, model_key+'_err68th')
+            reco_metricerr = getattr(self, reco_key+'_err68th')
 
         label = self._get_ylabel(model_key)
         title = self._get_perf_plot_title(model_key)
 
         d = {'edges': [self.dom_bin_edges, self.dom_bin_edges], 
-        'y': [sigma, reco_sigma], 'yerr': [sigmaerr, reco_sigmaerr], 
+        'y': [metric, reco_metric], 'yerr': [metricerr, reco_metricerr], 
         'xlabel': r'$N_{DOMs}$', 'ylabel': label, 'grid': False, 
         'label': ['Model', 'Icecube'], 
         'yrange': {'bottom': 0.001}, 'title': title}
@@ -544,6 +649,12 @@ class Performance:
         
         elif key == 'log_frac_E_error':
             title = 'Model energy reco. performance'
+        
+        elif key == 'len_error':
+            title = 'Model length error 68th percentile'
+        
+        elif key == 'directional_error':
+            title = 'Model directional error 68th percentile'
 
         return title
 
@@ -594,6 +705,7 @@ class Performance:
 
         if dataset_name == 'MuonGun_Level2_139008':
             reco_keys = None
+        
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
             if self.meta_pars['group'] == 'vertex_reg':
                 reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 
@@ -650,6 +762,10 @@ class Performance:
             label = 'Resolution [%]'
         elif key == 'log_frac_E_error':
             label = r'$\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$'
+        elif key == 'len_error':
+            label = 'Distance to vertex'
+        elif key == 'directional_error':
+            label = 'Angle error'
         else:
             raise KeyError('PerformanceClass._get_ylabel: Unknown key (%s)given!'%(key))
 
@@ -1302,7 +1418,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
 
     if 'savefig' in plot_dict: 
         h_figure.savefig(plot_dict['savefig'], bbox_inches='tight')
-        print(get_time(), 'Figure saved at: %s'%(get_path_from_root(plot_dict['savefig'])))
+        fig_name = Path(plot_dict['savefig']).name
+        print(get_time(), 'Saved figure: %s'%(fig_name))
         plt.close(fig=h_figure)
 
     return h_figure

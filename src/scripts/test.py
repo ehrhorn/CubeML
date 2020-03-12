@@ -21,13 +21,13 @@ import shelve
 import sys
 from time import sleep
 
-Calculate different contributions to loss function.
-
-DUring evaluation:
-    - Save loss func value aswell
-        - Loss func value can be gotte
-
-Contribution calculated as:
-    - correlation between error and loss val. 
-    - make barh plot of it. 
-    - make 2d scatterplot of loss vs error
+n = 1000
+percentile = 68
+sigma = np.sqrt((percentile/100)*n*(1-(percentile/100)))
+mean = n*percentile/100
+mean = int(mean)
+upper = int(mean+sigma+1)
+lower = int(mean-sigma)
+x = np.random.uniform(low=0.0, high=1.0, size=n)
+sorted(x)
+print(np.nanpercentile(x, 68.2), sorted(x)[mean], sorted(x)[upper], sorted(x)[lower])

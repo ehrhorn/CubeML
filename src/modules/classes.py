@@ -125,7 +125,8 @@ class PickleLoader(data.Dataset):
         true_index = self.indices[index]
         weight = self.weights[index]
         filename = str(true_index) + '.pickle'
-        path = self.directory + '/pickles/' + str(true_index//self._n_events_per_dir) + '/' + str(true_index) + '.pickle'
+        path = self.directory+'/pickles/'+str(true_index//self._n_events_per_dir)\
+            +'/'+str(true_index)+'.pickle'
         
         # * Load event
         with open(path, 'rb') as f:
@@ -760,7 +761,8 @@ class MakeModel(nn.Module):
             # * Handle different layers in different ways! 
             if layer_name == 'Linear':
 
-                # * If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
+                # * If scalar variables are supplied for concatenation, do it! 
+                # * But make sure to only do it once.
                 if 'scalars' in locals(): 
                     if add_scalars: 
                         x, add_scalars = self.concat_scalars(x, scalars)
@@ -785,7 +787,8 @@ class MakeModel(nn.Module):
             elif layer_name == 'ManyToOneAttention':
                 x = entry(seq, lengths, device=device)
             
-            # * The MaxPool-layer is used after sequences have been treated -> prepare for linear decoding.
+            # * The MaxPool-layer is used after sequences have been treated 
+            # * -> prepare for linear decoding.
             elif layer_name == 'MaxPool':
                 x = entry(seq, lengths, device=device)
             
@@ -803,7 +806,8 @@ class MakeModel(nn.Module):
                 seq, x = entry(seq, lengths, device=device)
             
             elif layer_name == 'ResBlock':
-                # * If scalar variables are supplied for concatenation, do it! But make sure to only do it once.
+                # * If scalar variables are supplied for concatenation, do it! 
+                # * But make sure to only do it once.
                 if 'scalars' in locals(): 
                     if add_scalars: 
                         x, add_scalars = self.concat_scalars(x, scalars)

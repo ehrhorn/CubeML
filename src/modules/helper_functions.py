@@ -270,7 +270,7 @@ def calc_MAEs(sorted_data, entries, error_measure='median'):
     
     return maes
 
-def calc_perf_as_fn_of_data(energy, predictor_vals, bin_edges, multiprocess=False, bootstrap=False):
+def calc_width_as_fn_of_data(energy, predictor_vals, bin_edges, multiprocess=False, bootstrap=False):
     """Calculates performance measured as width of error histograms as a function of energy using multiprocessing. Bootstrapping can be used to estimate width.
     
     Arguments:
@@ -309,7 +309,7 @@ def calc_perf_as_fn_of_data(energy, predictor_vals, bin_edges, multiprocess=Fals
 
     return sigmas, e_sigmas, median, upper_perc, lower_perc
 
-def calc_perf_as_fn_of_n_doms(predictor_vals, dom_mask, bin_edges, multiprocess=False, bootstrap=False):
+def calc_width_as_fn_of_data(energy, predictor_vals, bin_edges, multiprocess=False, bootstrap=False):
     """Calculates performance measured as width of error histograms as a function of energy using multiprocessing. Bootstrapping can be used to estimate width.
     
     Arguments:
@@ -320,7 +320,7 @@ def calc_perf_as_fn_of_n_doms(predictor_vals, dom_mask, bin_edges, multiprocess=
     Returns:
         lists -- estimated sigma, estimated error on sigma, estimated 84th percentile and estimated 16th percentile
     """  
-    n_doms = get_n_doms(predictor_vals, dom_mask)
+
     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
     sigmas, e_sigmas, median, upper_perc, lower_perc = [], [], [], [], []
@@ -347,6 +347,96 @@ def calc_perf_as_fn_of_n_doms(predictor_vals, dom_mask, bin_edges, multiprocess=
         lower_perc.append(d['16th'])
 
     return sigmas, e_sigmas, median, upper_perc, lower_perc
+
+def calc_percentiles_as_fn_of_data(energy, predictor_vals, bin_edges,
+    percentiles, multiprocess=False, bootstrap=False):
+    """Calculates percentiles of histograms of data potentially using multiprocessing. Bootstrapping can be used to estimate error.
+    
+    Arguments:
+        energy {list} -- Energy of event
+        predictor_vals {list} -- Prediction (typically some error measure)
+        bin_edges {list} -- Edges of each energy bin.
+    
+    Returns:
+        lists -- estimated sigma, estimated error on sigma, estimated 84th percentile and estimated 16th percentile
+    """  
+
+    energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
+    _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
+    sigmas, e_sigmas, median, upper_perc, lower_perc = [], [], [], [], []
+    
+    if multiprocess:
+        # * Spread the job
+        available_cores = cpu_count()
+        packed = make_multiprocess_pack(predictor_bins, bootstrap, percentiles)
+        # bootstrap_list = [bootstrap]*len(predictor_bins)
+        # percentiles_list = [percentiles]*len(predictor_bins)
+        # packed = [entry for entry in zip(predictor_bins, bootstrap_list)]
+        with Pool(available_cores) as p:
+            lists = p.map(estimate_percentiles_multiprocess, packed)
+        
+    else:
+        lists = []
+        for predictor_bin in predictor_bins:
+            lists.append(estimate_percentiles_multiprocess((predictor_bin, bootstrap, percentiles)))
+
+    # * The result is a nested list. First level is which bin. Second has 2
+    # * entries: percentile estimate and its error. Third level is number of 
+    # * percentiles wanted
+    estimated_perc = [[] for i in range(len(percentiles))]
+    perc_errs = [[] for i in range(len(percentiles))]
+
+    # * Bin level
+    for l in lists:
+
+        # * Loop over percentiles
+        for i_perc, perc in enumerate(l[0]):
+            estimated_perc[i_perc].append(perc)
+        
+        # * Loop over errors
+        for i_percerr, percerr in enumerate(l[1]):
+            perc_errs[i_percerr].append(percerr)
+    
+    return estimated_perc, perc_errs
+
+# def calc_perf_as_fn_of_n_doms(predictor_vals, dom_mask, bin_edges, multiprocess=False, bootstrap=False):
+#     """Calculates performance measured as width of error histograms as a function of energy using multiprocessing. Bootstrapping can be used to estimate width.
+    
+#     Arguments:
+#         energy {list} -- Energy of event
+#         predictor_vals {list} -- Prediction (typically some error measure)
+#         bin_edges {list} -- Edges of each energy bin.
+    
+#     Returns:
+#         lists -- estimated sigma, estimated error on sigma, estimated 84th percentile and estimated 16th percentile
+#     """  
+#     n_doms = get_n_doms(predictor_vals, dom_mask)
+#     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
+#     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
+#     sigmas, e_sigmas, median, upper_perc, lower_perc = [], [], [], [], []
+    
+#     if multiprocess:
+#         # * Spread the job
+#         available_cores = cpu_count()
+#         bootstrap_list = [bootstrap]*len(predictor_bins)
+#         packed = [entry for entry in zip(predictor_bins, bootstrap_list)]
+#         with Pool(available_cores) as p:
+#             dicts = p.map(estimate_sigma_multiprocess, packed)
+        
+#     else:
+#         dicts = []
+#         for predictor_bin in predictor_bins:
+#             dicts.append(estimate_sigma_multiprocess((predictor_bin, bootstrap)))
+
+#     # * Unpack the result
+#     for d in dicts:
+#         sigmas.append(d['sigma'])
+#         e_sigmas.append(d['e_sigma'])
+#         median.append(d['50th'])
+#         upper_perc.append(d['84th'])
+#         lower_perc.append(d['16th'])
+
+#     return sigmas, e_sigmas, median, upper_perc, lower_perc
 
 
 def calc_relative_error(l1, l2, e1=None, e2=None):
@@ -510,7 +600,7 @@ def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
     
     Arguments:
         data {array-like} -- Data in which to find percentiles.
-        percentiles {list} -- list of wanted percentiles (between 0 and 1)
+        percentiles {list} -- list of wanted percentiles (between 0 and 100)
     
     Keyword Arguments:
         n_bootstraps {int} -- Number of bootstrap experiments to run (default: {1000})
@@ -530,8 +620,8 @@ def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
 
     for percentile in percentiles:
         # * THe order statistic is binomially distributed - we approximate it with a gaussian. 
-        sigma = np.sqrt(percentile*n*(1-percentile))
-        mean = n*percentile
+        sigma = np.sqrt((percentile/100)*n*(1-(percentile/100)))
+        mean = n*percentile/100
         i_means.append(int(mean))
         i_plussigmas.append(int(mean+sigma+1))
         i_minussigmas.append(int(mean-sigma))
@@ -575,6 +665,25 @@ def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
                 minussigmas.append(np.nan)
 
     return np.array(means), np.array(plussigmas), np.array(minussigmas)
+
+def estimate_percentiles_multiprocess(pack):
+    """Multiprocessing approach to calculating standard deviation, 16th and 84th percentiles of some given data.
+    
+    Arguments:
+        entry {array-like} -- Some dataset.
+    
+    Returns:
+        dict -- Dictionary with keys 'sigma', 'e_sigma', '16th' and '84th', corresponding to sigma, error on sigma, 16th percentile and 84th percentile.
+    """    
+
+    # * unpack
+    data, bootstrap, percentiles = pack
+    means, plussigmas, minussigmas = estimate_percentile(data, percentiles, bootstrap=bootstrap)
+    e_percentiles = []
+    for i in range(len(means)):
+        e_percentiles.append((plussigmas[i]-minussigmas[i])/2)
+    
+    return [means, e_percentiles]
 
 def estimate_sigma_multiprocess(pack):
     """Multiprocessing approach to calculating standard deviation, 16th and 84th percentiles of some given data.
@@ -1502,6 +1611,27 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle=
         pass
 
     return model_dir
+
+def make_multiprocess_pack(discriminator, *stuff):
+    """Packs the object to multiprocess with copies of important stuff put in a list.
+    
+    Parameters
+    ----------
+    discriminator : list
+        Objects to multiprocess over.
+    stuff : list
+        List of objects to make copies of.
+    
+    Returns
+    -------
+    zip-iterator
+        A zip-object with packed stuff.
+    """    
+    lists = [discriminator]
+    n_copies = len(discriminator)
+    for entry in stuff:
+        lists.append([entry]*n_copies)
+    return zip(*lists)
 
 def print_progress(start_time, progress, total):
     """Prints elapsed time in hours and minutes since start of program.
