@@ -339,6 +339,13 @@ class Performance:
                 for perc, val, err, in zip(percentiles, vals, errs):
                     setattr(self, '%s_%sth'%(key, str(perc)), val)
                     setattr(self, '%s_err%sth'%(key, str(perc)), err)
+                
+                # * We make the I3-plot here so we do not have to save all 
+                # * the data. First we retrieve the corresponding Icecube data
+                i3_med = getattr(self, i3_key+'_50th')
+                i3_upper = getattr(self, i3_key+'_84th')
+                i3_lower = getattr(self, i3_key+'_16th')
+                self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc, i3_med=i3_med, i3_upper=i3_upper, i3_lower=i3_lower)
 
                 # * As a function of DOMs
                 vals, errs = calc_percentiles_as_fn_of_data(
