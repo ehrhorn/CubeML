@@ -260,9 +260,10 @@ class Performance:
             error = func(crs_dict, true_transformed, reporting=True)
 
             if name not in self._conf_interval_keys:
+                
                 sigma, sigmaerr, median, upper_perc, lower_perc =\
                     calc_width_as_fn_of_data(energy, error, self.bin_edges)
-                
+               
                 setattr(self, name+'_sigma', sigma)
                 setattr(self, name+'_sigmaerr', sigmaerr)
                 setattr(self, name+'_50th', median)
@@ -284,16 +285,18 @@ class Performance:
                 # * As a function of energy
                 vals, errs = calc_percentiles_as_fn_of_data(
                     energy, error, self.bin_edges, percentiles)
+                
                 for perc, val, err, in zip(percentiles, vals, errs):
                     setattr(self, '%s_%sth'%(name, str(perc)), val)
                     setattr(self, '%s_err%sth'%(name, str(perc)), err)
 
                 # * As a function of DOMs
                 vals, errs = calc_percentiles_as_fn_of_data(
-                    n_doms, error, self.bin_edges, percentiles)
+                    n_doms, error, self.dom_bin_edges, percentiles)
+                
                 for perc, val, err, in zip(percentiles, vals, errs):
-                    setattr(self, '%s_%sth'%(name, str(perc)), val)
-                    setattr(self, '%s_err%sth'%(name, str(perc)), err)
+                    setattr(self, 'dom_%s_%sth'%(name, str(perc)), val)
+                    setattr(self, 'dom_%s_err%sth'%(name, str(perc)), err)
             
             print(get_time(), 'Calculation finished!')
             print('')
@@ -339,13 +342,14 @@ class Performance:
                 for perc, val, err, in zip(percentiles, vals, errs):
                     setattr(self, '%s_%sth'%(key, str(perc)), val)
                     setattr(self, '%s_err%sth'%(key, str(perc)), err)
-
+                
                 # * As a function of DOMs
                 vals, errs = calc_percentiles_as_fn_of_data(
-                    n_doms, data, self.bin_edges, percentiles)
+                    n_doms, data, self.dom_bin_edges, percentiles)
+                
                 for perc, val, err, in zip(percentiles, vals, errs):
-                    setattr(self, '%s_%sth'%(key, str(perc)), val)
-                    setattr(self, '%s_err%sth'%(key, str(perc)), err)
+                    setattr(self, 'dom_%s_%sth'%(key, str(perc)), val)
+                    setattr(self, 'dom_%s_err%sth'%(key, str(perc)), err)
             
             print(get_time(), 'Calculation finished!')
 
@@ -589,7 +593,7 @@ class Performance:
             reco_metric = getattr(self, reco_key+'_68th')
             metricerr = getattr(self, model_key+'_err68th')
             reco_metricerr = getattr(self, reco_key+'_err68th')
-
+        
         label = self._get_ylabel(model_key)
         title = self._get_perf_plot_title(model_key)
 
@@ -608,10 +612,10 @@ class Performance:
             metricerr = getattr(self, model_key+'_sigmaerr')
             reco_metricerr = getattr(self, reco_key+'_sigmaerr')
         else:
-            metric = getattr(self, model_key+'_68th')
-            reco_metric = getattr(self, reco_key+'_68th')
-            metricerr = getattr(self, model_key+'_err68th')
-            reco_metricerr = getattr(self, reco_key+'_err68th')
+            metric = getattr(self, 'dom_%s_68th'%(model_key))
+            reco_metric = getattr(self, 'dom_%s_68th'%(reco_key))
+            metricerr = getattr(self, 'dom_%s_err68th'%(model_key))
+            reco_metricerr = getattr(self, 'dom_%s_err68th'%(reco_key))
 
         label = self._get_ylabel(model_key)
         title = self._get_perf_plot_title(model_key)
@@ -651,7 +655,7 @@ class Performance:
             title = 'Model energy reco. performance'
         
         elif key == 'len_error':
-            title = 'Model length error 68th percentile'
+            title = 'Model distance to vertex 68th percentile'
         
         elif key == 'directional_error':
             title = 'Model directional error 68th percentile'
@@ -757,15 +761,15 @@ class Performance:
         elif key == 'vertex_x_error' or key == 'vertex_y_error' or key == 'vertex_z_error':
             label = 'Resolution [m]'
         elif key == 'azi_error' or key == 'polar_error':
-            label = 'Resolution [degrees]'
+            label = 'Resolution [deg]'
         elif key == 'relative_E_error':
             label = 'Resolution [%]'
         elif key == 'log_frac_E_error':
             label = r'$\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$'
         elif key == 'len_error':
-            label = 'Distance to vertex'
+            label = 'Distance to vertex [m]'
         elif key == 'directional_error':
-            label = 'Angle error'
+            label = 'Angle error [deg]'
         else:
             raise KeyError('PerformanceClass._get_ylabel: Unknown key (%s)given!'%(key))
 

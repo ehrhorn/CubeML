@@ -606,9 +606,9 @@ def retro_directional_error(pred, truth, units='degrees', reporting=False):
     cos = dot_prods/(len_retro*len_true)
     
     if units == 'radians': 
-        angles = np.arccos(cos)
+        angles = np.pi-np.arccos(cos)
     elif units == 'degrees': 
-        angles = (180/3.14159)*np.arccos(cos)
+        angles = 180-(180/3.14159)*np.arccos(cos)
     
     return angles
 #*======================================================================== 
