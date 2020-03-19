@@ -62,6 +62,9 @@ parser.add_argument('--shared', action='store_true',
         help='Saves execution command in shared folder.')
 parser.add_argument('--max_epochs', default=17, type=int, 
         help='Sets the max amount of train epochs.')
+parser.add_argument('--optimizer', default='Adam', type=str,
+        help='Sets which optimizer to use. Options: Adam, SGD')
+
 
 args = parser.parse_args()
 
@@ -100,38 +103,47 @@ if __name__ == '__main__':
     # * Set project
     project = 'cubeml_test' if args.dev else 'cubeml'
     dataset = data_dir.split('/')[-1]
-    
+
+    if args.optimizer == 'Adam':
+
+        optimizer = {'lr_scheduler':   'CustomOneCycleLR',
+                     'max_lr':          args.max_lr,
+                     'min_lr':          args.min_lr,
+                     'frac_up':         0.035 if not args.dev else 0.5,
+                     'frac_down':       1-0.035 if not args.dev else 0.5,
+                     'schedule':        'inverse',
+                     }
+        lr_schedule = {'optimizer':      'Adam',
+                        'lr':             1e-5,
+                        'betas':          (0.9, 0.998),
+                        'eps':            1.0e-9
+                        }
+    elif args.optimizer == 'SGD':
+
+        optimizer = {'optimizer':      'SGD',
+                     'lr':             args.lr,#0.00003,#0.001, 
+                     'momentum':       0.9,
+                     'weight_decay':   0.0,
+                     'nesterov':       True
+                     }
+        lr_schedule = {'lr_scheduler':   'ReduceLROnPlateau',
+                       'factor':         0.1,
+                       'patience':       15,
+                       'cooldown':       1,
+                       'min_lr':         5e-4,
+                       'verbose':        True
+                        }
+    else:
+        raise KeyError('Unknown optimizer requested!')
+
     hyper_pars = {'batch_size':        args.batch_size if not args.dev else 21,
                 'max_epochs':          args.max_epochs if not args.dev else 2,
                 'early_stop_patience': 25,
-                # 'optimizer':           {'optimizer':      'SGD',
-                #                         'lr':             args.lr,#0.00003,#0.001, 
-                #                         'momentum':       0.9,
-                #                         'weight_decay':   0.0,
-                #                         'nesterov':       True
-                #                         },
-                'optimizer':           {'optimizer':      'Adam',
-                                        'lr':             1e-5,#0.00003,#0.001, 
-                                        'betas':          (0.9, 0.998),
-                                        'eps':            1.0e-9
-                                        },
-                # 'lr_schedule':          {'lr_scheduler':   'ReduceLROnPlateau',
-                #                         'factor':         0.1,
-                #                         'patience':       15,
-                #                         'cooldown':       1,
-                #                         'min_lr':         5e-4,
-                #                         'verbose':        True
-                #                         },
-                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',
-                                        'max_lr':          args.max_lr,
-                                        'min_lr':          args.min_lr,
-                                        'frac_up':         0.035 if not args.dev else 0.5,
-                                        'frac_down':       1-0.035 if not args.dev else 0.5,
-                                        'schedule':        'inverse',
-                                        },
-                'lr_finder':            {'start_lr':       args.start_lr,
-                                        'end_lr':          args.end_lr,
-                                        'n_epochs':        args.lr_finder_epochs
+                'optimizer':           optimizer,
+                'lr_schedule':         lr_schedule,
+                'lr_finder':           {'start_lr':       args.start_lr,
+                                        'end_lr':         args.end_lr,
+                                        'n_epochs':       args.lr_finder_epochs
                                         }
                                         
                  }
