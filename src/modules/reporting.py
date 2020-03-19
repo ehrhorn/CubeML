@@ -860,15 +860,21 @@ class Performance:
                 _ = make_plot(d_energy, h_figure=h_fig, axes_index=0)
             
             plt.close('all')
-            # * Load img with PIL - this format can be logged. Remmeber to close it again
+
             if self.wandb_ID is not None:
+                # * Load img with PIL - this format can be logged. Remmeber to close it again
                 im = PIL.Image.open(img_address)
                 wandb.log({pred_key+'_performance': wandb.Image(im, caption=pred_key+'_performance')}, commit=False)
                 im.close()
                 
                 # * Log the data for nice plotting on W&B
-                for num1, num2 in zip(getattr(self, pred_key+'_sigma'), self.bin_centers):
-                    wandb.log({pred_key+'_sigma': num1, pred_key+'_bincenter2': num2})
+                if pred_key not in self._conf_interval_keys:
+                    
+                    for num1, num2 in zip(getattr(self, pred_key+'_sigma'), self.bin_centers):
+                        wandb.log({pred_key+'_sigma': num1, pred_key+'_bincenter2': num2})
+                else:
+                    for num1, num2 in zip(getattr(self, pred_key+'_68th'), self.bin_centers):
+                        wandb.log({pred_key+'_68th': num1, pred_key+'_bincenter2': num2})
                 
                 # * Save the performance class-instance for easy transfers between local and cloud
                 wandb.save(perf_savepath)
@@ -885,8 +891,14 @@ class Performance:
             if self.wandb_ID is not None:
                 
                 # * Log the data for nice plotting on W&B
-                for num1, num2 in zip(getattr(self, 'dom_'+pred_key+'_sigma'), self.dom_bin_centers):
-                    wandb.log({'dom_'+pred_key+'_sigma': num1, pred_key+'dom_bincenter': num2})
+                if pred_key not in self._conf_interval_keys:
+
+                    for num1, num2 in zip(getattr(self, 'dom_'+pred_key+'_sigma'), self.dom_bin_centers):
+                        wandb.log({'dom_'+pred_key+'_sigma': num1, pred_key+'dom_bincenter': num2})
+                else:
+
+                    for num1, num2 in zip(getattr(self, 'dom_'+pred_key+'_68th'), self.dom_bin_centers):
+                        wandb.log({'dom_'+pred_key+'_68th': num1, pred_key+'dom_bincenter': num2})
 
 class FeaturePermutationImportance:
     

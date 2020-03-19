@@ -922,7 +922,9 @@ def transform_events(
     ):
     """Transforms events.
 
-    For each ID, the data induced by feature_dicts is calculated and/or transformed and placed in a a dictionary under event ID --> transformed. Furthermore, meta-information and masks are saved aswell.
+    For each ID, the data induced by feature_dicts is calculated and/or 
+    transformed and placed in a a dictionary under event ID --> transformed. 
+    Furthermore, meta-information and masks are saved aswell.
     
     Parameters
     ----------
@@ -1615,7 +1617,9 @@ if __name__ == '__main__':
         if args.dev:
             break
     print(time.time()-start)
-    # * Finally, do some black magic that makes sqlite fast... Ask Mads Ehrhorn
+
+    # * Finally, do some black magic that makes sqlite fast.
+    # * It causes the load time to run in O(log(N))
     with sqlite3.connect(path_new_db) as db:
         cursor = db.cursor()
         cursor.execute('''CREATE INDEX sequential_idx ON sequential(event_id)''')
