@@ -199,33 +199,30 @@ class Performance:
         return corrs
 
     def _calculate_onenum_performance(self, data_dict):
-        # TODO: Make up some better onenum-performance measure. 
-        # TODO: Maybe composition (geomean) of 68 % confidence bound on angle error, 
-        # TODO: 68 % vertex error, average width of log_frac_E and average width of t.
-        if (self.meta_pars['group'] == 'vertex_reg' 
-        or self.meta_pars['group'] == 'vertex_reg_no_time'):
-            len_error = self._get_len_error(data_dict)
-            one_num = np.nanpercentile(len_error, 68.2)
+        # * Performance for each variable in names is calculated as the 
+        # * geometric mean of the bin-values. Finally, they are combined as
+        # * a geometric mean of all the geometric means. This has the
+        # * advantage that a fractional decrease of x percent in any of 
+        # * them contributes equally to the final performance
         
+        if self.meta_pars['group'] == 'vertex_reg':
+            names = ['len_error_68th', 'vertex_t_error_sigma']
+        if self.meta_pars['group'] == 'vertex_reg_no_time':
+            names = ['len_error_68th']
         elif self.meta_pars['group'] == 'direction_reg':
-            one_num = np.nanpercentile(data_dict['directional_error'], 50)
-
+            names = ['directional_error_68th']
         elif self.meta_pars['group'] == 'energy_reg':
-            # * Report the average sigma.
-            key = self._performance_keys[0]
-            one_num = np.nansum(self.counts*getattr(self, key+'_sigma'))/np.nansum(self.counts)
-        
+            names = ['log_frac_E_error_sigma']
         elif self.meta_pars['group'] == 'full_reg':
-            errors = []
-            # * x, y, z vertex.
-            len_error = self._get_len_error(data_dict)
-            errors.append(np.nanpercentile(len_error, 68.2))
-
-            errors.append(np.nanpercentile(data_dict['relative_E_error'], 50))
-            errors.append(np.nanpercentile(data_dict['vertex_t_error'], 50))
-            errors.append(np.nanpercentile(data_dict['azi_error'], 50))
-            errors.append(np.nanpercentile(data_dict['polar_error'], 50))
-            one_num = calc_geometric_mean(errors)
+            names = ['len_error_68th', 'directional_error_68th',
+                    'vertex_t_error_sigma', 'log_frac_E_error_sigma']
+        
+        errors = []
+        for name in names:
+            data = getattr(self, name)
+            errors.append(calc_geometric_mean(data))
+        
+        one_num = calc_geometric_mean(errors)
 
         return one_num
 
