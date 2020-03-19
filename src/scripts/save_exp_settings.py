@@ -122,7 +122,7 @@ if __name__ == '__main__':
                 #                         'min_lr':         5e-4,
                 #                         'verbose':        True
                 #                         },
-                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',# if not args.dev else None,
+                'lr_schedule':          {'lr_scheduler':   'CustomOneCycleLR',
                                         'max_lr':          args.max_lr,
                                         'min_lr':          args.min_lr,
                                         'frac_up':         0.035 if not args.dev else 0.5,
@@ -174,7 +174,7 @@ if __name__ == '__main__':
                 'scalar_feat': ['dom_timelength_fwhm'],
                                 # 'tot_charge'],
                                 
-                'n_val_events_wanted':   100000 if not args.dev else 100,# np.inf,
+                'n_val_events_wanted':   100000 if not args.dev else 100,
                 'n_train_events_wanted': np.inf if not args.dev else 100,
                 'n_predictions_wanted': np.inf if not args.dev else 100,
                 'train_frac':  0.80,# if not args.dev else 0.1,
@@ -233,10 +233,10 @@ if __name__ == '__main__':
         #                    'bidirectional':       False}},
         # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
         # {'AveragePool': []},
-        {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2, n1, n1],
+        {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
                              'norm':               'BatchNorm1D',
                              'type':               'x'}},
-        {'Linear':          {'input_sizes':        [n1, n_target],
+        {'Linear':          {'input_sizes':        [n2, n_target],
                             'norm_before_nonlin':  True}}]
 
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},

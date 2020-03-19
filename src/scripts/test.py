@@ -21,13 +21,7 @@ import shelve
 import sys
 from time import sleep
 
-n = 1000
-percentile = 68
-sigma = np.sqrt((percentile/100)*n*(1-(percentile/100)))
-mean = n*percentile/100
-mean = int(mean)
-upper = int(mean+sigma+1)
-lower = int(mean-sigma)
-x = np.random.uniform(low=0.0, high=1.0, size=n)
-sorted(x)
-print(np.nanpercentile(x, 68.2), sorted(x)[mean], sorted(x)[upper], sorted(x)[lower])
+d1 = {'a': 1, 'b': 2}
+d2 = {'b': 20, 'c': 30}
+d1.update(d2)
+print(d1)
