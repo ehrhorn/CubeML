@@ -106,18 +106,19 @@ if __name__ == '__main__':
 
     if args.optimizer == 'Adam':
 
-        optimizer = {'lr_scheduler':   'CustomOneCycleLR',
+        optimizer = {'optimizer':      'Adam',
+                        'lr':             1e-5,
+                        'betas':          (0.9, 0.998),
+                        'eps':            1.0e-9
+                        }
+        lr_schedule = {'lr_scheduler':   'CustomOneCycleLR',
                      'max_lr':          args.max_lr,
                      'min_lr':          args.min_lr,
                      'frac_up':         0.035 if not args.dev else 0.5,
                      'frac_down':       1-0.035 if not args.dev else 0.5,
                      'schedule':        'inverse',
                      }
-        lr_schedule = {'optimizer':      'Adam',
-                        'lr':             1e-5,
-                        'betas':          (0.9, 0.998),
-                        'eps':            1.0e-9
-                        }
+
     elif args.optimizer == 'SGD':
 
         optimizer = {'optimizer':      'SGD',
@@ -148,10 +149,10 @@ if __name__ == '__main__':
                                         
                  }
     
-    optimizer = hyper_pars['optimizer']['optimizer']
+#     optimizer = hyper_pars['optimizer']['optimizer']
     meta_pars = {'tags':                [regression_type, dataset, error_func, 
                                         particle, *mask_names, args.weights, 
-                                        args.dom_mask, *args.tags, optimizer],
+                                        args.dom_mask, *args.tags, args.optimizer],
                 'group':                regression_type,
                 'project':              project,
                 'objective':            objective,
