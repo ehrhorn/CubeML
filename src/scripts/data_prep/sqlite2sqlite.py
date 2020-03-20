@@ -802,7 +802,7 @@ def get_n_nearest_data_multiprocess(pack):
                 # * -12.000 is chosen such that DOMs which did not light up gets a unique time (only times >-10k are in dataset)
                 else:
                     q = 0.0
-                    t = -12000
+                    t = 4000
                 
                 # * Get x, y, z-values aswell from the geometry dictionary
                 x = geom_dict[dom_id]['coordinates'][0]
@@ -1164,8 +1164,9 @@ class SqlFetcher:
             # * order the data from fetched_scalar
             from_, to_ = all_from[i_event], all_to[i_event]
             for i_name, name in enumerate(names_sequential):
-                if name == 'event':
-                    name = 'event_id'
+                # ! We change the row name! So we don't overwrite
+                if name == 'event_no':
+                    name = 'event'
                 data = [
                     entry[i_name] for entry in fetched_sequential[from_:to_]
                 ]
@@ -1177,11 +1178,6 @@ class SqlFetcher:
             
             # * And finally the meta-stuff
             for i_name, name in enumerate(names_meta):
-                # ! We change some names, since they are in sequential aswell
-                if name == 'SRTInIcePulses':
-                    name = 'SRTInIcePulses_len'
-                if name == 'SplitInIcePulses':
-                    name = 'SplitInIcePulses_len'
                 data_dict[e_id][name] = fetched_meta[i_event][i_name]
             
         return data_dict
@@ -1218,7 +1214,7 @@ class SqlFetcher:
             
         return data_dict
 
-    def fetch(self, events, feature_dicts={}, mask=['SplitInIcePulses']):
+    def fetch(self, events, feature_dicts={}, mask=['split_in_ice_pulses_event_length']):
         
         # * Connect to DB and set cursor
         with sqlite3.connect(self._path) as db:
@@ -1253,17 +1249,16 @@ class SqlFetcher:
             scalar_names = list(set(scalar_feats) & set(scalar_names_in_db))
             
             # * Write query for sequential table and fetch all matching rows
-            query = 'SELECT {features} FROM sequential WHERE event '\
+            query = 'SELECT {features} FROM sequential WHERE event_no '\
             'IN ({events})'.format(
                   features=', '.join(seq_names+self._needed_seq_feats),
                   events=', '.join(['?'] * len(events))
             )
-
             cursor.execute(query, events)
             fetched_sequential = cursor.fetchall()
             
             # * Write query for scalar table and fetch all matching rows
-            query = 'SELECT {features} FROM scalar WHERE event '\
+            query = 'SELECT {features} FROM scalar WHERE event_no '\
             'IN ({events})'.format(
                   features=', '.join(scalar_names+self._needed_scalar_feats),
                   events=', '.join(['?'] * len(events))
@@ -1273,7 +1268,7 @@ class SqlFetcher:
             fetched_scalar = cursor.fetchall()
 
             # * Write query for meta table and fetch all matching rows
-            query = 'SELECT {features} FROM meta WHERE event IN ({events})'.format(
+            query = 'SELECT {features} FROM meta WHERE event_no IN ({events})'.format(
                   features=', '.join(self._mask),
                   events=', '.join(['?'] * len(events))
             )
@@ -1286,7 +1281,7 @@ class SqlFetcher:
             
             return dicted_data
 
-    def fetch_all(self, events, mask=['SplitInIcePulses']):
+    def fetch_all(self, events, mask=['split_in_ice_pulses_event_length']):
        
         with sqlite3.connect(self._path) as db:
             cursor = db.cursor()
@@ -1314,7 +1309,7 @@ class SqlFetcher:
             )
             
             # * Write query for sequential table and fetch all matching rows
-            query = 'SELECT {features} FROM sequential WHERE event '\
+            query = 'SELECT {features} FROM sequential WHERE event_no '\
             'IN ({events})'.format(
                   features=', '.join(seq_names),
                   events=', '.join(['?'] * len(events))
@@ -1324,7 +1319,7 @@ class SqlFetcher:
             fetched_sequential = cursor.fetchall()
             
             # * Write query for scalar table and fetch all matching rows
-            query = 'SELECT {features} FROM scalar WHERE event '\
+            query = 'SELECT {features} FROM scalar WHERE event_no '\
             'IN ({events})'.format(
                   features=', '.join(scalar_names),
                   events=', '.join(['?'] * len(events))
@@ -1334,7 +1329,7 @@ class SqlFetcher:
             fetched_scalar = cursor.fetchall()
 
             # * Write query for meta table and fetch all matching rows
-            query = 'SELECT {features} FROM meta WHERE event IN ({events})'.format(
+            query = 'SELECT {features} FROM meta WHERE event_no IN ({events})'.format(
                   features=', '.join(meta_names),
                   events=', '.join(['?'] * len(events))
             )
@@ -1348,7 +1343,7 @@ class SqlFetcher:
             
             return dicted_data
 
-    def fetch_features(self, events, features=[], mask=['SplitInIcePulses']):
+    def fetch_features(self, events, features=[], mask=['split_in_ice_pulses_event_length']):
         
         # * Connect to DB and set cursor
         with sqlite3.connect(self._path) as db:
@@ -1362,7 +1357,7 @@ class SqlFetcher:
             scalar_names = list(set(features) & set(self._scalar_feats))
             
             # * Write query for sequential table and fetch all matching rows
-            query = 'SELECT {features} FROM sequential WHERE event '\
+            query = 'SELECT {features} FROM sequential WHERE event_no '\
             'IN ({events})'.format(
                   features=', '.join(seq_names),
                   events=', '.join(['?'] * len(events))
@@ -1373,7 +1368,7 @@ class SqlFetcher:
             
             if len(scalar_names) > 0:
                 # * Write query for scalar table and fetch all matching rows
-                query = 'SELECT {features} FROM scalar WHERE event '\
+                query = 'SELECT {features} FROM scalar WHERE event_no '\
                 'IN ({events})'.format(
                     features=', '.join(scalar_names+self._needed_scalar_feats),
                     events=', '.join(['?'] * len(events))
@@ -1385,7 +1380,7 @@ class SqlFetcher:
                 fetched_scalar = []
 
             # * Write query for meta table and fetch all matching rows
-            query = 'SELECT {features} FROM meta WHERE event IN ({events})'.format(
+            query = 'SELECT {features} FROM meta WHERE event_no IN ({events})'.format(
                   features=', '.join(self._mask),
                   events=', '.join(['?'] * len(events))
             )
@@ -1429,7 +1424,7 @@ class SqlFetcher:
     def get_id_bounds(self):
         with sqlite3.connect(self._path) as db:
             cursor = db.cursor()
-            cursor.execute('SELECT min(event), max(event) FROM meta')
+            cursor.execute('SELECT min(event_no), max(event_no) FROM meta')
             ids = cursor.fetchall()
         
         bounds = [ids[0][0], ids[0][1]]
@@ -1542,12 +1537,12 @@ if __name__ == '__main__':
     path_new_db = str(path_db.parent)+'/'+args.new_name
 
     # * pass to old script
-    use_n_data_transform = args.n_transform if not args.dev else 50000
-    chunksize = args.chunksize if not args.dev else 20000
-    n_cpus = args.n_cpus if not args.dev else 2
+    use_n_data_transform = args.n_transform if not args.dev else 100
+    chunksize = args.chunksize if not args.dev else 100
+    n_cpus = args.n_cpus# if not args.dev else 2
     feature_dicts = get_feature_dicts()
     geom_features = get_geom_features()
-    mask = ['SplitInIcePulses']
+    mask = ['split_in_ice_pulses_event_length']
     BATCH_SIZE = args.bs if not args.dev else 100
     db = SqlFetcher(path_db, feature_dicts, mask=mask)
     
@@ -1569,11 +1564,11 @@ if __name__ == '__main__':
     except FileNotFoundError:
         pass
     # ! Rename stuff since they are ambiguous
-    old = ['SRTInIcePulses', 'SplitInIcePulses']
-    new = ['SRTInIcePulses_len', 'SplitInIcePulses_len']
-    tables_data['meta'] = convert_keys(tables_data['meta'], old, new)
+    # old = ['SRTInIcePulses', 'SplitInIcePulses']
+    # new = ['SRTInIcePulses_len', 'SplitInIcePulses_len']
+    # tables_data['meta'] = convert_keys(tables_data['meta'], old, new)
     tables_data['sequential'] = convert_keys(
-        tables_data['sequential'], ['event'], ['event_id']
+        tables_data['sequential'], ['event_no'], ['event']
     )
     # for table, cols in tables_data.items():
     #     print(table)
@@ -1593,13 +1588,7 @@ if __name__ == '__main__':
 
     # * Extract the tables and its columns
     tables = new_db.tables()
-    # for table, cols in tables.items():
-    #     print(table)
-    #     for col in cols:
-    #         print(col)
-    #     print('')
-    import time
-    start = time.time()
+    
     for i_chunk, id_chunk in enumerate(chunks):
         print('')
         print(get_time(), 'Processing chunk %d of %d'%(i_chunk+1, n_chunks))
@@ -1616,12 +1605,11 @@ if __name__ == '__main__':
         
         if args.dev:
             break
-    print(time.time()-start)
 
     # * Finally, do some black magic that makes sqlite fast.
     # * It causes the load time to run in O(log(N))
     with sqlite3.connect(path_new_db) as db:
         cursor = db.cursor()
-        cursor.execute('''CREATE INDEX sequential_idx ON sequential(event_id)''')
-        cursor.execute('''CREATE UNIQUE INDEX scalar_idx ON scalar(event)''')
-        cursor.execute('''CREATE UNIQUE INDEX meta_idx ON meta(event)''')
+        cursor.execute('''CREATE INDEX sequential_idx ON sequential(event)''')
+        cursor.execute('''CREATE UNIQUE INDEX scalar_idx ON scalar(event_no)''')
+        cursor.execute('''CREATE UNIQUE INDEX meta_idx ON meta(event_no)''')
