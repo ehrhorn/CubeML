@@ -181,7 +181,10 @@ def calc_geometric_mean(data):
         float -- The geometric mean
     """    
     array = np.array(data)
-    return array.prod()**(1.0/array.shape[0])
+    ln = np.log(array)
+    sumln = np.sum(ln)
+    geomean = np.exp(sumln/array.shape[0])
+    return geomean
 
 def calc_l2_dist(a1, a2):
     """Calculates the Euclidian distance between two points.
@@ -2089,6 +2092,34 @@ def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1
                 test_files.append(relative_file_path)
     
     return train_files, val_files, test_files
+
+def strip_nans(*data):
+    """Strips NaNs from given datasets in all positions, where a NaN is found
+    in any one of the datasets.
+    
+    Returns
+    -------
+    Tuple
+        Number of NaNs found and datasets in a tuple
+    """    
+
+    # * Strip potential NaNs: subtract arrays --> find indices, 
+    # * since a number - nan is also nan.
+    for i_dataset, dataset in enumerate(data):
+        if i_dataset == 0:
+            checker = dataset.copy()
+        else:
+            checker = checker - dataset
+
+    bad_indices = np.isnan(checker)
+    good_indices = ~bad_indices
+    n_nans = np.sum(bad_indices)
+
+    good_data = (n_nans,)
+    for dataset in data:
+        good_data = good_data + (dataset[good_indices],)
+    
+    return good_data
 
 def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
     '''Updates parameterdictionaries used for continuing training of a pretrained mode. Only certain keys can be updated (for instance, not model architecture.)

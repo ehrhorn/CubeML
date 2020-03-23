@@ -1512,7 +1512,7 @@ if __name__ == '__main__':
     description = 'Converts raw data in a shelve-database to transformed data in a new shelve-database'
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--dev', action='store_true', help='Initiates developermode')
-    parser.add_argument('--chunksize', default=10000, type=int, help='Sets the amount of events to process and save at a time. Splits the entire data into chunks of this size.')
+    parser.add_argument('--chunksize', default=20000, type=int, help='Sets the amount of events to process and save at a time. Splits the entire data into chunks of this size.')
     parser.add_argument('--n_transform', default=500000, type=int, help='Sets the amount of datapoints to use in approximating their distribution during fitting of transformer')
     parser.add_argument('--bs', default=1000, type=int, 
     help='Sets the amount of events to load at a time during fitting of transformers.'
@@ -1559,22 +1559,11 @@ if __name__ == '__main__':
     
     # * Make database - first fetch info from raw_db
     tables_data = db.tables()
-    try:
-        Path(path_new_db).unlink()
-    except FileNotFoundError:
-        pass
+
     # ! Rename stuff since they are ambiguous
-    # old = ['SRTInIcePulses', 'SplitInIcePulses']
-    # new = ['SRTInIcePulses_len', 'SplitInIcePulses_len']
-    # tables_data['meta'] = convert_keys(tables_data['meta'], old, new)
     tables_data['sequential'] = convert_keys(
         tables_data['sequential'], ['event_no'], ['event']
     )
-    # for table, cols in tables_data.items():
-    #     print(table)
-    #     for col in cols:
-    #         print(col)
-    #     print('')
 
     feature_dicts_all = feature_dicts.copy()
     make_new_sql(path_new_db, tables_data, feature_dicts_all, geom_features)
@@ -1613,3 +1602,5 @@ if __name__ == '__main__':
         cursor.execute('''CREATE INDEX sequential_idx ON sequential(event)''')
         cursor.execute('''CREATE UNIQUE INDEX scalar_idx ON scalar(event_no)''')
         cursor.execute('''CREATE UNIQUE INDEX meta_idx ON meta(event_no)''')
+    print('')
+    print(get_time(), 'Database creation finished!')

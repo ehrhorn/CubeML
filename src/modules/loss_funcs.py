@@ -143,6 +143,42 @@ class logcosh(torch.nn.Module):
             loss = loss_weighted
 
         return loss
+['true_primary_energy', 'true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z', 'true_primary_time', 'true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
+class logcosh_full_weighted(torch.nn.Module):
+    def __init__(self, weights=[]):
+        super(logcosh_full_weighted, self).__init__()
+        weights_normed = np.array(weights)/np.sum(weights)
+        self._weights = torch.tensor(weights_normed)
+    
+    def forward(self, x, y, predict=False):
+        """Computes logcosh-loss with weights
+        
+        Arguments:
+            x {torch.Tensor} -- Predictions of shape (B, F), where F is number of targets
+            y {tuple} -- (targets, weights), where targets is of shape (B, F) and weights of shape (F)
+        
+        Returns:
+            [torch.Tensor] -- Averaged, weighted loss over batch.
+        """      
+          
+        # * Unpack into targets and weights
+        targets, weights = y
+
+        # * Calculate actual loss
+        logcosh = torch.log(torch.cosh(x-targets))
+
+        # * weight to control contributions
+
+        # * Now weigh it
+        loss_weighted = torch.sum(self._weights*logcosh, dim=-1)
+        
+        # * Mean over the batch
+        if not predict:
+            loss = torch.mean(loss_weighted)
+        else:
+            loss = loss_weighted
+
+        return loss
 
 def get_loss_func(name):
     if name == 'L1': 

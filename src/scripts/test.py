@@ -21,7 +21,10 @@ import shelve
 import sys
 from time import sleep
 
-d1 = {'a': 1, 'b': 2}
-d2 = {'b': 20, 'c': 30}
-d1.update(d2)
-print(d1)
+data1 = np.array([0, 1, 2])
+data2 = np.array([np.nan, 3, 3])
+n_nans, data1, data2 = hf.strip_nans(data1, data2)
+print(n_nans)
+print(data1)
+print(data2)
+# print('WARNING: %d NAN(S) FOUND IN I3 PERFORMANCE PLOT!'%(n_nans)) if n_nans>0 else None

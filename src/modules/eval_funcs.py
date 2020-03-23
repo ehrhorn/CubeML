@@ -561,6 +561,7 @@ def retro_z_error(pred, truth, reporting=False):
         z_truth = np.array(z_truth)
 
     diff = z_pred - z_truth
+    
     return diff
 
 def retro_len_error(pred, truth, reporting=False):
@@ -580,6 +581,7 @@ def retro_len_error(pred, truth, reporting=False):
     direrr = torch.sqrt(sqr(xerr)+sqr(yerr)+sqr(zerr))
 
     return direrr
+
 
 def retro_directional_error(pred, truth, units='degrees', reporting=False):
 

@@ -7,11 +7,9 @@ from matplotlib.ticker import MultipleLocator
 from time import localtime, strftime
 
 from torch.utils import data
-
-# from src.modules.helper_functions import *
-# from src.modules.eval_funcs import *
-# from src.modules.constants import *
-from src.modules.main_funcs import * 
+from scipy.stats import wilcoxon
+from src.modules.main_funcs import *
+from src.modules.helper_functions import strip_nans
 
 #* ======================================================================== 
 #* PERFORMANCE CLASSES
@@ -160,17 +158,22 @@ class Performance:
         for key, data in pred_d.items():
             # * Clip values, since it's concentrated at a certain range.
             _, clip_vals = self._get_I3_2D_clip_and_d(key)
+            
+            # * Strip NaNs
+            n_nans, data, loss_stripped = strip_nans(data, loss)
 
             # * corrcoef returns correlation matrix - we are only interested 
             # * in one of the numbers
             abs_data = np.abs(np.clip(data, clip_vals[0], clip_vals[1]))
-            corrs[key] = np.corrcoef(abs_data, loss)[1, 0]
+            
+            print('WARNING: %d NAN(S) FOUND IN LOSS-ERROR CORRELATIONS!'%(n_nans)) if n_nans>0 else None
+            corrs[key] = np.corrcoef(abs_data, loss_stripped)[1, 0]
 
             # * Make 2d-scatterplot or HEATMAP! like i3-performance
             d = {}
             title = r'%s - loss correlation'%(key)
             savepath = get_project_root()+self.model_dir+'/figures/'+key+'_LossCorr.png'
-            d['hist2d'] = [loss_clipped, abs_data]
+            d['hist2d'] = [loss_stripped, abs_data]
             d['xlabel'] = 'Loss value'
             d['ylabel'] = 'Abs(%s)'%(key)
             d['savefig'] = savepath
@@ -198,7 +201,7 @@ class Performance:
 
         return corrs
 
-    def _calculate_onenum_performance(self, data_dict):
+    def _calculate_onenum_performance(self, data_dict=None):
         # * Performance for each variable in names is calculated as the 
         # * geometric mean of the bin-values. Finally, they are combined as
         # * a geometric mean of all the geometric means. This has the
@@ -221,7 +224,6 @@ class Performance:
         for name in names:
             data = getattr(self, name)
             errors.append(calc_geometric_mean(data))
-        
         one_num = calc_geometric_mean(errors)
 
         return one_num
@@ -245,7 +247,7 @@ class Performance:
         self.dom_bin_centers = calc_bin_centers(self.dom_bin_edges)
         
         # * Calculate how well Icecube does.
-        for name, func in zip(self._icecube_perf_keys, self._get_error_funcs()):
+        for name, func, model_key in zip(self._icecube_perf_keys, self._get_error_funcs(), self._performance_keys):
             
             # * We calculate 2 different forms of performance measures: One
             # * kind as the width of the distribution (for unbounded
@@ -255,7 +257,16 @@ class Performance:
 
             # * Performance as a function of energy
             error = func(crs_dict, true_transformed, reporting=True)
+            print(name, model_key)
 
+            # # * Make Wilcoxon signed-rank test
+            # print('')
+            # print(get_time(), 'Making Wilcoxon signed-rank test')
+            # print(type(error), type(pred_dict[model_key]))
+            # diff = np.array(error)-pred_dict[model_key]
+            # test_statistic, p_val = wilcoxon(diff)
+            # print(p_val) 
+            # print('')
             if name not in self._conf_interval_keys:
                 
                 sigma, sigmaerr, median, upper_perc, lower_perc =\
@@ -508,6 +519,8 @@ class Performance:
         elif key == 'log_frac_E_error':
             clip_vals = [-1.0, 1.0]
             d2['ylabel'] = r'$\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$'
+            # d2['ylabel'] = r'$\text{Width}\left( \log_{10} E_{pred} - \log_{10} E_{true} \right)$'
+
             d2['title'] = 'Model Energy reco. results'
 
         elif key == 'vertex_x_error':
@@ -659,7 +672,7 @@ class Performance:
             title = 'Model azimuthal angle reco. performance'
         
         elif key == 'log_frac_E_error':
-            title = 'Model energy reco. performance'
+            title = 'Model energy reco. width'
         
         elif key == 'len_error':
             title = 'Model distance to vertex 68th percentile'
@@ -787,15 +800,16 @@ class Performance:
         
         d2, clip_vals = self._get_I3_2D_clip_and_d(key)
 
-        # * Strip potential NaNs: subtract arrays --> find indices, since a number - nan is also nan.
-        # * Notify if NaNs are found.
-        bad_indices = np.isnan(energy-data)
-        good_indices = ~bad_indices
-        n_nans = np.sum(bad_indices)
+        # # * Strip potential NaNs: subtract arrays --> find indices, since a number - nan is also nan.
+        # # * Notify if NaNs are found.
+        # bad_indices = np.isnan(energy-data)
+        # good_indices = ~bad_indices
+        # n_nans = np.sum(bad_indices)
+        n_nans, energy, data = strip_nans(energy, data)
         print('WARNING: %d NAN(S) FOUND IN I3 PERFORMANCE PLOT!'%(n_nans)) if n_nans>0 else None
         
-        energy = energy[good_indices]
-        data = data[good_indices]
+        # energy = energy[good_indices]
+        # data = data[good_indices]
         d2['hist2d'] = [energy, np.clip(data, clip_vals[0], clip_vals[1])]
         d2['zorder'] = 0
         d2['xlabel'] = r'log(E) [E/GeV]' 
@@ -833,6 +847,11 @@ class Performance:
             im = PIL.Image.open(img_address)
             wandb.log({key+'_2Dperformance': wandb.Image(im, caption=key+'_2Dperformance')}, commit=False)
             im.close()
+
+    def update_onenumber_performance(self):
+        energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss = self._get_data_dicts()
+
+        self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
 
     def save(self):
         
