@@ -891,7 +891,7 @@ def train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_trai
 
     # * The script expects a H5-file with a structure as shown at https://github.com/ehrhorn/CubeML
     data_dir = data_pars['data_dir'] # * WHere to load data from
-    file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
+    file_keys = data_pars.get('file_keys', None) # * which cleaning lvl and transform should be applied?
     group = meta_pars['group'] # * under which dir to save?
     project = meta_pars['project']
     particle = data_pars.get('particle', 'any')

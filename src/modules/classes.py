@@ -3,6 +3,7 @@ from torch.utils import data
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as unpack
 from math import sqrt
+import sqlite3
 # from pynvml.smi import nvidia_smi
 
 from src.modules.helper_functions import *
@@ -79,6 +80,194 @@ class PadSequence:
             scalars[:, index] = torch.tensor(np.random.choice(scalars[:, index].numpy(), batch_size))
 
         return seqs, scalars
+
+class SqliteFetcher:
+
+    def __init__(self, db_path):
+
+        self._path = str(db_path)
+        self._tables = None
+        self._len = None
+        self._event_lengths_key = 'split_in_ice_pulses_event_length' 
+
+    def __len__(self):
+        return self._len
+    
+    @property
+    def ids(self):
+        
+        with sqlite3.connect(self._path) as db:
+            cursor = db.cursor()
+            query = 'SELECT event_no FROM meta'
+            cursor.execute(query)
+
+            event_ids = [e[0] for e in cursor.fetchall()]
+
+        return event_ids
+
+    @property
+    def length(self):
+        
+        if not self._len:
+        
+            with sqlite3.connect(self._path) as db:
+                cursor = db.cursor()
+                query = 'SELECT event_no FROM meta'
+                cursor.execute(query)
+
+                event_nums = [e[0] for e in cursor.fetchall()]
+            self._len = len(event_nums)
+        
+        return self._len
+    
+    @property
+    def tables(self):
+
+        if not self._tables:
+
+            with sqlite3.connect(self._path) as db:
+                cursor = db.cursor()
+
+                # * Get table-names
+                query = 'SELECT name FROM sqlite_master WHERE type = "table"'
+                cursor.execute(query)
+                tables_data = {entry[0]: {} for entry in cursor.fetchall()}
+
+                # * Loop over all columns and fetch their info
+                for name in tables_data:
+                    query = 'PRAGMA TABLE_INFO({tablename})'.format(
+                        tablename=name
+                    ) 
+
+                    cursor.execute(query)
+                    col_data = cursor.fetchall()
+                    
+                    tables_data[name] = {e[1]: {
+                        'type': e[2], 
+                        'index': e[0],
+                        }
+                    for e in col_data
+                    }
+            
+            self._tables = tables_data
+        
+        return self._tables
+    
+    def _make_dict(
+        self, 
+        events, 
+        names_scalar, 
+        fetched_scalar,
+        names_sequential, 
+        fetched_sequential,
+        names_meta, 
+        fetched_meta,
+        event_lengths
+        ):
+
+        # * get the from- and to-indices of each event.
+        cumsum = np.append([0], np.cumsum([entry[0] for entry in event_lengths]))
+        all_from = cumsum[:-1]
+        all_to = cumsum[1:]
+
+        # * Create dictionary. First level is event
+        data_dict = {}
+        for i_event, event in enumerate(events):
+            
+            # * Second level is data
+            data_dict[event] = {}
+
+            # * order the data from fetched_scalar
+            from_, to_ = all_from[i_event], all_to[i_event]
+            for i_name, name in enumerate(names_sequential):
+                data = [
+                    entry[i_name] for entry in fetched_sequential[from_:to_]
+                ]
+                data_dict[event][name] = np.array(data)
+
+            # * Do the same for scalar data
+            for i_name, name in enumerate(names_scalar):
+                data_dict[event][name] = fetched_scalar[i_event][i_name]
+            
+            # * .. And finally meta
+            for i_name, name in enumerate(names_meta):
+                data_dict[event][name] = fetched_meta[i_event][i_name]
+            
+        return data_dict
+
+    def fetch_features(
+        self,
+        events=[],
+        scalar_features=[],
+        seq_features=[],
+        meta_features=[]
+        ):
+        
+        # * Connect to DB and set cursor
+        with sqlite3.connect(self._path) as db:
+            cursor = db.cursor()
+
+            # * Ensure some events are passed
+            if len(events) == 0:
+                raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
+
+            # * If events are not strings, convert them
+            if not isinstance(events[0], str):
+                events = [str(event) for event in events]
+            base_query = 'SELECT {features} FROM {table} WHERE event_no '\
+                'IN ({events})'
+            fetched_scalar, fetched_sequential, fetched_meta = [], [], []
+            
+            # * Write query for scalar table and fetch all matching rows
+            if len(scalar_features) > 0:
+                query = base_query.format(
+                    features=', '.join(scalar_features),
+                    table='scalar',
+                    events=', '.join(['?'] * len(events))
+                )
+
+                cursor.execute(query, events)
+                fetched_scalar = cursor.fetchall()
+
+            # * Write query for sequential table and fetch all matching rows
+            if len(seq_features)>0:
+                query = base_query.format(
+                    features=', '.join(seq_features),
+                    table='sequential',
+                    events=', '.join(['?'] * len(events))
+                )
+
+                cursor.execute(query, events)
+                fetched_sequential = cursor.fetchall()
+            
+            # * Write query for meta table and fetch all matching rows
+            if len(meta_features)>0:
+                query = base_query.format(
+                    features=', '.join(meta_features),
+                    table='meta',
+                    events=', '.join(['?'] * len(events))
+                )
+                cursor.execute(query, events)
+                fetched_meta = cursor.fetchall()
+
+            # * Finally, fetch event lengths as they are needed for making 
+            # * sequential dictionary
+            query = base_query.format(
+                features=self._event_lengths_key,
+                table='meta',
+                events=', '.join(['?'] * len(events))
+                )
+            cursor.execute(query, events)
+            event_lengths = cursor.fetchall()
+
+            # * Put in a dictionary
+            dicted_data = self._make_dict(
+                events, scalar_features, fetched_scalar, seq_features,
+                fetched_sequential, meta_features, fetched_meta, event_lengths
+            )
+            
+            return dicted_data
+
 
 class PickleLoader(data.Dataset):
     '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads and closes the file again upon every __getitem__.
@@ -212,6 +401,115 @@ class PickleLoader(data.Dataset):
     def shuffle_indices(self):
         random.shuffle(self.indices)
 
+class SqliteLoader(data.Dataset, SqliteFetcher):
+    '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads and closes the file again upon every __getitem__.
+
+    Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and an optional datapoints_wanted.
+    '''
+    def __init__(self, directory, seq_features, scalar_features, targets, 
+                masks=['all'], n_events_wanted=np.inf, weights='None', 
+                dom_mask='SplitInIcePulses', max_seq_len=np.inf):
+
+        self.directory = get_project_root() + directory
+
+        self.scalar_features = scalar_features
+        self.seq_features = seq_features
+        self.targets = targets
+
+        self.n_scalar_features = len(scalar_features)
+        self.n_seq_features = len(seq_features)
+        self.n_targets = len(targets)
+
+        self.masks = masks
+        self.n_events_wanted = n_events_wanted
+        self.max_seq_len = max_seq_len
+
+        # * 'SplitInIcePulses' corresponds to all DOMs
+        # * 'SRTInIcePulses' corresponds to Icecubes cleaned doms
+        self.dom_mask = dom_mask
+
+        self.weights = weights # * To be determined in get_meta_information
+        self.len = None # * To be determined in get_meta_information
+        self.indices = None # * To be determined in get_meta_information
+
+        self._get_meta_information()
+        
+    def __getitem__(self, index):
+        # * Find path
+        true_index = self.indices[index]
+        weight = self.weights[index]
+        filename = str(true_index) + '.pickle'
+        path = self.directory+'/pickles/'+str(true_index//self._n_events_per_dir)\
+            +'/'+str(true_index)+'.pickle'
+        
+        # * Load event
+        with open(path, 'rb') as f:
+            event = pickle.load(f)
+
+        # * Extract relevant data.
+        dom_indices = event['masks'][self.dom_mask]
+        actual_seq_len = event[self.prefix][self.seq_features[0]]\
+                        [dom_indices].shape[0]
+        seq_len = min(actual_seq_len, self.max_seq_len)
+        seq_array = np.empty((self.n_seq_features, seq_len))
+
+        # * If a maximum sequence length is given, we overwrite dom_indices with
+        # * randomly sampled indices from dom_indices without replacement until
+        # * we have enough.
+        if actual_seq_len > self.max_seq_len:
+            dom_indices = sorted(np.random.choice(dom_indices, 
+                                self.max_seq_len, replace=False))
+
+        # * Sequential data
+        for i, key in enumerate(self.seq_features):
+            try:        
+                seq_array[i, :] = event[self.prefix][key][dom_indices]
+            except KeyError:
+                seq_array[i, :] = event['raw'][key][dom_indices]
+
+        # * Scalar data
+        scalar_array = np.empty(self.n_scalar_features)    
+        for i, key in enumerate(self.scalar_features):
+            try:
+                scalar_array[i] = event[self.prefix][key]
+            except KeyError:
+                scalar_array[i] = event['raw'][key]
+
+        # * Targets
+        targets_array = np.empty(self.n_targets)    
+        for i, key in enumerate(self.targets):
+            try:
+                targets_array[i] = event[self.prefix][key]
+            except KeyError:
+                targets_array[i] = event['raw'][key]
+        
+        # * Tuple is now passed to collate_fn - handle training and predicting differently. We need the name of the event for prediction to log which belongs to which
+        if self.type == 'predict':
+            pack = (seq_array, scalar_array, targets_array, weight, self.type, true_index)
+        else:
+            pack = (seq_array, scalar_array, targets_array, weight, self.type)
+        
+        return pack
+
+    def __len__(self):
+        return self.len
+
+    def _get_meta_information(self):
+        '''Extracts filenames, calculates indices induced by train-, val.- and test_frac
+        '''
+        # * Get mask
+        mask_all = np.array(load_pickle_mask(self.directory, self.masks))
+        n_events = len(mask_all)
+        
+        # * Get weights
+        self.indices = mask_all[indices]
+        self.weights = load_pickle_weights(self.directory, self.weights)[self.indices]
+        self.len = min(self.n_events_wanted, len(self.indices))
+
+    
+    def shuffle_indices(self):
+        random.shuffle(self.indices)
+
 #* ======================================================================== 
 #* DATALOADER FUNCTIONS
 #* ========================================================================
@@ -223,10 +521,14 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     scalar_features = data_pars['scalar_feat'] # * feature names
     targets = get_target_keys(data_pars, meta_pars) # * target names
     particle_code = get_particle_code(data_pars['particle'])
-    train_frac = data_pars['train_frac'] # * how much data should be trained on?
-    val_frac = data_pars['val_frac'] # * how much data should be used for validation?
-    test_frac = data_pars['test_frac'] # * how much data should be used for training
-    file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
+    # * how much data should be trained on?
+    train_frac = data_pars.get('train_frac', None) 
+    # * how much data should be used for validation?
+    val_frac = data_pars.get('val_frac', None) 
+    # * how much data should be used for training
+    test_frac = data_pars.get('test_frac', None) 
+    # * which cleaning lvl and transform should be applied?
+    file_keys = data_pars.get('file_keys', None) 
     mask_names = data_pars['masks']
     weights = data_pars.get('weights', 'None')
     dom_mask = data_pars.get('dom_mask', 'SplitInIcePulses')
@@ -242,10 +544,10 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     elif keyword == 'predict':
         batch_size = data_pars['val_batch_size']
         n_events_wanted = data_pars.get('n_predictions_wanted', np.inf)
-    
-    prefix = 'transform'+str(file_keys['transform'])+'/'
-    if file_keys['transform'] == -1:
-        prefix = 'raw/'
+    if file_keys:
+        prefix = 'transform'+str(file_keys.get('transform', 'None'))+'/'
+        if file_keys['transform'] == -1:
+            prefix = 'raw/'
 
     if 'LstmLoader' == data_pars['dataloader']:
         dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
@@ -269,7 +571,11 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
                                 targets, keyword, train_frac, val_frac, 
                                 test_frac, prefix=prefix, n_events_wanted=n_events_wanted, 
                                 masks=mask_names, weights=weights,
-                                dom_mask=dom_mask, max_seq_len=max_seq_len)
+                                dom_mask=dom_mask, max_seq_len=max_seq_len
+        )
+    elif 'SqliteLoader' == data_pars['dataloader']:
+        dataloader = SqliteLoader(data_dir, seq_features, scalar_features, targets, masks=mask_names, n_events_wanted=n_events_wanted, weights=weights, dom_mask=dom_mask, max_seq_len=max_seq_len
+        )
     else:
         raise ValueError('Unknown data loader requested!')
     

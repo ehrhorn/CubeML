@@ -1,7 +1,0 @@
-md5: caefda9e9cd6166db005ca54aaa9c72f
-outs:
-- md5: 51ab2be377c59314554f5c58aaa7d9da.dir
-  path: MuonGun_Level2_139008
-  cache: true
-  metric: false
-  persist: false

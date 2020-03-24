@@ -189,12 +189,13 @@ if __name__ == '__main__':
                                 
                 'n_val_events_wanted':   100000 if not args.dev else 100,
                 'n_train_events_wanted': np.inf if not args.dev else 100,
-                'n_predictions_wanted': np.inf if not args.dev else 100,
-                'train_frac':  0.80,# if not args.dev else 0.1,
-                'val_frac':    0.10,# if not args.dev else 0.05,
-                'test_frac':   0.0,
-                'file_keys':             {'transform':   1},
-                'dataloader':  'PickleLoader',#'LstmLoader',#'LstmLoader',
+                'n_predictions_wanted':  np.inf if not args.dev else 100,
+                'dataset':               'oscnext',
+                # 'train_frac':  0.80,# if not args.dev else 0.1,
+                # 'val_frac':    0.10,# if not args.dev else 0.05,
+                # 'test_frac':   0.0,
+                # 'file_keys':             {'transform':   1},
+                'dataloader':  'SqliteLoader',#'LstmLoader',#'LstmLoader',
                 'collate_fn': 'PadSequence',
                 'val_batch_size':      256 if not args.dev else 21
                 }

@@ -21,10 +21,7 @@ import shelve
 import sys
 from time import sleep
 
-data1 = np.array([0, 1, 2])
-data2 = np.array([np.nan, 3, 3])
-n_nans, data1, data2 = hf.strip_nans(data1, data2)
-print(n_nans)
-print(data1)
-print(data2)
-# print('WARNING: %d NAN(S) FOUND IN I3 PERFORMANCE PLOT!'%(n_nans)) if n_nans>0 else None
+db = SqliteFetcher(PATH_VAL_DB)
+print(len(db))
+print(db.ids[:20])
+# print(p3, print(p2+p3))
