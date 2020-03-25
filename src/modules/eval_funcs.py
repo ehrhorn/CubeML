@@ -411,8 +411,8 @@ def retro_relE_error(retro_dict, true_dict, reporting=False):
     """Calculates the relative error (E_pred-E_true)/E_true in energy from Icecube's predictions.
     
     Arguments:
-        retro_dict {dict} -- Dictionary with key 'E' containing array of energy predictions
-        true_dict {dict} -- Dictionary with key 'logE' containing array of true log_10 E.
+        retro_dict {dict} -- Dictionary with key 'retro_crs_prefit_energy' containing array of energy predictions
+        true_dict {dict} -- Dictionary with key 'true_primary_energy' containing array of true log_10 E.
     
     Returns:
         array -- Relative energy error

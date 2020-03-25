@@ -368,46 +368,6 @@ def calc_percentiles_as_fn_of_data(energy, predictor_vals, bin_edges,
     
     return estimated_perc, perc_errs
 
-# def calc_perf_as_fn_of_n_doms(predictor_vals, dom_mask, bin_edges, multiprocess=False, bootstrap=False):
-#     """Calculates performance measured as width of error histograms as a function of energy using multiprocessing. Bootstrapping can be used to estimate width.
-    
-#     Arguments:
-#         energy {list} -- Energy of event
-#         predictor_vals {list} -- Prediction (typically some error measure)
-#         bin_edges {list} -- Edges of each energy bin.
-    
-#     Returns:
-#         lists -- estimated sigma, estimated error on sigma, estimated 84th percentile and estimated 16th percentile
-#     """  
-#     n_doms = get_n_doms(predictor_vals, dom_mask)
-#     energy_sorted, predictor_vals_sorted = sort_pairs(energy, predictor_vals)
-#     _, predictor_bins = bin_data(energy_sorted, predictor_vals_sorted, bin_edges)
-#     sigmas, e_sigmas, median, upper_perc, lower_perc = [], [], [], [], []
-    
-#     if multiprocess:
-#         # * Spread the job
-#         available_cores = cpu_count()
-#         bootstrap_list = [bootstrap]*len(predictor_bins)
-#         packed = [entry for entry in zip(predictor_bins, bootstrap_list)]
-#         with Pool(available_cores) as p:
-#             dicts = p.map(estimate_sigma_multiprocess, packed)
-        
-#     else:
-#         dicts = []
-#         for predictor_bin in predictor_bins:
-#             dicts.append(estimate_sigma_multiprocess((predictor_bin, bootstrap)))
-
-#     # * Unpack the result
-#     for d in dicts:
-#         sigmas.append(d['sigma'])
-#         e_sigmas.append(d['e_sigma'])
-#         median.append(d['50th'])
-#         upper_perc.append(d['84th'])
-#         lower_perc.append(d['16th'])
-
-#     return sigmas, e_sigmas, median, upper_perc, lower_perc
-
-
 def calc_relative_error(l1, l2, e1=None, e2=None):
     """Calculates the relative error (l2-l1) / l1 wrt the values of l1 and propagates uncertainties if given.
 

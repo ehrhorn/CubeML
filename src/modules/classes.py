@@ -89,6 +89,7 @@ class SqliteFetcher:
         self._tables = None
         self._len = None
         self._event_lengths_key = 'split_in_ice_pulses_event_length' 
+        self._max_events_per_query = 20000
 
     def __len__(self):
         return self._len
@@ -197,7 +198,7 @@ class SqliteFetcher:
 
     def fetch_features(
         self,
-        events=[],
+        all_events=[],
         scalar_features=[],
         seq_features=[],
         meta_features=[]
@@ -206,67 +207,78 @@ class SqliteFetcher:
         # * Connect to DB and set cursor
         with sqlite3.connect(self._path) as db:
             cursor = db.cursor()
-
+            n_events = len(all_events)
             # * Ensure some events are passed
-            if len(events) == 0:
+            if n_events == 0:
                 raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
 
             # * If events are not strings, convert them
-            if not isinstance(events[0], str):
-                events = [str(event) for event in events]
+            if not isinstance(all_events[0], str):
+                all_events = [str(event) for event in all_events]
+
+            # * If > self._max_events_per_query are wanted, 
+            # * load over several rounds
+            n_chunks = n_events//self._max_events_per_query
+            chunks = np.array_split(all_events, max(1, n_chunks))
+
             base_query = 'SELECT {features} FROM {table} WHERE event_no '\
                 'IN ({events})'
             fetched_scalar, fetched_sequential, fetched_meta = [], [], []
             
-            # * Write query for scalar table and fetch all matching rows
-            if len(scalar_features) > 0:
-                query = base_query.format(
-                    features=', '.join(scalar_features),
-                    table='scalar',
-                    events=', '.join(['?'] * len(events))
-                )
+            # * Process chunks
+            all_dicted_data = {}
+            for events in chunks:
+                
+                # * Write query for scalar table and fetch all matching rows
+                if len(scalar_features) > 0:
+                    query = base_query.format(
+                        features=', '.join(scalar_features),
+                        table='scalar',
+                        events=', '.join(['?'] * len(events))
+                    )
 
-                cursor.execute(query, events)
-                fetched_scalar = cursor.fetchall()
+                    cursor.execute(query, events)
+                    fetched_scalar = cursor.fetchall()
 
-            # * Write query for sequential table and fetch all matching rows
-            if len(seq_features)>0:
-                query = base_query.format(
-                    features=', '.join(seq_features),
-                    table='sequential',
-                    events=', '.join(['?'] * len(events))
-                )
+                # * Write query for sequential table and fetch all matching rows
+                if len(seq_features)>0:
+                    query = base_query.format(
+                        features=', '.join(seq_features),
+                        table='sequential',
+                        events=', '.join(['?'] * len(events))
+                    )
 
-                cursor.execute(query, events)
-                fetched_sequential = cursor.fetchall()
-            
-            # * Write query for meta table and fetch all matching rows
-            if len(meta_features)>0:
+                    cursor.execute(query, events)
+                    fetched_sequential = cursor.fetchall()
+                
+                # * Write query for meta table and fetch all matching rows
+                if len(meta_features)>0:
+                    query = base_query.format(
+                        features=', '.join(meta_features),
+                        table='meta',
+                        events=', '.join(['?'] * len(events))
+                    )
+                    cursor.execute(query, events)
+                    fetched_meta = cursor.fetchall()
+
+                # * Finally, fetch event lengths as they are needed for making 
+                # * sequential dictionary
                 query = base_query.format(
-                    features=', '.join(meta_features),
+                    features=self._event_lengths_key,
                     table='meta',
                     events=', '.join(['?'] * len(events))
-                )
+                    )
                 cursor.execute(query, events)
-                fetched_meta = cursor.fetchall()
+                event_lengths = cursor.fetchall()
 
-            # * Finally, fetch event lengths as they are needed for making 
-            # * sequential dictionary
-            query = base_query.format(
-                features=self._event_lengths_key,
-                table='meta',
-                events=', '.join(['?'] * len(events))
+                # * Put in a dictionary and update all_dicted_ata
+                dicted_data = self._make_dict(
+                    events, scalar_features, fetched_scalar, seq_features,
+                    fetched_sequential, meta_features, fetched_meta, event_lengths
                 )
-            cursor.execute(query, events)
-            event_lengths = cursor.fetchall()
-
-            # * Put in a dictionary
-            dicted_data = self._make_dict(
-                events, scalar_features, fetched_scalar, seq_features,
-                fetched_sequential, meta_features, fetched_meta, event_lengths
-            )
+                all_dicted_data.update(dicted_data)
             
-            return dicted_data
+            return all_dicted_data
 
 
 class PickleLoader(data.Dataset):

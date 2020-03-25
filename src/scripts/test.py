@@ -21,7 +21,12 @@ import shelve
 import sys
 from time import sleep
 
-db = SqliteFetcher(PATH_VAL_DB)
-print(len(db))
-print(db.ids[:20])
-# print(p3, print(p2+p3))
+path = '/home/bjoernhm/CubeML/data/oscnext-genie-level5-v01-01-pass2/weights/pickle_weights/inverse_performance_muon_energy.pickle'
+weights = pickle.load(open(path, 'rb'))
+interpolator = weights['interpolator']
+x = np.linspace(0.0, 4.0)
+y = interpolator(x)
+d = {'x': [x], 'y': [y]}
+d['savefig'] = get_project_root()+'/WEIGHT_TEST_OLD.png'
+d['yscale'] = 'log'
+_ = make_plot(d)
