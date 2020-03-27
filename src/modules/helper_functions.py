@@ -17,6 +17,7 @@ from multiprocessing import cpu_count, Pool
 
 import src.modules.loss_funcs
 from src.modules.constants import *
+# from src.modules.reporting import make_plot
 
 class lr_watcher:
 
@@ -704,8 +705,8 @@ def get_dataloader_params(batch_size, num_workers=8, shuffle=False, dataloader=N
     Returns:
         dict -- Dictionary with desired items.
     """    
-
-    if dataloader == 'FullBatchLoader':
+    full_batch_loaders = ['FullBatchLoader', 'SqliteLoader']
+    if dataloader in full_batch_loaders:
         dataloader_params = {'batch_size': None, 'shuffle': False, 'num_workers': num_workers}
     else:
         dataloader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers, 'drop_last': drop_last}
@@ -967,6 +968,8 @@ def get_set_length(dataloader):
     '''
     if str(dataloader) == 'FullBatchLoader':
         set_length = dataloader.batch_size*len(dataloader)
+    elif str(dataloader) == 'SqliteLoader':
+        set_length = len(dataloader.indices)
     else:
         set_length = len(dataloader)
     
@@ -1392,7 +1395,37 @@ def load_pickle_mask(data_dir, masknames):
     for i in range(1, len(list_of_masks)):
         mask = mask & set(list_of_masks[i])
 
-    return list(mask)
+    # * Set changes order - so sort again.
+    result = sorted(list(mask))
+
+    return result
+
+def load_sqlite_mask(data_dir, masknames, keyword):
+    """Given a list of masknames (corresponding to a list of indices), the intersection between all masks are found.
+    
+    Arguments:
+        data_dir {str} -- Absolute path to dataset
+        masknames {list} -- Names of masks to apply to dataset.
+        keyword {str} -- Database-kind, e.g. test, train or val.
+    
+    Returns:
+        list -- intersection of masks
+    """    
+
+    # * Load masks    
+    masks_path = data_dir + '/masks/'
+    list_of_masks = []
+    for maskname in masknames:
+        with open(masks_path+maskname+'_'+keyword+'.pickle', 'rb') as f:
+            mask = pickle.load(f)
+            list_of_masks.append(mask)
+    
+    # * Find intersection using sets
+    mask = set(list_of_masks[0])
+    for i in range(1, len(list_of_masks)):
+        mask = mask & set(list_of_masks[i])
+
+    return sorted(list(mask))
 
 def locate_model(model_name):
     """Finds the path to a certain model given its name.

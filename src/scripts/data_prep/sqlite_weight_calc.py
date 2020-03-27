@@ -48,13 +48,16 @@ def assign_energy_weights_multiprocess(
     with Pool(AVAILABLE_CORES) as p:
         weights = p.map(calc_weights_multiprocess, packed)
     weights_combined = flatten_list_of_lists(weights)
-
-    # * Make a list of weights - put nan where mask didn't apply
-    n_tot = db.length
-    weights_list = np.array([np.nan]*n_tot)
-    weights_list[ids] = np.array(weights_combined)
-
-    return weights_list
+    
+    # * Make a dictionary with weights - put nan where mask didn't apply
+    event_ids = db.ids
+    all_weights_dict = {str(event_id): np.nan for event_id in event_ids}
+    weights_dict = {
+        str(event_id): weight for event_id, weight in zip(ids, weights_combined)
+    }
+    all_weights_dict.update(weights_dict)
+    
+    return all_weights_dict
 
 def calc_weights_multiprocess(pack):
    
@@ -163,7 +166,13 @@ def geomean_muon_energy_entry_weights(masks, dataset_path, multiprocess=True,  d
     
     return weights_list, interpolator_quadratic
 
-def inverse_performance_muon_energy(name, ids, db, multiprocess=True, debug=False):
+def inverse_performance_muon_energy(name, 
+    ids, 
+    db, 
+    multiprocess=True, 
+    debug=False,
+    interpolator=None
+    ):
     """Given a pickled dataset, a weight is calculated for each event. The weight is calculated (using a quadratic spline) as 
 
     w = (icecube_performance)**-0.5.
@@ -182,27 +191,31 @@ def inverse_performance_muon_energy(name, ids, db, multiprocess=True, debug=Fals
         to_frac {float} -- Upper limit of the amount of data to use to calculate the spline (default: {1.0})
     
     Returns:
-        list -- Weights for each event
+        dict -- Weights for each event
     """ 
+
     # * Get indices used for interpolator-calculation
-    n_events = min(len(mask), USE_N_EVENTS)
-    event_ids = ids[:n_events]
-    print(get_time(), 'Calculating performance..')
-    x, counts, retro_sigmas = calc_energy_performance_weights(event_ids, db)
-    weights_unscaled = 1.0/np.array(retro_sigmas)
-    print(get_time(), 'Performance calculated!')
-    
-    print(get_time(), 'Fitting interpolator')
-    interpolator_quadratic = make_scaled_interpolator(weights_unscaled, counts, x)
-    print(get_time(), 'Inteprolator fitted!')
+    if not interpolator:
+        n_events = min(len(ids), USE_N_EVENTS)
+        event_ids = ids[:n_events]
+        print(get_time(), 'Calculating performance..')
+        x, counts, retro_sigmas = calc_energy_performance_weights(event_ids, db)
+        weights_unscaled = 1.0/np.array(retro_sigmas)
+        print(get_time(), 'Performance calculated!')
+        
+        print(get_time(), 'Fitting interpolator')
+        interpolator= make_scaled_interpolator(weights_unscaled, counts, x)
+        print(get_time(), 'Interprolator fitted!')
 
     # * Loop over all events using multiprocessing
     print(get_time(), 'Assigning energy weights...')
     if multiprocess:
-        weights_list = assign_energy_weights_multiprocess(ids, db, interpolator_quadratic, debug=debug)
+        weights_dict = assign_energy_weights_multiprocess(
+            ids, db, interpolator, debug=debug
+        )
     print(get_time(), 'Energy weights assigned!')
 
-    return weights_list, interpolator_quadratic
+    return weights_dict, interpolator
 
 def make_scaled_interpolator(weights, counts, bin_centers):
     # * Normalize the weights. We want the average weight of a batch-entry to be 1
@@ -215,15 +228,15 @@ def make_scaled_interpolator(weights, counts, bin_centers):
     
     return interpolator
 
-def make_weights(name, masked_ids, db, debug=False):
+def make_weights(name, masked_ids, db, debug=False, interpolator=None):
     
     if name == 'geomean_muon_energy_entry':
         weights, interpolator = geomean_muon_energy_entry_weights(
-            name, masked_ids, db, debug=debug
+            name, masked_ids, db, debug=debug, interpolator=interpolator
             )
     elif name == 'inverse_performance_muon_energy':
         weights, interpolator = inverse_performance_muon_energy(
-            name, masked_ids, db, debug=debug
+            name, masked_ids, db, debug=debug, interpolator=interpolator
             )
 
     return weights, interpolator 
@@ -233,7 +246,7 @@ if __name__ == '__main__':
     print(get_time(), 'Weight calculation initiated')
 
     # * Choose dataset, masks and size of subset to calculate weights from
-    masks = ['muon_neutrino_train']
+    masks = ['muon_neutrino']
     names = args.name
     if not names:
         raise KeyError('Names must be supplied!')
@@ -243,21 +256,39 @@ if __name__ == '__main__':
     if not Path(weights_dir).exists():
         Path(weights_dir).mkdir()
 
-    # * Get DB and mask
-    db = SqliteFetcher(PATH_TRAIN_DB)
-    mask = load_pickle_mask(PATH_DATA_OSCNEXT, masks)
-
-    # * If developing, use less data
-    if args.dev:
-        USE_N_EVENTS = 100000
-        PRINT_EVERY = 100
-        mask = mask[:100000]
-
     for name in names:
-        weights, interpolator = make_weights(name, mask, db, debug=args.dev)
+        interpolator = None
+        all_weights = {}
+        for path, keyword in zip(
+            [PATH_TRAIN_DB, PATH_VAL_DB, PATH_TEST_DB], 
+            ['train', 'val', 'test'],
+        ):
+            # * Get DB and mask
+            db = SqliteFetcher(path)
+            db_specific_masks = [e+'_'+keyword for e in masks]
+            ids = load_pickle_mask(PATH_DATA_OSCNEXT, db_specific_masks)
+            
+            # * If developing, use less data
+            if args.dev:
+                USE_N_EVENTS = 1000000
+                PRINT_EVERY = 100
+                ids = ids[:100000]
+                
+            
+            # * Calculate weights and potentially interpolator
+            if not interpolator:
+                weights, interpolator = make_weights(
+                    name, ids, db, debug=args.dev
+                )
+            else:
+                weights, interpolator = make_weights(
+                name, ids, db, debug=args.dev, interpolator=interpolator
+            )
+
+            all_weights.update(weights)
 
         if not args.dev:
-            weight_d = {'masks': masks, 'weights': weights, 'interpolator': interpolator}
+            weight_d = {'masks': masks, 'weights': all_weights, 'interpolator': interpolator}
             filename = '/'.join([weights_dir, name+'.pickle'])
 
             # * Save a figure of the weights

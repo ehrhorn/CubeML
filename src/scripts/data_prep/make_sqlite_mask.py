@@ -11,6 +11,7 @@ from src.modules.constants import *
 from src.modules.classes import SqliteFetcher
 from src.modules.helper_functions import get_project_root, get_path_from_root, get_time, flatten_list_of_lists, get_particle_code, make_multiprocess_pack
 from src.modules.preprocessing import DomChargeScaler, EnergyNoLogTransformer
+from src.modules.reporting import make_plot
 
 PRINT_EVERY = 10000
 CHUNK_SIZE = 20000
@@ -110,7 +111,10 @@ def make_particle_mask(db, ids, particle, multiprocess=True):
         
         # * Combine again
         mask = sorted(flatten_list_of_lists(accepted_lists))
-
+        # x = np.arange(len(mask))
+        # d = {'x': [x], 'y': [mask]}
+        # d['savefig'] = get_project_root()+'/MASK'+str(len(mask))+'_TESTLOL.png'
+        # _ = make_plot(d)
     else:
         raise ValueError('make_particle_mask: Only multiprocessing solution implemented')
     
@@ -210,7 +214,7 @@ def find_particles(pack):
         # * Retrieve the 'particle_code' from meta -
         # * this value determines the particle
         code_name = 'particle_code'
-        data_dict = db.fetch_features(events=chunk, meta_features=[code_name])
+        data_dict = db.fetch_features(all_events=chunk, meta_features=[code_name])
         for event_id, event_dict in data_dict.items():
             code = event_dict[code_name]
             if str(code) == particle_code:

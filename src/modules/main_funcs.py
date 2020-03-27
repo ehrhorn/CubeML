@@ -807,6 +807,9 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
             elif data_pars['dataloader'] == 'PickleLoader':
                 trainerr_set.shuffle_indices()
                 val_set.shuffle_indices()
+            elif data_pars['dataloader'] == 'SqliteLoader':
+                trainerr_set.shuffle_indices()
+                val_set.shuffle_indices()
 
             # * Log maximum memory allocated and speed.
             if log:
@@ -826,11 +829,14 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     trainer.add_event_handler(Events.ITERATION_COMPLETED, evaluate)
     trainer.add_event_handler(Events.ITERATION_COMPLETED, TerminateOnNan())
     
-    # ! FullBatchLoader has to be treated in a special way! See the class, it has to be shuffled every epoch
-    if data_pars['dataloader'] == 'FullBatchLoader':
+    # ! Full batch-loaders has to be treated in a special way! See the class, it has to be shuffled every epoch
+    if data_pars['dataloader'] == 'SqliteLoader':
+
         def shuffle_batches(engine):
-            train_set.make_batches()
+            train_set.shuffle_indices()
         trainer.add_event_handler(Events.EPOCH_COMPLETED, shuffle_batches)
+
+    
 
     #* ======================================================================== #
     #* SETUP LEARNING RATE SCHEDULER
