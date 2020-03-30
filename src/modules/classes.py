@@ -24,6 +24,9 @@ class PadSequence:
         # * Inference and training is handled differently - therefore a keyword is passed along
         # * During inference, the true index of the event is passed aswell as 4th entry - see what PickleLoader returns 
         # * The structure of batch is a list of (seq_array, scalar_array, targets_array, weight, self.type, true_index)
+        # import time
+        # start = time.time()
+
         keyword = batch[0][4]
 
         # * Each element in "batch" is a tuple (sequentialdata, scalardata, label).
@@ -55,7 +58,9 @@ class PadSequence:
             pack = (sequences_padded.float(), lengths, scalar_vars.float(), true_indices)
         else:
             pack = (sequences_padded.float(), lengths, scalar_vars.float())
-        
+
+        # events_per_sec = int(len(batch)/(time.time()-start))
+        # print('PadSequence processed per second: %d'%(events_per_sec) )
         return pack, (targets.float(), weights.float())
 
     def _permute(self, seqs, scalars, lengths):
@@ -158,85 +163,16 @@ class SqliteFetcher:
         
         return self._tables
     
-    def _fetch(
-        self, 
-        cursor,
-        events,
-        features,
-        table=None
-        ):
+    def _fetch( self,  ids, *queries):
 
-        fetched = []
-        # * Write query for scalar table and fetch all matching rows
-        if len(features) > 0:
-            if table == 'sequential':
-                query = self._fetch_query_seq.format(
-                    features=', '.join(features),
-                    table=table,
-                    events=', '.join(['?'] * len(events))
-                )
-            else:
-                query = self._fetch_query.format(
-                    features=', '.join(features),
-                    table=table,
-                    events=', '.join(['?'] * len(events))
-                )
-
-            cursor.execute(query, events)
-            fetched = cursor.fetchall()
+        fetched = ()
+        with sqlite3.connect(self._path) as db:
+            for query in queries:
+                cursor = db.cursor()
+                cursor.execute(query, ids)
+                fetched = fetched + (cursor.fetchall(),)
 
         return fetched
-
-    def _make_batch(
-        self,
-        ids,
-        scalars,
-        seqs, 
-        targets,
-        mask,
-        lengths
-        ):
-
-        # * get the from- and to-indices of each event.
-        cumsum = np.append([0], np.cumsum([entry[0] for entry in lengths]))
-        all_from = cumsum[:-1]
-        all_to = cumsum[1:]
-        
-        # * Append each event to the batch.
-        batch = []
-        n_events = len(scalars)
-        n_seq = len(seqs[0])
-        for i_event in range(n_events):
-            
-            # * Make scalar array
-            scalar_arr = np.array([scalar for scalar in scalars[i_event]])
-            
-            # * Make sequential array
-            # * Since each DOM is stored as a row, we first get the to- and 
-            # * from-rows that combine to an event
-            from_, to_ = all_from[i_event], all_to[i_event]
-            # * We then create our mask - a Boolean array saying whether a 
-            # * DOM is included or not
-            masked_indices = np.array([e[0] for e in mask[from_:to_]], dtype=bool)
-            n_doms = np.sum(masked_indices)
-            # * Now loop over variables and extract them
-            seq_arr = np.zeros((n_seq, n_doms))
-            for i_var in range(n_seq):
-                seq_arr[i_var, :] = np.array(
-                    [
-                        e[i_var] for e in seqs[from_:to_]
-                    ]
-                )[masked_indices]
-
-            # * Get targets
-            target_arr = np.array([target for target in targets[i_event]])
-
-            # * Add to list of events
-            batch.append(
-                (seq_arr, scalar_arr, target_arr)
-            )
-        
-        return batch
 
     def _make_dict(
         self, 
@@ -280,18 +216,12 @@ class SqliteFetcher:
             
         return data_dict
 
-    def _list_fetched(
-        events, 
-        fetched
-        ):
-        pass
-
     def fetch_features(
         self,
         all_events=[],
         scalar_features=[],
         seq_features=[],
-        meta_features=[]
+        meta_features=[],
         ):
         
         # * Connect to DB and set cursor
@@ -312,7 +242,8 @@ class SqliteFetcher:
             chunks = np.array_split(all_events, max(1, n_chunks))
 
             base_query = 'SELECT {features} FROM {table} WHERE event_no '\
-                'IN ({events})'
+            'IN ({events})'
+            
             fetched_scalar, fetched_sequential, fetched_meta = [], [], []
             
             # * Process chunks
@@ -372,43 +303,128 @@ class SqliteFetcher:
 
     def make_batch(
         self,
-        all_events=[],
-        scalar_features=[],
-        seq_features=[],
-        target_features=[],
+        ids=[],
+        scalars=[],
+        seqs=[],
+        targets=[],
+        weights=[],
         mask=[]
         ):
         
-        n_events = len(all_events)
+        n_events = len(ids)
+
         # * Ensure some events are passed
         if n_events == 0:
             raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
 
         # * If events are not strings, convert them
-        if not isinstance(all_events[0], str):
-            all_events = [str(event) for event in all_events]
+        if not isinstance(ids[0], str):
+            raise ValueError('Events must be IDs as strings')
 
-        # * If > self._max_events_per_query are wanted, 
-        # * load over several rounds
-        n_chunks = n_events//self._max_events_per_query
-        chunks = np.array_split(all_events, max(1, n_chunks))
-        all_events_list = []
+        # * Prepare single-number queries
+        scalar_cols = ['scalar.'+e for e in scalars]
+        target_cols = ['scalar.'+e for e in targets]
+        lengths_key = ['meta.split_in_ice_pulses_event_length']
+        weights_col = ['scalar.'+e for e in weights]
+
+        all_single_val_feats = scalar_cols+target_cols+weights_col+lengths_key
+        singles_query = 'SELECT {features} FROM scalar INNER JOIN meta ON scalar.event_no=meta.event_no WHERE scalar.event_no IN ({events})'.format(
+            features=', '.join(all_single_val_feats),
+            events=', '.join(['?'] * n_events)
+        )
         
-        # * Connect to DB and set cursor
+         # * Prepare sequences-query
+        all_seq_cols_feats = seqs+mask
+        seq_query = 'SELECT {features} FROM sequential WHERE event IN ({events})'.format(
+            features=', '.join(all_seq_cols_feats),
+            events=', '.join(['?'] * n_events)
+        )
+
+        # * Make fetch
+        singles, sequences = self._fetch(ids, singles_query, seq_query)
+
+        # * prepare the batch
+        batch = [()]*n_events
+
+        # * get the from- and to-indices of each event.
+        lengths = np.array(
+            [
+                entry[-1] for entry in singles
+            ]
+        )
+        cumsum = np.append([0], np.cumsum(lengths))
+        all_from = cumsum[:-1]
+        all_to = cumsum[1:]
+        
+        n_scalars = len(scalars)
+        n_targets = len(targets)
+        n_seqs = len(seqs)
+        for i_event in range(n_events):
+            
+            # * Make scalar, weights and target arrays. Weights is always 
+            # * second 
+            scalar_arr = np.array(singles[i_event][:n_scalars])
+            target_arr = np.array(singles[i_event][n_scalars:n_scalars+n_targets])
+            weight = singles[i_event][-2]
+            
+            # * Make sequential array
+            # * Since each DOM is stored as a row, we first get the to- and 
+            # * from-rows that combine to an event
+            from_, to_ = all_from[i_event], all_to[i_event]
+            # * We then create our mask - a Boolean array saying whether a 
+            # * DOM is included or not
+            masked_indices = np.array([e[-1] for e in sequences[from_:to_]], dtype=bool)
+            n_doms = np.sum(masked_indices)
+            # * Now loop over variables and extract them
+            seq_arr = np.zeros((n_seqs, n_doms))
+            for i_var in range(n_seqs):
+                seq_arr[i_var, :] = np.array(
+                    [
+                        dom[i_var] for dom in sequences[from_:to_]
+                        ]
+                    )[masked_indices]
+
+            # * Add to list of events
+            batch[i_event] = (seq_arr, scalar_arr, target_arr, weight)
+        
+        return batch
+
+    def write(self, table, name, ids, values, astype='REAL'):
+
+        n_events = len(ids)
+        n_values = len(values)
+        
+        # * Ensure some events are passed
+        if n_events == 0:
+            raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
+        
+        # * Ensure a matching amount of values and IDs are passed
+        if n_events != n_values:
+            raise ValueError('Number of IDs (%d) and values (%d) does not match'
+            %(n_events, n_values))
+
+        # * If events are not strings, convert them
+        if not isinstance(ids[0], str):
+            raise ValueError('Events must be IDs as strings')
+        
         with sqlite3.connect(self._path) as db:
-            c = db.cursor()
-            lengths_key = ['split_in_ice_pulses_event_length']
-            for chunk in chunks:
-                scalars = self._fetch(c, chunk, scalar_features, table='scalar')
-                seqs = self._fetch(c, chunk, seq_features, table='sequential')
-                targets = self._fetch(c, chunk, target_features, table='scalar')
-                mask = self._fetch(c, chunk, mask, table='sequential')
-                lengths = self._fetch(c, chunk, lengths_key, table='meta')
+            cursor = db.cursor()
 
-                events_list = self._make_batch(chunk, scalars, seqs, targets, mask, lengths)
-                all_events_list.extend(events_list)
-        
-        return all_events_list
+            # * Check if column exists - if not, create it.
+            if not name in self.tables['scalar']:
+                query = 'ALTER TABLE {table} ADD COLUMN {name} {astype}'.format(
+                    table=table,
+                    name=name,
+                    astype=astype
+                )
+                cursor.execute(query)
+            
+            # * Write data to column
+            query = 'UPDATE {table} SET {name}=? WHERE event_no=?'.format(
+                table=table,
+                name=name,
+            )
+            cursor.executemany(query, [[e[0], e[1]] for e in zip(values, ids)])
 
 class PickleLoader(data.Dataset):
     '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads and closes the file again upon every __getitem__.
@@ -584,41 +600,52 @@ class SqliteLoader(data.Dataset):
         self.dom_mask = [dom_mask]
         self.keyword = keyword
 
-        self.weights = weights # * To be determined in get_meta_information
+        self.weights = [weights] # * To be determined in get_meta_information
         self.len = None # * To be determined in get_meta_information
         self.indices = None # * To be determined in get_meta_information
 
         self._get_meta_information()
-        self.shuffle_indices()
+        if keyword != 'predict':
+            self.shuffle_indices()
 
     def __getitem__(self, index):
-
+        # import time
+        # start = time.time()
         from_, to_ = index*self.batch_size, (index+1)*self.batch_size
-        ids = self.indices[from_:to_]
-        weights = [self.weights[str(idx)] for idx in ids]
+        ids = [str(entry) for entry in self.indices[from_:to_]]
+        # weights = [self.weights[str(idx)] for idx in ids]
+        # events_per_sec = int(self.batch_size/(time.time()-start))
+        # print('Weights loaded per second: %d'%(events_per_sec) )
         
         # * Load batch - gets list back with tuples 
         # * (seq_arr, scalar_arr, target_arr). Add weights afterwards.
         batch = self.db.make_batch(
-            all_events=ids,
-            seq_features=self.seq_features,
-            scalar_features=self.scalar_features,
+            ids=ids, 
+            scalars=self.scalar_features, 
+            seqs=self.seq_features, 
             targets=self.targets,
-            mask=self.dom_mask,
+            weights=self.weights, 
+            mask=self.dom_mask
         )
         
+        # repack_start = time.time()
         # * Tuple is now passed to collate_fn - handle training and predicting
         # * differently. We need the name of the event for prediction to log
         # * which belongs to which
-        if self.type == 'predict':
+        if self.keyword == 'predict':
             pack = [
-                e+(weights[i_event], self.keyword, ids[i_event]) for i_event, e in enumerate(batch)
+                e+(self.keyword, int(ids[i_event])) for i_event, e in enumerate(batch)
             ]
 
         else:
             pack = [
-                e+(weights[i_event],) for i_event, e in enumerate(batch)
+                e+(self.keyword, ) for i_event, e in enumerate(batch)
             ]
+        # events_per_sec = int(self.batch_size/(time.time()-repack_start))
+        # print('Repacked per second: %d'%(events_per_sec) )
+        # events_per_sec = int(self.batch_size/(time.time()-start))
+        # print('Events loaded per second: %d'%(events_per_sec) )
+        # print('')
         
         return pack
 
@@ -633,14 +660,23 @@ class SqliteLoader(data.Dataset):
         '''
 
         # * Get mask
+        if self.keyword == 'predict':
+            _keyword = 'val'
+        else:
+            _keyword = self.keyword
+        
         self.indices = np.array(
             load_sqlite_mask(
-                self.directory, self.masks, self.keyword
+                self.directory, self.masks, _keyword
             )
         )
-
+        # print('Mask load time: %.2f'%(time.time()-indices_time) )
+        
         # * Get weights
-        self.weights = load_sqlite_weights(self.directory, self.weights)
+        # weights_t = time.time()
+        # self.weights = load_sqlite_weights(self.directory, self.weights)
+        # print('Weights load time: %.2f'%(time.time()-weights_t) )
+
         self.len = min(self.n_events_wanted, len(self.indices))//self.batch_size
     
     def shuffle_indices(self):

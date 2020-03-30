@@ -969,7 +969,7 @@ def get_set_length(dataloader):
     if str(dataloader) == 'FullBatchLoader':
         set_length = dataloader.batch_size*len(dataloader)
     elif str(dataloader) == 'SqliteLoader':
-        set_length = len(dataloader.indices)
+        set_length = dataloader.batch_size*len(dataloader)
     else:
         set_length = len(dataloader)
     
@@ -1298,7 +1298,7 @@ def inverse_transform(data, model_dir):
 
 
     transformers_path = get_project_root()+get_path_from_root(model_dir)+'/transformers.pickle'
-    transformers = joblib.load(open(transformers_path, "rb"))
+    transformers = pickle.load(open(transformers_path, "rb"))
     transformed = {}
     
     for key in data:
@@ -1566,11 +1566,8 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle=
 
     # * Copy transform dicts
     particle_code = get_particle_code(particle)
-    transformer_address = get_project_root()+'/data/'+data_name+'/transformers/'+particle_code+'_transform'+str(clean_keys['transform'])+'.pickle'
-    try:
-        data_dir = shutil.copy(transformer_address, model_dir+'/transformers.pickle')
-    except FileNotFoundError:
-        pass
+    transformer_address = '/'.join([PATH_DATA_OSCNEXT, 'sqlite_transformers.pickle'])
+    data_dir = shutil.copy(transformer_address, model_dir+'/transformers.pickle')
 
     return model_dir
 
@@ -1758,7 +1755,10 @@ def read_predicted_h5_data(file_address, keys, data_pars, true_keys):
     return preds_sorted, truths_sorted
 
 def read_pickle_predicted_h5_data_v2(file_address, keys):
-    """Reads datasets in a predictions-h5-file associated with keys and the matching datasets in the raw data-files associated with true_keys and returns 2 sorted dictionaries such that index_i for any key corresponds to the i'th event.
+    """Reads datasets in a predictions-h5-file associated with keys and the
+    matching datasets in the raw data-files associated with true_keys and 
+    returns 2 sorted dictionaries such that index_i for any key corresponds 
+    to the i'th event.
     
     Arguments:
         file_address {str} -- absolute path to predictions-file.

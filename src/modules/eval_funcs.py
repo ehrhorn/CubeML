@@ -250,7 +250,6 @@ def azi_error(pred, truth, units='degrees'):
     # use atan2 to calculate angle 
     # - see https://pytorch.org/docs/stable/torch.html#torch.atan
     pi = 3.14159265359
-
     xy_pred = torch.tensor([pred[x_key], pred[y_key]])
     xy_truth = torch.tensor([truth[x_key], truth[y_key]], dtype=xy_pred.dtype)
 

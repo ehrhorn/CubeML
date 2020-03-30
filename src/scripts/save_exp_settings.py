@@ -64,6 +64,8 @@ parser.add_argument('--max_epochs', default=17, type=int,
         help='Sets the max amount of train epochs.')
 parser.add_argument('--optimizer', default='Adam', type=str,
         help='Sets which optimizer to use. Options: Adam, SGD')
+parser.add_argument('--n_workers', default=5, type=int,
+        help='Sets number of workers to use during loading.')
 
 
 args = parser.parse_args()
@@ -158,7 +160,8 @@ if __name__ == '__main__':
                 'objective':            objective,
                 'log_every':            500000 if not args.dev else 50,
                 'lr_scan':              args.scan_lr, 
-                'gpu':                  args.gpu
+                'gpu':                  args.gpu,
+                'n_workers':            args.n_workers 
                 }
 
     data_pars = {'data_dir':     data_dir,
@@ -167,7 +170,7 @@ if __name__ == '__main__':
                 'weights':       args.weights,
                 'dom_mask':      args.dom_mask,
                 'max_seq_len':   args.max_seq_len,
-                'seq_feat':    ['dom_charge', 
+                'seq_feat':    [#'dom_charge', 
                                 'dom_x', 
                                 'dom_y', 
                                 'dom_z', 
@@ -178,13 +181,30 @@ if __name__ == '__main__':
                                 'dom_v_from_prev',
                                 'dom_d_minkowski_to_prev',
                                 'dom_d_closest',
-                                'dom_d_minkowski_closest'],
+                                'dom_d_minkowski_closest',
+                                
+                                'dom_atwd',
+                                'dom_charge_stdscaler',
+                                'dom_pulse_width',
+                                'dom_closest1_x',
+                                'dom_closest1_y',
+                                'dom_closest1_z',
+                                'dom_closest1_time',
+                                'dom_closest1_charge',
+                                'dom_closest2_x',
+                                'dom_closest2_y',
+                                'dom_closest2_z',
+                                'dom_closest2_time',
+                                'dom_closest2_charge'
+                                ],
                                 # 'dom_d_vertex',
                                 # 'dom_d_minkowski_vertex',
                                 # 'dom_charge_over_vertex',
                                 # 'dom_charge_over_vertex_sqr'], 
                                 
-                'scalar_feat': ['dom_timelength_fwhm'],
+                'scalar_feat': ['tot_charge',
+                                'dom_timelength_fwhm',
+                        ],
                                 # 'tot_charge'],
                                 
                 'n_val_events_wanted':   100000 if not args.dev else 100,

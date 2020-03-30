@@ -1,4 +1,7 @@
 from multiprocessing import cpu_count
+import numpy as np
+import sqlite3
+from sklearn.preprocessing import QuantileTransformer, RobustScaler, StandardScaler
 
 def get_tot_charge(event):
     """Calculates the total charge of an event and adds it to a dictionary.

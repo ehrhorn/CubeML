@@ -1,5 +1,6 @@
 from src.modules.main_funcs import evaluate_model
 from src.modules.helper_functions import get_time, find_files, locate_model
+from src.modules.preprocessing import DomChargeScaler, EnergyNoLogTransformer
 import argparse
 from pathlib import Path
 

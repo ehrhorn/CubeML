@@ -21,6 +21,7 @@ from src.modules.loss_funcs import *
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 from src.modules.reporting import *
+from src.modules.preprocessing import DomChargeScaler, EnergyNoLogTransformer
 
 def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, gpus, n_epochs=1, start_lr=0.000001, end_lr=0.1):
     '''Performs a scan over a learning rate-interval of interest with an exponentially increasing learning rate.
@@ -97,7 +98,7 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
     if predict:
         hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
 
-        if data_pars['dataloader'] == 'PickleLoader':
+        if data_pars['dataloader'] == 'PickleLoader' or data_pars['dataloader'] == 'SqliteLoader' :
             calc_predictions_pickle(model_dir, wandb_ID=wandb_ID)
         else:
             calc_predictions(model_dir, wandb_ID=wandb_ID)
@@ -273,7 +274,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, met
 
     return model, optimizer, device, lr_scheduler
 
-def calc_predictions(save_dir, wandb_ID=None):
+def calc_predictions_old(save_dir, wandb_ID=None):
     '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
     '''
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
@@ -412,6 +413,10 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     # * Run evaluator!
     predictions, truths, indices, loss_vals = run_pickle_evaluator(model, val_generator, val_set.targets, gpus, 
         LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL, loss_func=loss)
+    
+    # print(indices[:5])
+    # print(predictions['true_primary_direction_z'][:5])
+    # print(truths['true_primary_direction_z'][:5])
 
     # * Run predictions through desired functions - transform back to 'true' values, if transformed
     predictions_transformed = inverse_transform(predictions, save_dir)
@@ -427,12 +432,13 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     
     print(get_time(), 'Saving predictions...')
     with h5.File(pred_full_address, 'w') as f:
+        # * We have to save as an integer
         f.create_dataset('index', data=np.array(indices))
         f.create_dataset('loss', data=np.array(loss_vals))
         for key, pred in predictions.items():
-            f.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
+            f.create_dataset(key, data=pred)#np.array([x.cpu().numpy() for x in pred]))
         for key, pred in error_from_preds.items():
-            f.create_dataset(key, data=np.array([x.cpu().numpy() for x in pred]))
+            f.create_dataset(key, data=pred)#np.array([x.cpu().numpy() for x in pred]))
     print(get_time(), 'Predictions saved!')
 
 def pickle_evaluator(model, device, non_blocking=False):
@@ -563,9 +569,9 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
         indices_PadSequence_sorted.extend(indices)
         for i_batch in range(pred.shape[0]):
             for i_key, key in enumerate(predictions):
-                predictions[key].append(pred[i_batch, i_key])
-                truths[key].append(truth[i_batch, i_key])
-            
+                predictions[key].append(pred[i_batch, i_key].item())
+                truths[key].append(truth[i_batch, i_key].item())
+                
         # * Log for sanity...
         if engine.state.iteration%(max(1, int(LOG_EVERY/VAL_BATCH_SIZE))) == 0:
             n_predicted = engine.state.iteration*VAL_BATCH_SIZE
@@ -577,7 +583,8 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
     evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
     evaluator_val.run(val_generator)
     print(get_time(), 'Prediction finished!')
-    
+    # print(indices_PadSequence_sorted[:10])
+    # print(predictions['true_primary_direction_z'][:10])
     # * Sort predictions w.r.t. index before saving
     _, loss_vals_sorted = sort_pairs(indices_PadSequence_sorted, loss_vals)
     for key, values in predictions.items():
@@ -588,7 +595,11 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
         _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
         truths[key] = sorted_vals
     indices = sorted(indices_PadSequence_sorted)
+    # print(indices[:5])
+    # print(predictions['true_primary_direction_z'][:5])
+    # print(truths['true_primary_direction_z'][:5])
 
+    # return predictions, truths, indices_PadSequence_sorted, loss_vals
     return predictions, truths, indices, loss_vals_sorted
 
 def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True, debug_mode=False):
@@ -652,9 +663,10 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     #* ======================================================================== #
 
     # * num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
-    dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=5, shuffle=True, dataloader=data_pars['dataloader'])
-    dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=5, shuffle=False, dataloader=data_pars['dataloader'])
-    dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=5, shuffle=False, dataloader=data_pars['dataloader'])
+    n_workers = meta_pars['n_workers']
+    dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=n_workers, shuffle=True, dataloader=data_pars['dataloader'])
+    dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=n_workers, shuffle=False, dataloader=data_pars['dataloader'])
+    dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=n_workers, shuffle=False, dataloader=data_pars['dataloader'])
     
     # * Initialize model and log it - use GPU if available
     model, optimizer, device, lr_scheduler = initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, n_train=N_TRAIN)
