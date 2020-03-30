@@ -106,6 +106,9 @@ if __name__ == '__main__':
     project = 'cubeml_test' if args.dev else 'cubeml'
     dataset = data_dir.split('/')[-1]
 
+    # * Set weights to use by loss-func
+    loss_func_weights = [2, 1, 1, 1, 1, 2, 2, 2]
+
     if args.optimizer == 'Adam':
 
         optimizer = {'optimizer':      'Adam',
@@ -276,6 +279,7 @@ if __name__ == '__main__':
     arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
                         'loss_func':           error_func,
+                        'loss_func_weights':   loss_func_weights,
                         'norm':                {'norm':      'BatchNorm1D',
                                                 'momentum':  0.9 },
                         'layers':             layers

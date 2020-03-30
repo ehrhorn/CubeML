@@ -162,7 +162,11 @@ def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
     # * Initialize model and log it - use GPU if available
     model, optimizer, device, _ = initiate_model_and_optimizer(None, hyper_pars, data_pars, arch_pars, meta_pars, n_train=N_TRAIN)
 
-    loss = get_loss_func(arch_pars['loss_func'])
+    loss = get_loss_func(
+        arch_pars['loss_func'], 
+        arch_pars.get('loss_func_weights', None),
+        device=device
+    )
 
     # * Setup generators - make a generator for training, validation on trainset and validation on test set
     collate_fn = get_collate_fn(data_pars)
@@ -406,7 +410,11 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
     val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
     collate_fn = get_collate_fn(data_pars)
-    loss = get_loss_func(arch_pars['loss_func'])
+    loss = get_loss_func(
+        arch_pars['loss_func'], 
+        arch_pars.get('loss_func_weights', None),
+        device=device
+    )
     val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)#, pin_memory=True)
     N_VAL = get_set_length(val_set)
     
@@ -414,10 +422,6 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     predictions, truths, indices, loss_vals = run_pickle_evaluator(model, val_generator, val_set.targets, gpus, 
         LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL, loss_func=loss)
     
-    # print(indices[:5])
-    # print(predictions['true_primary_direction_z'][:5])
-    # print(truths['true_primary_direction_z'][:5])
-
     # * Run predictions through desired functions - transform back to 'true' values, if transformed
     predictions_transformed = inverse_transform(predictions, save_dir)
     truths_transformed = inverse_transform(truths, save_dir)
@@ -658,11 +662,12 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     print('\nTrain set size: %d'%(N_TRAIN))
     print('Val. set size: %d'%(N_VAL))
     
-    #* ======================================================================== #
+    #* ====================================================================== #
     #* SETUP TRAINING
-    #* ======================================================================== #
+    #* ====================================================================== #
 
-    # * num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
+    # * num_workers choice based on gut feeling - 
+    # * has to be high enough to not be a bottleneck
     n_workers = meta_pars['n_workers']
     dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=n_workers, shuffle=True, dataloader=data_pars['dataloader'])
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=n_workers, shuffle=False, dataloader=data_pars['dataloader'])
@@ -680,7 +685,11 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     
     # * Get type of scheduler, since different schedulers need different kinds of updating.
     type_lr_scheduler = type(lr_scheduler)
-    loss = get_loss_func(arch_pars['loss_func'])
+    loss = get_loss_func(
+        arch_pars['loss_func'], 
+        arch_pars.get('loss_func_weights', None),
+        device=device
+    )
 
     # * Setup generators - make a generator for training, validation on trainset and validation on test set
     collate_fn = get_collate_fn(data_pars)
@@ -709,9 +718,9 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
         checkpointer_dict = {'model': model}
         evaluator_val.add_event_handler(Events.EPOCH_COMPLETED, checkpointer, checkpointer_dict)
 
-    #* ======================================================================== #
+    #* ====================================================================== #
     #* SETUP EARLY STOPPING
-    #* ======================================================================== #
+    #* ====================================================================== #
 
     #* patience = how long to wait before stopping according to score_func, trainer = which engine to stop.
     if earlystopping:
@@ -722,9 +731,9 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
         evaluator_val.add_event_handler(Events.EPOCH_COMPLETED, early_stop_handler)
 
 
-    #* ======================================================================== #
+    #* ====================================================================== #
     #* DO LEARNING RATE SCAN
-    #* ======================================================================== #
+    #* ====================================================================== #
 
     if scan_lr_before_train:
         pretrain_hyper_pars = hyper_pars['optimizer'].copy()
@@ -751,9 +760,9 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
             im = PIL.Image.open(img_address)
             wandb.log({'Pretrain LR-scan': wandb.Image(im, caption='Pretrain LR-scan')}, commit=False)
 
-    #* ======================================================================== #
+    #* ====================================================================== #
     #* SETUP LOGGING
-    #* ======================================================================== #*   
+    #* ====================================================================== #   
     
     # * If continuing training, get how many epochs completed
     ITERATIONS_COMPLETED = get_iterations_completed(meta_pars)

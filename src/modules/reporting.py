@@ -604,7 +604,8 @@ class Performance:
     
     def _get_loss_clip_vals(self):
 
-        if self.loss_func == 'logcosh':
+        if (self.loss_func == 'logcosh' or 
+        self.loss_func == 'logcosh_full_weighted'):
             clip_vals = [0.0, 0.2]
         else:
             raise KeyError('Performance._get_loss_clip_vals: Undefined loss'\

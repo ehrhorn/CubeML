@@ -143,12 +143,16 @@ class logcosh(torch.nn.Module):
             loss = loss_weighted
 
         return loss
-['true_primary_energy', 'true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z', 'true_primary_time', 'true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
+
 class logcosh_full_weighted(torch.nn.Module):
-    def __init__(self, weights=[]):
+    def __init__(self, weights=[], device=None):
         super(logcosh_full_weighted, self).__init__()
+
+        if not device:
+            raise ValueError('A device must be supplied to the loss function'
+            'logcosh_full_weigthed')
         weights_normed = np.array(weights)/np.sum(weights)
-        self._weights = torch.tensor(weights_normed)
+        self._weights = torch.tensor(weights_normed, device=device)
     
     def forward(self, x, y, predict=False):
         """Computes logcosh-loss with weights
@@ -180,7 +184,53 @@ class logcosh_full_weighted(torch.nn.Module):
 
         return loss
 
-def get_loss_func(name):
+class logscore(torch.nn.Module):
+    def __init__(self, weights=[], device=None):
+        super(logscore, self).__init__()
+
+        if not device:
+            raise ValueError('A device must be supplied to the loss function'
+            'logscore')
+        weights_normed = np.array(weights)/np.sum(weights)
+        self._weights = torch.tensor(weights_normed, device=device)
+
+    def _normal(self, x, mean, sigma):
+        const = 1.0/(sigma*torch.sqrt(2*3.14159))
+        exponent = -0.5*((x-mean)/sigma)*((x-mean)/sigma)
+
+        return const*torch.exp(exponent)
+    
+    def forward(self, x, y, predict=False):
+        """Computes logcosh-loss with weights
+        
+        Arguments:
+            x {torch.Tensor} -- Predictions of shape (B, F), where F is number of targets
+            y {tuple} -- (targets, weights), where targets is of shape (B, F) and weights of shape (F)
+        
+        Returns:
+            [torch.Tensor] -- Averaged, weighted loss over batch.
+        """      
+          
+        # * Unpack into targets and weights
+        targets, weights = y
+
+        # * Calculate negative score - this is what we want to minimize
+        neg_score = -torch.log(self._normal())
+
+        # * weight to control contributions
+
+        # * Now weigh it
+        loss_weighted = torch.sum(self._weights*logcosh, dim=-1)
+        
+        # * Mean over the batch
+        if not predict:
+            loss = torch.mean(loss_weighted)
+        else:
+            loss = loss_weighted
+
+        return loss
+
+def get_loss_func(name, weights=None, device=None):
     if name == 'L1': 
         return torch.nn.L1Loss()
     elif name == 'angle_loss':
@@ -191,6 +241,8 @@ def get_loss_func(name):
         return L2()
     elif name == 'logcosh':
         return logcosh()
+    elif name == 'logcosh_full_weighted':
+        return logcosh_full_weighted(weights=weights, device=device)
     elif name == 'angle_squared_loss':
         return angle_squared_loss()
     elif name == 'angle_squared_loss_with_L2':
