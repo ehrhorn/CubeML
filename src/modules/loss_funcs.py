@@ -185,26 +185,37 @@ class logcosh_full_weighted(torch.nn.Module):
         return loss
 
 class logscore(torch.nn.Module):
-    def __init__(self, weights=[], device=None):
+    def __init__(self, weights=None, device=None):
         super(logscore, self).__init__()
 
         if not device:
             raise ValueError('A device must be supplied to the loss function'
             'logscore')
+
+        if not weights:
+            raise ValueError('Weights must be specified for logscore loss')
+
         weights_normed = np.array(weights)/np.sum(weights)
         self._weights = torch.tensor(weights_normed, device=device)
+        self._softplus = torch.nn.Softplus()
 
-    def _normal(self, x, mean, sigma):
-        const = 1.0/(sigma*torch.sqrt(2*3.14159))
-        exponent = -0.5*((x-mean)/sigma)*((x-mean)/sigma)
+    def _normal(self, target, mean, sigma):
+        const = 1.0/(sigma*np.sqrt(2*3.14159))
+        exponent = -0.5*((target-mean)/sigma)*((target-mean)/sigma)
 
         return const*torch.exp(exponent)
     
     def forward(self, x, y, predict=False):
-        """Computes logcosh-loss with weights
+        """Computes the empirical expected score using a normal distribution.
+
+        If targets is of shape (B, F), x must be of shape (B, 2F). The last 
+        bottom F features are used as standard deviations.
+
+        To ensure positivity of sigma, the sigma-predictions are passed through 
+        the softplus-function (see https://pytorch.org/docs/stable/nn.html).
         
         Arguments:
-            x {torch.Tensor} -- Predictions of shape (B, F), where F is number of targets
+            x {torch.Tensor} -- Predictions of shape (B, 2F), where F is number of targets
             y {tuple} -- (targets, weights), where targets is of shape (B, F) and weights of shape (F)
         
         Returns:
@@ -213,22 +224,40 @@ class logscore(torch.nn.Module):
           
         # Unpack into targets and weights
         targets, weights = y
+        n_features = targets.shape[-1]
+        pred_shape = x.shape
 
-        # Calculate negative score - this is what we want to minimize
-        neg_score = -torch.log(self._normal())
+        if 2*n_features != x.shape[-1]:
+            raise ValueError('Predictions.shape[-1] (%d) must equal' 
+            '2*targets.shape[-1] (%d)'%(pred_shape[-1], 2*n_features))
 
-        # weight to control contributions
-
-        # Now weigh it
-        loss_weighted = torch.sum(self._weights*logcosh, dim=-1)
+        # * Calculate negative score - this is what we want to minimize
+        neg_score = -torch.log(
+            self._normal(
+                targets, 
+                x[:, :n_features],
+                self._softplus(
+                    x[:, n_features:]
+                )
+            )
+        )
         
-        # Mean over the batch
+        checker = self._normal(
+                targets, 
+                x[:, :n_features],
+                self._softplus(
+                    x[:, n_features:]))
+        print(checker)
+        # * Calculate estimate of expected score for each variable
         if not predict:
-            loss = torch.mean(loss_weighted)
+            loss = torch.mean(neg_score, dim=0)
         else:
-            loss = loss_weighted
+            loss = neg_score
+        
+        # * Now weigh it
+        loss_weighted = torch.sum(self._weights*loss, dim=-1)
 
-        return loss
+        return loss_weighted
 
 def get_loss_func(name, weights=None, device=None):
     if name == 'L1': 
@@ -247,5 +276,7 @@ def get_loss_func(name, weights=None, device=None):
         return angle_squared_loss()
     elif name == 'angle_squared_loss_with_L2':
         return angle_squared_loss_with_L2()
+    elif name == 'logscore':
+        return logscore(weights=weights, device=device)
     else:
         raise ValueError('Unknown loss function requested!')
