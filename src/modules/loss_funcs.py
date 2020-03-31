@@ -211,18 +211,18 @@ class logscore(torch.nn.Module):
             [torch.Tensor] -- Averaged, weighted loss over batch.
         """      
           
-        # * Unpack into targets and weights
+        # Unpack into targets and weights
         targets, weights = y
 
-        # * Calculate negative score - this is what we want to minimize
+        # Calculate negative score - this is what we want to minimize
         neg_score = -torch.log(self._normal())
 
-        # * weight to control contributions
+        # weight to control contributions
 
-        # * Now weigh it
+        # Now weigh it
         loss_weighted = torch.sum(self._weights*logcosh, dim=-1)
         
-        # * Mean over the batch
+        # Mean over the batch
         if not predict:
             loss = torch.mean(loss_weighted)
         else:

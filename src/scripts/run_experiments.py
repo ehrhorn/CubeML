@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from src.modules.main_funcs import run_experiments
 from src.modules.helper_functions import delete_nohup_file
+from src.modules.preprocessing import DomChargeScaler, EnergyNoLogTransformer
 import argparse
 
 description = 'Runs all experiments saved in "/experiments" starting with the oldest.'
