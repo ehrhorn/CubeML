@@ -173,7 +173,7 @@ if __name__ == '__main__':
                 'weights':       args.weights,
                 'dom_mask':      args.dom_mask,
                 'max_seq_len':   args.max_seq_len,
-                'seq_feat':    [#'dom_charge', 
+                'seq_feat':    ['dom_charge', 
                                 'dom_x', 
                                 'dom_y', 
                                 'dom_z', 
@@ -186,19 +186,19 @@ if __name__ == '__main__':
                                 'dom_d_closest',
                                 'dom_d_minkowski_closest',
                                 
-                                'dom_atwd',
-                                'dom_charge_stdscaler',
-                                'dom_pulse_width',
-                                'dom_closest1_x',
-                                'dom_closest1_y',
-                                'dom_closest1_z',
-                                'dom_closest1_time',
-                                'dom_closest1_charge',
-                                'dom_closest2_x',
-                                'dom_closest2_y',
-                                'dom_closest2_z',
-                                'dom_closest2_time',
-                                'dom_closest2_charge'
+                                # 'dom_atwd',
+                                # 'dom_charge_stdscaler',
+                                # 'dom_pulse_width',
+                                # 'dom_closest1_x',
+                                # 'dom_closest1_y',
+                                # 'dom_closest1_z',
+                                # 'dom_closest1_time',
+                                # 'dom_closest1_charge',
+                                # 'dom_closest2_x',
+                                # 'dom_closest2_y',
+                                # 'dom_closest2_z',
+                                # 'dom_closest2_time',
+                                # 'dom_closest2_charge'
                                 ],
                                 # 'dom_d_vertex',
                                 # 'dom_d_minkowski_vertex',
@@ -208,7 +208,6 @@ if __name__ == '__main__':
                 'scalar_feat': ['tot_charge',
                                 'dom_timelength_fwhm',
                         ],
-                                # 'tot_charge'],
                                 
                 'n_val_events_wanted':   100000 if not args.dev else 100,
                 'n_train_events_wanted': np.inf if not args.dev else 100,
@@ -226,7 +225,7 @@ if __name__ == '__main__':
 
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
-    n_target = len(get_target_keys(data_pars, meta_pars))
+    n_target = len(get_target_keys(data_pars, meta_pars))*2
     n1 = 256
     n2 = 2*n1+n_scalar_feat
 
