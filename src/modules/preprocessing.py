@@ -1,7 +1,8 @@
-from multiprocessing import cpu_count
+from multiprocessing import cpu_count, Pool
 import numpy as np
 import sqlite3
 from sklearn.preprocessing import QuantileTransformer, RobustScaler, StandardScaler
+from src.modules.helper_functions import make_multiprocess_pack, get_time
 
 def get_tot_charge(event):
     """Calculates the total charge of an event and adds it to a dictionary.
@@ -432,19 +433,11 @@ def get_feature_dicts():
             'kind': 'sequential',
             'feature_calculator': None
             },
-        
-        'dom_charge_stdscaler': 
-            {'transformer': DomChargeScaler(),
-            'kind': 'sequential',
-            'feature_calculator': get_dom_charge_stdscaler,
-            'clip': {'min': None, 'max': 5}
-            },
 
         'dom_charge': 
             {'transformer': QuantileTransformer(output_distribution='normal'),
             'kind': 'sequential',
             'feature_calculator': None,
-            'clip': {'min': None, 'max': 10}
             },
         
         'true_primary_time': 
@@ -571,13 +564,6 @@ def get_feature_dicts():
             {'transformer': RobustScaler(),
             'kind': 'scalar',
             'feature_calculator': None
-            },
-        
-        'true_primary_energy_nolog': 
-            {'transformer': EnergyNoLogTransformer(),
-            'kind': 'scalar',
-            'feature_calculator': get_true_primary_energy_nolog,
-            'clip': {'min': None, 'max': 3.0}
             },
         
         'true_primary_position_x': 
@@ -843,7 +829,7 @@ def load_and_fit_transformer(pack):
     while loaded < n_data:
 
         # * Load a batch            
-        ids_batch = ids[id_iter*BATCH_SIZE:(id_iter+1)*BATCH_SIZE]
+        ids_batch = ids[id_iter * BATCH_SIZE:(id_iter + 1) * BATCH_SIZE]
         id_iter += 1  
         events = db.fetch(ids_batch, feature_dicts)
 
@@ -894,6 +880,7 @@ def fit_transformers(db, n_data, feature_dicts, n_cpus=cpu_count()):
     # * Assumes a RANDOMIZED DB!
     ids = [str(i) for i in range(n_data)]
     keys = [key for key in feature_dicts]
+    
     # * Multiprocess
     packed = make_multiprocess_pack(keys, feature_dicts, db, ids, n_data)
     with Pool(processes=n_cpus) as p:
@@ -1466,27 +1453,27 @@ class SqlFetcher:
                                 )
                         )
 
-class DomChargeScaler:
-    def __init__(self):
-        self._transformer = StandardScaler()
-        self._clipmin = -np.inf
-        self._clipmax = 100.0
-    def transform(self, data):
-        clipped_data = np.clip(data, self._clipmin, self._clipmax)
-        data_transformed = self._transformer.transform(
-            clipped_data.reshape(-1, 1)
-        )
-        return data_transformed
-    def fit(self, data):
-        clipped_data = np.clip(data, self._clipmin, self._clipmax)
-        self._transformer.fit(clipped_data.reshape(-1, 1))
+# class DomChargeScaler:
+#     def __init__(self):
+#         self._transformer = StandardScaler()
+#         self._clipmin = -np.inf
+#         self._clipmax = 100.0
+#     def transform(self, data):
+#         clipped_data = np.clip(data, self._clipmin, self._clipmax)
+#         data_transformed = self._transformer.transform(
+#             clipped_data.reshape(-1, 1)
+#         )
+#         return data_transformed
+#     def fit(self, data):
+#         clipped_data = np.clip(data, self._clipmin, self._clipmax)
+#         self._transformer.fit(clipped_data.reshape(-1, 1))
         
-class EnergyNoLogTransformer:
-    def transform(self, logE):
-        E = np.power(10.0, logE)
-        data_transformed = E/self._std
-        return data_transformed
-    def fit(self, logE):
-        E = np.power(10.0, logE)
-        self._std = np.std(E)
+# class EnergyNoLogTransformer:
+#     def transform(self, logE):
+#         E = np.power(10.0, logE)
+#         data_transformed = E/self._std
+#         return data_transformed
+#     def fit(self, logE):
+#         E = np.power(10.0, logE)
+#         self._std = np.std(E)
 

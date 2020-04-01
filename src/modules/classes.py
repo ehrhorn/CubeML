@@ -21,36 +21,36 @@ class PadSequence:
         self._permute_scalar_features = permute_scalar_features
 
     def __call__(self, batch):
-        # * Inference and training is handled differently - therefore a keyword is passed along
-        # * During inference, the true index of the event is passed aswell as 4th entry - see what PickleLoader returns 
-        # * The structure of batch is a list of (seq_array, scalar_array, targets_array, weight, self.type, true_index)
+        # Inference and training is handled differently - therefore a keyword is passed along
+        # During inference, the true index of the event is passed aswell as 4th entry - see what PickleLoader returns 
+        # The structure of batch is a list of (seq_array, scalar_array, targets_array, weight, self.type, true_index)
         # import time
         # start = time.time()
 
         keyword = batch[0][4]
 
-        # * Each element in "batch" is a tuple (sequentialdata, scalardata, label).
-        # * Each instance of data is an array of shape (5, *), where 
-        # * * is the sequence length
-        # * Sort the batch in the descending order
+        # Each element in "batch" is a tuple (sequentialdata, scalardata, label).
+        # Each instance of data is an array of shape (5, *), where 
+        # * is the sequence length
+        # Sort the batch in the descending order
         sorted_batch = sorted(batch, key=lambda x: x[0].shape[1], reverse=True)
         
-        # * Grab the vars of the *sorted* batch
+        # Grab the vars of the *sorted* batch
         sequences = [torch.tensor(np.transpose(x[0])) for x in sorted_batch]
         scalar_vars = torch.Tensor([x[1] for x in sorted_batch])
         targets = torch.Tensor([x[2] for x in sorted_batch])
         weights = torch.Tensor([x[3] for x in sorted_batch])
 
-        # * Also need to store the length of each sequence
-        # * This is later needed in order to unpad the sequences
+        # Also need to store the length of each sequence
+        # This is later needed in order to unpad the sequences
         lengths = torch.LongTensor([len(x) for x in sequences])
 
-        # * permute-mode is used for permutation importance
+        # permute-mode is used for permutation importance
         if self._mode == 'permute':
             sequences, scalar_vars = self._permute(sequences, 
                                      scalar_vars, [len(x) for x in sequences])
 
-        # * pad_sequence returns a tensor(seqlen, batch, n_features)
+        # pad_sequence returns a tensor(seqlen, batch, n_features)
         sequences_padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
         
         if keyword == 'predict':
@@ -64,24 +64,24 @@ class PadSequence:
         return pack, (targets.float(), weights.float())
 
     def _permute(self, seqs, scalars, lengths):
-        # * For the sequential features, there are sum(lengths) variables to draw from (if  we only permute in batch)
-        # * draw randomly with 
-        # * Loop over indices of features to permute
+        # For the sequential features, there are sum(lengths) variables to draw from (if  we only permute in batch)
+        # draw randomly with 
+        # Loop over indices of features to permute
         for index in self._permute_seq_features:
 
-            # * Make a scrambled bag of features
+            # Make a scrambled bag of features
             entries = np.array([])
             for entry in seqs:
                 entries = np.append(entries, entry[:, index].numpy()) 
             
-            # * Generate a random sample with replacement for each sequence
+            # Generate a random sample with replacement for each sequence
             for i_seq, length in enumerate(lengths):
                 seqs[i_seq][:, index] = torch.tensor(np.random.choice(entries, length))
         
-        # * Now do the same for scalar vars
+        # Now do the same for scalar vars
         batch_size = scalars.shape[0]
         for index in self._permute_scalar_features:
-            # * Convert to numpy, retrieve a random sample, convert back to tensor
+            # Convert to numpy, retrieve a random sample, convert back to tensor
             scalars[:, index] = torch.tensor(np.random.choice(scalars[:, index].numpy(), batch_size))
 
         return seqs, scalars
@@ -138,12 +138,12 @@ class SqliteFetcher:
             with sqlite3.connect(self._path) as db:
                 cursor = db.cursor()
 
-                # * Get table-names
+                # Get table-names
                 query = 'SELECT name FROM sqlite_master WHERE type = "table"'
                 cursor.execute(query)
                 tables_data = {entry[0]: {} for entry in cursor.fetchall()}
 
-                # * Loop over all columns and fetch their info
+                # Loop over all columns and fetch their info
                 for name in tables_data:
                     query = 'PRAGMA TABLE_INFO({tablename})'.format(
                         tablename=name
@@ -186,19 +186,19 @@ class SqliteFetcher:
         event_lengths
         ):
         
-        # * get the from- and to-indices of each event.
+        # get the from- and to-indices of each event.
         cumsum = np.append([0], np.cumsum([entry[0] for entry in event_lengths]))
         all_from = cumsum[:-1]
         all_to = cumsum[1:]
 
-        # * Create dictionary. First level is event
+        # Create dictionary. First level is event
         data_dict = {}
         for i_event, event in enumerate(events):
             
-            # * Second level is data
+            # Second level is data
             data_dict[event] = {}
 
-            # * order the data from fetched_scalar
+            # order the data from fetched_scalar
             from_, to_ = all_from[i_event], all_to[i_event]
             for i_name, name in enumerate(names_sequential):
                 data = [
@@ -206,11 +206,11 @@ class SqliteFetcher:
                 ]
                 data_dict[event][name] = np.array(data)
 
-            # * Do the same for scalar data
+            # Do the same for scalar data
             for i_name, name in enumerate(names_scalar):
                 data_dict[event][name] = fetched_scalar[i_event][i_name]
             
-            # * .. And finally meta
+            # .. And finally meta
             for i_name, name in enumerate(names_meta):
                 data_dict[event][name] = fetched_meta[i_event][i_name]
             
@@ -224,20 +224,20 @@ class SqliteFetcher:
         meta_features=[],
         ):
         
-        # * Connect to DB and set cursor
+        # Connect to DB and set cursor
         with sqlite3.connect(self._path) as db:
             cursor = db.cursor()
             n_events = len(all_events)
-            # * Ensure some events are passed
+            # Ensure some events are passed
             if n_events == 0:
                 raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
 
-            # * If events are not strings, convert them
+            # If events are not strings, convert them
             if not isinstance(all_events[0], str):
                 all_events = [str(event) for event in all_events]
 
-            # * If > self._max_events_per_query are wanted, 
-            # * load over several rounds
+            # If > self._max_events_per_query are wanted, 
+            # load over several rounds
             n_chunks = n_events//self._max_events_per_query
             chunks = np.array_split(all_events, max(1, n_chunks))
 
@@ -246,11 +246,11 @@ class SqliteFetcher:
             
             fetched_scalar, fetched_sequential, fetched_meta = [], [], []
             
-            # * Process chunks
+            # Process chunks
             all_dicted_data = {}
             for events in chunks:
                 
-                # * Write query for scalar table and fetch all matching rows
+                # Write query for scalar table and fetch all matching rows
                 if len(scalar_features) > 0:
                     query = base_query.format(
                         features=', '.join(scalar_features),
@@ -261,7 +261,7 @@ class SqliteFetcher:
                     cursor.execute(query, events)
                     fetched_scalar = cursor.fetchall()
 
-                # * Write query for sequential table and fetch all matching rows
+                # Write query for sequential table and fetch all matching rows
                 if len(seq_features)>0:
                     query = base_query.format(
                         features=', '.join(seq_features),
@@ -272,7 +272,7 @@ class SqliteFetcher:
                     cursor.execute(query, events)
                     fetched_sequential = cursor.fetchall()
                 
-                # * Write query for meta table and fetch all matching rows
+                # Write query for meta table and fetch all matching rows
                 if len(meta_features)>0:
                     query = base_query.format(
                         features=', '.join(meta_features),
@@ -282,8 +282,8 @@ class SqliteFetcher:
                     cursor.execute(query, events)
                     fetched_meta = cursor.fetchall()
 
-                # * Finally, fetch event lengths as they are needed for making 
-                # * sequential dictionary
+                # Finally, fetch event lengths as they are needed for making 
+                # sequential dictionary
                 query = base_query.format(
                     features=self._event_lengths_key,
                     table='meta',
@@ -292,7 +292,7 @@ class SqliteFetcher:
                 cursor.execute(query, events)
                 event_lengths = cursor.fetchall()
 
-                # * Put in a dictionary and update all_dicted_ata
+                # Put in a dictionary and update all_dicted_ata
                 dicted_data = self._make_dict(
                     events, scalar_features, fetched_scalar, seq_features,
                     fetched_sequential, meta_features, fetched_meta, event_lengths
@@ -313,15 +313,15 @@ class SqliteFetcher:
         
         n_events = len(ids)
 
-        # * Ensure some events are passed
+        # Ensure some events are passed
         if n_events == 0:
             raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
 
-        # * If events are not strings, convert them
+        # If events are not strings, convert them
         if not isinstance(ids[0], str):
             raise ValueError('Events must be IDs as strings')
 
-        # * Prepare single-number queries
+        # Prepare single-number queries
         scalar_cols = ['scalar.'+e for e in scalars]
         target_cols = ['scalar.'+e for e in targets]
         lengths_key = ['meta.split_in_ice_pulses_event_length']
@@ -333,20 +333,20 @@ class SqliteFetcher:
             events=', '.join(['?'] * n_events)
         )
         
-         # * Prepare sequences-query
+         # Prepare sequences-query
         all_seq_cols_feats = seqs+mask
         seq_query = 'SELECT {features} FROM sequential WHERE event IN ({events})'.format(
             features=', '.join(all_seq_cols_feats),
             events=', '.join(['?'] * n_events)
         )
 
-        # * Make fetch
+        # Make fetch
         singles, sequences = self._fetch(ids, singles_query, seq_query)
 
-        # * prepare the batch
+        # prepare the batch
         batch = [()]*n_events
 
-        # * get the from- and to-indices of each event.
+        # get the from- and to-indices of each event.
         lengths = np.array(
             [
                 entry[-1] for entry in singles
@@ -361,21 +361,21 @@ class SqliteFetcher:
         n_seqs = len(seqs)
         for i_event in range(n_events):
             
-            # * Make scalar, weights and target arrays. Weights is always 
-            # * second 
+            # Make scalar, weights and target arrays. Weights is always 
+            # second 
             scalar_arr = np.array(singles[i_event][:n_scalars])
             target_arr = np.array(singles[i_event][n_scalars:n_scalars+n_targets])
             weight = singles[i_event][-2]
             
-            # * Make sequential array
-            # * Since each DOM is stored as a row, we first get the to- and 
-            # * from-rows that combine to an event
+            # Make sequential array
+            # Since each DOM is stored as a row, we first get the to- and 
+            # from-rows that combine to an event
             from_, to_ = all_from[i_event], all_to[i_event]
-            # * We then create our mask - a Boolean array saying whether a 
-            # * DOM is included or not
+            # We then create our mask - a Boolean array saying whether a 
+            # DOM is included or not
             masked_indices = np.array([e[-1] for e in sequences[from_:to_]], dtype=bool)
             n_doms = np.sum(masked_indices)
-            # * Now loop over variables and extract them
+            # Now loop over variables and extract them
             seq_arr = np.zeros((n_seqs, n_doms))
             for i_var in range(n_seqs):
                 seq_arr[i_var, :] = np.array(
@@ -384,7 +384,7 @@ class SqliteFetcher:
                         ]
                     )[masked_indices]
 
-            # * Add to list of events
+            # Add to list of events
             batch[i_event] = (seq_arr, scalar_arr, target_arr, weight)
         
         return batch
@@ -394,23 +394,23 @@ class SqliteFetcher:
         n_events = len(ids)
         n_values = len(values)
         
-        # * Ensure some events are passed
+        # Ensure some events are passed
         if n_events == 0:
             raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
         
-        # * Ensure a matching amount of values and IDs are passed
+        # Ensure a matching amount of values and IDs are passed
         if n_events != n_values:
             raise ValueError('Number of IDs (%d) and values (%d) does not match'
             %(n_events, n_values))
 
-        # * If events are not strings, convert them
+        # If events are not strings, convert them
         if not isinstance(ids[0], str):
             raise ValueError('Events must be IDs as strings')
         
         with sqlite3.connect(self._path) as db:
             cursor = db.cursor()
 
-            # * Check if column exists - if not, create it.
+            # Check if column exists - if not, create it.
             if not name in self.tables['scalar']:
                 query = 'ALTER TABLE {table} ADD COLUMN {name} {astype}'.format(
                     table=table,
@@ -419,7 +419,7 @@ class SqliteFetcher:
                 )
                 cursor.execute(query)
             
-            # * Write data to column
+            # Write data to column
             query = 'UPDATE {table} SET {name}=? WHERE event_no=?'.format(
                 table=table,
                 name=name,
@@ -455,51 +455,51 @@ class PickleLoader(data.Dataset):
         self.n_events_wanted = n_events_wanted
         self.max_seq_len = max_seq_len
 
-        # * 'SplitInIcePulses' corresponds to all DOMs
-        # * 'SRTInIcePulses' corresponds to Icecubes cleaned doms
+        # 'SplitInIcePulses' corresponds to all DOMs
+        # 'SRTInIcePulses' corresponds to Icecubes cleaned doms
         self.dom_mask = dom_mask
 
-        self.weights = weights # * To be determined in get_meta_information
-        self.len = None # * To be determined in get_meta_information
-        self.indices = None # * To be determined in get_meta_information
-        self._n_events_per_dir = None # * To be determined in get_meta_information
+        self.weights = weights # To be determined in get_meta_information
+        self.len = None # To be determined in get_meta_information
+        self.indices = None # To be determined in get_meta_information
+        self._n_events_per_dir = None # To be determined in get_meta_information
 
         self._get_meta_information()
         
     def __getitem__(self, index):
-        # * Find path
+        # Find path
         true_index = self.indices[index]
         weight = self.weights[index]
         filename = str(true_index) + '.pickle'
         path = self.directory+'/pickles/'+str(true_index//self._n_events_per_dir)\
             +'/'+str(true_index)+'.pickle'
         
-        # * Load event
+        # Load event
         with open(path, 'rb') as f:
             event = pickle.load(f)
 
-        # * Extract relevant data.
+        # Extract relevant data.
         dom_indices = event['masks'][self.dom_mask]
         actual_seq_len = event[self.prefix][self.seq_features[0]]\
                         [dom_indices].shape[0]
         seq_len = min(actual_seq_len, self.max_seq_len)
         seq_array = np.empty((self.n_seq_features, seq_len))
 
-        # * If a maximum sequence length is given, we overwrite dom_indices with
-        # * randomly sampled indices from dom_indices without replacement until
-        # * we have enough.
+        # If a maximum sequence length is given, we overwrite dom_indices with
+        # randomly sampled indices from dom_indices without replacement until
+        # we have enough.
         if actual_seq_len > self.max_seq_len:
             dom_indices = sorted(np.random.choice(dom_indices, 
                                 self.max_seq_len, replace=False))
 
-        # * Sequential data
+        # Sequential data
         for i, key in enumerate(self.seq_features):
             try:        
                 seq_array[i, :] = event[self.prefix][key][dom_indices]
             except KeyError:
                 seq_array[i, :] = event['raw'][key][dom_indices]
 
-        # * Scalar data
+        # Scalar data
         scalar_array = np.empty(self.n_scalar_features)    
         for i, key in enumerate(self.scalar_features):
             try:
@@ -507,7 +507,7 @@ class PickleLoader(data.Dataset):
             except KeyError:
                 scalar_array[i] = event['raw'][key]
 
-        # * Targets
+        # Targets
         targets_array = np.empty(self.n_targets)    
         for i, key in enumerate(self.targets):
             try:
@@ -515,7 +515,7 @@ class PickleLoader(data.Dataset):
             except KeyError:
                 targets_array[i] = event['raw'][key]
         
-        # * Tuple is now passed to collate_fn - handle training and predicting differently. We need the name of the event for prediction to log which belongs to which
+        # Tuple is now passed to collate_fn - handle training and predicting differently. We need the name of the event for prediction to log which belongs to which
         if self.type == 'predict':
             pack = (seq_array, scalar_array, targets_array, weight, self.type, true_index)
         else:
@@ -539,20 +539,20 @@ class PickleLoader(data.Dataset):
     def _get_meta_information(self):
         '''Extracts filenames, calculates indices induced by train-, val.- and test_frac
         '''
-        # * Get mask
+        # Get mask
         mask_all = np.array(load_pickle_mask(self.directory, self.masks))
         n_events = len(mask_all)
 
-        # * Extract the indices corresponding to the train/val/test part.
+        # Extract the indices corresponding to the train/val/test part.
         from_frac, to_frac = self._get_from_to()
         indices = get_indices_from_fraction(n_events, from_frac, to_frac)
         
-        # * Get weights
+        # Get weights
         self.indices = mask_all[indices]
         self.weights = load_pickle_weights(self.directory, self.weights)[self.indices]
         self.len = min(self.n_events_wanted, len(self.indices))
 
-        # * Now get the number of events per event directory
+        # Now get the number of events per event directory
         self._n_events_per_dir = len([event for event in Path(self.directory+'/pickles/0').iterdir()])
     
     def shuffle_indices(self):
@@ -595,14 +595,14 @@ class SqliteLoader(data.Dataset):
         else:
             raise KeyError('Unknown keyword given (%s) to SqliteLoader'%(keyword))
 
-        # * 'SplitInIcePulses' corresponds to all DOMs
-        # * 'SRTInIcePulses' corresponds to Icecubes cleaned doms
+        # 'SplitInIcePulses' corresponds to all DOMs
+        # 'SRTInIcePulses' corresponds to Icecubes cleaned doms
         self.dom_mask = [dom_mask]
         self.keyword = keyword
 
-        self.weights = [weights] # * To be determined in get_meta_information
-        self.len = None # * To be determined in get_meta_information
-        self.indices = None # * To be determined in get_meta_information
+        self.weights = [weights] # To be determined in get_meta_information
+        self.len = None # To be determined in get_meta_information
+        self.indices = None # To be determined in get_meta_information
 
         self._get_meta_information()
         if keyword != 'predict':
@@ -617,8 +617,8 @@ class SqliteLoader(data.Dataset):
         # events_per_sec = int(self.batch_size/(time.time()-start))
         # print('Weights loaded per second: %d'%(events_per_sec) )
         
-        # * Load batch - gets list back with tuples 
-        # * (seq_arr, scalar_arr, target_arr). Add weights afterwards.
+        # Load batch - gets list back with tuples 
+        # (seq_arr, scalar_arr, target_arr). Add weights afterwards.
         batch = self.db.make_batch(
             ids=ids, 
             scalars=self.scalar_features, 
@@ -629,9 +629,9 @@ class SqliteLoader(data.Dataset):
         )
         
         # repack_start = time.time()
-        # * Tuple is now passed to collate_fn - handle training and predicting
-        # * differently. We need the name of the event for prediction to log
-        # * which belongs to which
+        # Tuple is now passed to collate_fn - handle training and predicting
+        # differently. We need the name of the event for prediction to log
+        # which belongs to which
         if self.keyword == 'predict':
             pack = [
                 e+(self.keyword, int(ids[i_event])) for i_event, e in enumerate(batch)
@@ -659,7 +659,7 @@ class SqliteLoader(data.Dataset):
         '''Extracts filenames, calculates indices induced by train-, val.- and test_frac
         '''
 
-        # * Get mask
+        # Get mask
         if self.keyword == 'predict':
             _keyword = 'val'
         else:
@@ -672,7 +672,7 @@ class SqliteLoader(data.Dataset):
         )
         # print('Mask load time: %.2f'%(time.time()-indices_time) )
         
-        # * Get weights
+        # Get weights
         # weights_t = time.time()
         # self.weights = load_sqlite_weights(self.directory, self.weights)
         # print('Weights load time: %.2f'%(time.time()-weights_t) )
@@ -688,18 +688,18 @@ class SqliteLoader(data.Dataset):
 
 def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None, drop_last=False, debug_mode=False):
 
-    data_dir = data_pars['data_dir'] # * WHere to load data from
-    seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
-    scalar_features = data_pars['scalar_feat'] # * feature names
-    targets = get_target_keys(data_pars, meta_pars) # * target names
+    data_dir = data_pars['data_dir'] # WHere to load data from
+    seq_features = data_pars['seq_feat'] # feature names in sequences (if using LSTM-like network)
+    scalar_features = data_pars['scalar_feat'] # feature names
+    targets = get_target_keys(data_pars, meta_pars) # target names
     particle_code = get_particle_code(data_pars['particle'])
-    # * how much data should be trained on?
+    # how much data should be trained on?
     train_frac = data_pars.get('train_frac', None) 
-    # * how much data should be used for validation?
+    # how much data should be used for validation?
     val_frac = data_pars.get('val_frac', None) 
-    # * how much data should be used for training
+    # how much data should be used for training
     test_frac = data_pars.get('test_frac', None) 
-    # * which cleaning lvl and transform should be applied?
+    # which cleaning lvl and transform should be applied?
     file_keys = data_pars.get('file_keys', None) 
     mask_names = data_pars['masks']
     weights = data_pars.get('weights', 'None')
@@ -762,13 +762,13 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
     cond3 = 'FullBatchLoader' == data_pars['dataloader']
     if cond1 or cond2 or cond3:
         
-        seq_features = data_pars['seq_feat'] # * feature names in sequences (if using LSTM-like network)
-        scalar_features = data_pars['scalar_feat'] # * feature names
-        targets = get_target_keys(data_pars, meta_pars) # * target names
-        train_frac = data_pars['train_frac'] # * how much data should be trained on?
-        val_frac = data_pars['val_frac'] # * how much data should be used for validation?
-        test_frac = data_pars['test_frac'] # * how much data should be used for training
-        file_keys = data_pars['file_keys'] # * which cleaning lvl and transform should be applied?
+        seq_features = data_pars['seq_feat'] # feature names in sequences (if using LSTM-like network)
+        scalar_features = data_pars['scalar_feat'] # feature names
+        targets = get_target_keys(data_pars, meta_pars) # target names
+        train_frac = data_pars['train_frac'] # how much data should be trained on?
+        val_frac = data_pars['val_frac'] # how much data should be used for validation?
+        test_frac = data_pars['test_frac'] # how much data should be used for training
+        file_keys = data_pars['file_keys'] # which cleaning lvl and transform should be applied?
         mask_name = data_pars['mask']
         
         if use_whole_file:
@@ -815,7 +815,7 @@ def sort_indices(dataset, data_pars, dataloader_params=None):
     if collate_fn == None:
         indices = dataset.indices
     
-    # * Since PadSequence sorts each batch wrt the longest sequence, the indices must be sorted aswell!
+    # Since PadSequence sorts each batch wrt the longest sequence, the indices must be sorted aswell!
     elif collate_fn == 'PadSequence':
         batch_size = dataloader_params['batch_size']
         indices = dataset.indices
@@ -832,13 +832,13 @@ def sort_indices(dataset, data_pars, dataloader_params=None):
         else:
             end = batch_size
 
-        # * While a whole batch is extracted, sort per batch
+        # While a whole batch is extracted, sort per batch
         while end <= n_indices:
             index_seq_pairs[end-batch_size:end] = sorted(index_seq_pairs[end-batch_size:end], key=lambda x: x[1].shape[0], reverse=True)
             
             end += batch_size
         
-        # * Sort remaining aswell
+        # Sort remaining aswell
         index_seq_pairs[end-batch_size:-1] = sorted(index_seq_pairs[end-batch_size:-1], key=lambda x: x[1].shape[0], reverse=True)
 
         indices = [x[0] for x in index_seq_pairs]
@@ -899,22 +899,22 @@ class AveragePool(nn.Module):
         # self.device = get_device()
 
     def forward(self, seq, lengths, device=None):
-        # * The max length is retrieved this way such that dataparallel works
+        # The max length is retrieved this way such that dataparallel works
         if self._batch_first:
             max_length = seq.shape[1]
         else:
             max_length = seq.shape[0]
 
-        # * A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
-        # * Maxpooling is done over the second index
+        # A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
+        # Maxpooling is done over the second index
         mask = self._get_mask(lengths, max_length, batch_first=True, device=device)
-        # * By masking with 0, it is ensured that DOMs that are actually not there do not have an influence on the sum. By dividing with sequence length, we get the true mean
+        # By masking with 0, it is ensured that DOMs that are actually not there do not have an influence on the sum. By dividing with sequence length, we get the true mean
         seq = seq.masked_fill(~mask, 0.0)
         if self._batch_first:
-            # * (B, L, *) --> (B, *)
+            # (B, L, *) --> (B, *)
             seq = torch.sum(seq, dim=1)
             bs, feats = seq.shape
-            # * Some view-acrobatics due to broadcasting semantics.
+            # Some view-acrobatics due to broadcasting semantics.
             seq = (seq.view(feats, bs)/lengths).view(bs, feats)
         else:
             raise ValueError('Not sure when batch not first - AveragePool')
@@ -922,9 +922,9 @@ class AveragePool(nn.Module):
         return seq
 
     def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
-        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        # Assumes mask.size[S, B, *] or mask.size[B, S, *]
         if batch_first:
-            # * The 'None' is a placeholder so dimensions are matched.
+            # The 'None' is a placeholder so dimensions are matched.
             mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(2)
         return mask
@@ -981,7 +981,7 @@ class AttentionBlock(nn.Module):
     
     def forward(self, seq, lengths, device=None):
         
-        # * The max length is retrieved this way such that dataparallel works
+        # The max length is retrieved this way such that dataparallel works
         if self._batch_first:
             max_length = seq.shape[1]
         else:
@@ -991,14 +991,14 @@ class AttentionBlock(nn.Module):
         k = self.K(seq)
         v = self.V(seq)
         
-        # * Attention -> potential norm and residual connection
+        # Attention -> potential norm and residual connection
         post_attention = self._calc_self_attention(q, k, v, lengths, max_length, batch_first=self._batch_first, device=device)
         if self.residual_connection and self.n_in == self.n_out:
             post_attention = seq + post_attention
         if self.norm:
             post_attention = self.norm(post_attention)
         
-        # * linear layer -> nonlin -> potential norm and residual connection
+        # linear layer -> nonlin -> potential norm and residual connection
         output = self.nonlin(self.linear_out(post_attention))
         if self.residual_connection:
             output = output + post_attention
@@ -1008,21 +1008,21 @@ class AttentionBlock(nn.Module):
         return output
 
     def _calc_self_attention(self, q, k, v, lengths, max_length, batch_first=False, device=None):
-        # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
-        # * The transpose means swap second to last and last dimension
-        # * masked_fill_ is in-place, masked_fill creates a new tensor
+        # The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
+        # The transpose means swap second to last and last dimension
+        # masked_fill_ is in-place, masked_fill creates a new tensor
         weights = torch.matmul(q, k.transpose(-2, -1)) / sqrt(self.n_out)
         mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
         weights = weights.masked_fill(~mask, float('-inf'))
         weights = self.softmax(weights)
         
-        # * Calculate weighted sum of v-vectors.
+        # Calculate weighted sum of v-vectors.
         output = torch.matmul(weights, v)
         
         return output
 
     def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
-        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        # Assumes mask.size[S, B, *] or mask.size[B, S, *]
         if batch_first:
             mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(1)
@@ -1062,7 +1062,7 @@ class AttentionBlock2(nn.Module):
     
     def forward(self, seq, lengths, device=None):
         
-        # * The max length is retrieved this way such that dataparallel works
+        # The max length is retrieved this way such that dataparallel works
         if self._batch_first:
             max_length = seq.shape[1]
         else:
@@ -1071,10 +1071,10 @@ class AttentionBlock2(nn.Module):
         q = self.Q(seq)
         k = self.K(seq)
         
-        # * Attention -> potential norm and residual connection
+        # Attention -> potential norm and residual connection
         post_attention = self._calc_self_attention(q, k, seq, lengths, max_length, batch_first=self._batch_first, device=device)
         
-        # * linear layer -> nonlin -> potential norm and residual connection
+        # linear layer -> nonlin -> potential norm and residual connection
         output = self.nonlin(self.linear_out(post_attention))
         if self.residual_connection:
             output = output + post_attention
@@ -1084,21 +1084,21 @@ class AttentionBlock2(nn.Module):
         return output
 
     def _calc_self_attention(self, q, k, v, lengths, max_length, batch_first=False, device=None):
-        # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
-        # * The transpose means swap second to last and last dimension
-        # * masked_fill_ is in-place, masked_fill creates a new tensor
+        # The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
+        # The transpose means swap second to last and last dimension
+        # masked_fill_ is in-place, masked_fill creates a new tensor
         weights = torch.matmul(q, k.transpose(-2, -1)) / sqrt(self.n_out)
         mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
         weights = weights.masked_fill(~mask, float('-inf'))
         weights = self.softmax(weights)
         
-        # * Calculate weighted sum of v-vectors.
+        # Calculate weighted sum of v-vectors.
         output = torch.matmul(weights, v)
         
         return output
 
     def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
-        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        # Assumes mask.size[S, B, *] or mask.size[B, S, *]
         if batch_first:
             mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(1)
@@ -1148,7 +1148,7 @@ class RnnBlock(nn.Module):
     
     def forward(self, seq, lengths, device=None):
         
-        # * The max length is retrieved this way such that dataparallel works
+        # The max length is retrieved this way such that dataparallel works
         if self._batch_first:
             longest_seq = seq.shape[1]
             batch_size = seq.shape[0]
@@ -1156,17 +1156,17 @@ class RnnBlock(nn.Module):
             longest_seq = seq.shape[0]
             batch_size = seq.shape[1]
 
-        # * Send through LSTMs! Prep for first layer.
+        # Send through LSTMs! Prep for first layer.
         seq_packed = pack(seq, lengths, batch_first=self._batch_first)
         
-        # * x is output - concatenate outputs of LSTMs in parallel
+        # x is output - concatenate outputs of LSTMs in parallel
         for i_par in range(len(self.par_RNNs)):
             
-            # * Instantiate hidden and cell.
+            # Instantiate hidden and cell.
             # ? Maybe learn initial state?
             if self.learn_init:
                 
-                # * GRUs and LSTMs require different initiations
+                # GRUs and LSTMs require different initiations
                 if self.rnn_type == 'LSTM':
                     # ? Dont know why, but the .contiguous call is needed, else an error is thrown
                     hidden = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
@@ -1178,12 +1178,12 @@ class RnnBlock(nn.Module):
             else:
                 h = self.init_hidden(batch_size, self.par_RNNs[i_par], device)
 
-            # * Send through LSTM
+            # Send through LSTM
             self.par_RNNs[i_par].flatten_parameters()
             seq_par, h_par = self.par_RNNs[i_par](seq_packed, h)
             seq_par_post, lengths = unpack(seq_par, batch_first=True, total_length=longest_seq)
 
-            # * when multiple directions and layers, h_out is weird - needs careful treatment
+            # when multiple directions and layers, h_out is weird - needs careful treatment
             if self.rnn_type == 'LSTM':
                 h_out = h_par[0].view(self.n_layers, self.n_dirs, batch_size, self.hidden_size)
             elif self.rnn_type == 'GRU':
@@ -1197,12 +1197,12 @@ class RnnBlock(nn.Module):
             if self.residual:
                 seq_par_post = seq_par_post + seq
             
-            # * Define x on first parallel LSTM-module
+            # Define x on first parallel LSTM-module
             if i_par == 0:
                 x = h_out
                 seq_out = seq_par_post
 
-            # * Now keep cat'ing for each parallel stack
+            # Now keep cat'ing for each parallel stack
             else:
                 x = torch.cat((x, h_out), -1)
                 seq_out = torch.cat((seq_out, seq_par_post), -1)
@@ -1212,8 +1212,8 @@ class RnnBlock(nn.Module):
     def init_hidden(self, batch_size, layer, device):
         hidden_size = int(layer.weight_ih_l0.shape[0]/4)
 
-        # * Initialize hidden and cell states - to either random nums or 0's
-        # * (num_layers * num_directions, batch, hidden_size)
+        # Initialize hidden and cell states - to either random nums or 0's
+        # (num_layers * num_directions, batch, hidden_size)
         if self.rnn_type == 'LSTM':
             output = (torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device), 
             torch.zeros(self.n_dirs*self.n_layers, batch_size, hidden_size, device=device))
@@ -1234,39 +1234,39 @@ class MakeModel(nn.Module):
         self.device = device
         self.count = 0
 
-    # * Input must be a tuple to be unpacked!
+    # Input must be a tuple to be unpacked!
     def forward(self, batch):
-        # * Get device on each forward-pass to be compatible with training on multiple GPUs. An error is raised if no GPU available --> use except
+        # Get device on each forward-pass to be compatible with training on multiple GPUs. An error is raised if no GPU available --> use except
         try:
             device = get_device(torch.cuda.current_device())
         except AssertionError:
             device = None
 
-        # * For linear layers
+        # For linear layers
         if len(batch) == 1: 
             x, = batch
 
-        # * For RNNs with additional scalar values
+        # For RNNs with additional scalar values
         if len(batch) == 3: 
             seq, lengths, scalars = batch
             add_scalars = True 
             batch_size = seq.shape[0]
             longest_seq = seq.shape[1]
-            # * 'Reshape' input (batch first), torch wants a certain form..
-            # * seq = seq.view(batch_size, -1, n_seq_vars)
+            # 'Reshape' input (batch first), torch wants a certain form..
+            # seq = seq.view(batch_size, -1, n_seq_vars)
         
         for layer_name, entry in zip(self.layer_names, self.mods):
             
-            # * Handle different layers in different ways! 
+            # Handle different layers in different ways! 
             if layer_name == 'Linear':
 
-                # * If scalar variables are supplied for concatenation, do it! 
-                # * But make sure to only do it once.
+                # If scalar variables are supplied for concatenation, do it! 
+                # But make sure to only do it once.
                 if 'scalars' in locals(): 
                     if add_scalars: 
                         x, add_scalars = self.concat_scalars(x, scalars)
                 
-                # * Send through layers!
+                # Send through layers!
                 x = entry(x)
             
             elif layer_name == 'Linear_embedder':
@@ -1278,20 +1278,20 @@ class MakeModel(nn.Module):
             elif layer_name == 'AttentionDecoder':
                 x = entry(seq, lengths, device=device)
             
-            # * AttentionBlock2 is seq2seq
+            # AttentionBlock2 is seq2seq
             elif layer_name == 'AttentionBlock2':
                 seq = entry(seq, lengths, device=device)
             
-            # * Many to one! Therefore outputs x
+            # Many to one! Therefore outputs x
             elif layer_name == 'ManyToOneAttention':
                 x = entry(seq, lengths, device=device)
             
-            # * The MaxPool-layer is used after sequences have been treated 
-            # * -> prepare for linear decoding.
+            # The MaxPool-layer is used after sequences have been treated 
+            # -> prepare for linear decoding.
             elif layer_name == 'MaxPool':
                 x = entry(seq, lengths, device=device)
             
-            # * Same goes for average pool.
+            # Same goes for average pool.
             elif layer_name == 'AveragePool':
                 x = entry(seq, lengths, device=device)
             
@@ -1305,8 +1305,8 @@ class MakeModel(nn.Module):
                 seq, x = entry(seq, lengths, device=device)
             
             elif layer_name == 'ResBlock':
-                # * If scalar variables are supplied for concatenation, do it! 
-                # * But make sure to only do it once.
+                # If scalar variables are supplied for concatenation, do it! 
+                # But make sure to only do it once.
                 if 'scalars' in locals(): 
                     if add_scalars: 
                         x, add_scalars = self.concat_scalars(x, scalars)
@@ -1329,15 +1329,15 @@ class MakeModel(nn.Module):
         if layer.bidirectional: num_dir = 2
         else: num_dir = 1
 
-        # * Initialize hidden and cell states - to either random nums or 0's
-        # * (num_layers * num_directions, batch, hidden_size)
+        # Initialize hidden and cell states - to either random nums or 0's
+        # (num_layers * num_directions, batch, hidden_size)
         return (torch.zeros(num_dir, batch_size, hidden_size, device=device),
                 torch.zeros(num_dir, batch_size, hidden_size, device=device))
-        # * return (torch.randn(num_dir, batch_size, hidden_size, device=device),
-        # *         torch.randn(num_dir, batch_size, hidden_size, device=device))
+        # return (torch.randn(num_dir, batch_size, hidden_size, device=device),
+        #         torch.randn(num_dir, batch_size, hidden_size, device=device))
     
     def concat_scalars(self, x, scalars):
-        # * x and scalars must be of shape (batch, features)
+        # x and scalars must be of shape (batch, features)
         return torch.cat((x, scalars), 1), False
 
 class ManyToOneAttention(nn.Module):
@@ -1358,8 +1358,8 @@ class ManyToOneAttention(nn.Module):
         self._batch_first = batch_first
 
         self.Q = nn.Linear(in_features=self.n_in, out_features=self.n_in)
-        # * We will only have one keyvector - this is the one we want to learn.
-        # * Instantiate with normally distributed numbers. The dotproduct of 2 vectors of dim N with normally distributed numbers will have a mean of 0 and variance of N. 
+        # We will only have one keyvector - this is the one we want to learn.
+        # Instantiate with normally distributed numbers. The dotproduct of 2 vectors of dim N with normally distributed numbers will have a mean of 0 and variance of N. 
         self.k = nn.Parameter(torch.empty(self.n_in).normal_(mean=0,std=1.0), requires_grad=True)
         init_weights(arch_dict, arch_dict['nonlin'], self.Q)
 
@@ -1367,7 +1367,7 @@ class ManyToOneAttention(nn.Module):
         
     
     def forward(self, seq, lengths, device=None):
-        # * The max length is retrieved this way such that dataparallel works
+        # The max length is retrieved this way such that dataparallel works
         if self._batch_first:
             max_length = seq.shape[1]
         else:
@@ -1376,35 +1376,35 @@ class ManyToOneAttention(nn.Module):
         # TODO: Make Q a nonlinear function i.e. some layers. 
         q = self.Q(seq)
         
-        # * Attention -> potential norm and residual connection
+        # Attention -> potential norm and residual connection
         post_attention = self._calc_self_attention(q, seq, lengths, max_length, batch_first=self._batch_first, device=device)
         
         return post_attention.squeeze(1)
 
     def _calc_self_attention(self, q, v, lengths, max_length, batch_first=False, device=None):
         
-        # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
-        # * The transpose means swap second to last and last dimension
-        # * masked_fill_ is in-place, masked_fill creates a new tensor
+        # The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
+        # The transpose means swap second to last and last dimension
+        # masked_fill_ is in-place, masked_fill creates a new tensor
         
-        # * q: (B, L, F). k: (F, 1)
+        # q: (B, L, F). k: (F, 1)
         weights = torch.matmul(q, self.k.view(self.n_in, -1)) / sqrt(self.n_in)
         mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
         
-        # * weights: (B, L, 1)
+        # weights: (B, L, 1)
         weights = weights.squeeze(-1).masked_fill(~mask, float('-inf'))
         weights = self.softmax(weights)
         
-        # * Calculate weighted sum of v-vectors.
+        # Calculate weighted sum of v-vectors.
         shape = weights.shape
-        # * output becomes: (B, 1, F)
+        # output becomes: (B, 1, F)
         output = torch.matmul(weights.view(shape[0], -1, shape[1]), v)
         
         return output
 
     def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
         
-        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        # Assumes mask.size[S, B, *] or mask.size[B, S, *]
         if batch_first:
             mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
 
@@ -1418,16 +1418,16 @@ class MaxPool(nn.Module):
         # self.device = get_device()
 
     def forward(self, seq, lengths, device=None):
-        # * The max length is retrieved this way such that dataparallel works
+        # The max length is retrieved this way such that dataparallel works
         if self._batch_first:
             max_length = seq.shape[1]
         else:
             max_length = seq.shape[0]
 
-        # * A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
-        # * Maxpooling is done over the second index
+        # A tensor of shape (batch_size, longest_seq, *) is expected and a list of len = batch_size and lengths[0] = longest_seq
+        # Maxpooling is done over the second index
         mask = self._get_mask(lengths, max_length, batch_first=True, device=device)
-        # * By masking with -inf, it is ensured that DOMs that are actually not there do not have an influence on the max pooling.
+        # By masking with -inf, it is ensured that DOMs that are actually not there do not have an influence on the max pooling.
         seq = seq.masked_fill(~mask, float('-inf'))
         if self._batch_first:
             seq, _ = torch.max(seq, dim=1)
@@ -1436,9 +1436,9 @@ class MaxPool(nn.Module):
         return seq
 
     def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
-        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        # Assumes mask.size[S, B, *] or mask.size[B, S, *]
         if batch_first:
-            # * The 'None' is a placeholder so dimensions are matched.
+            # The 'None' is a placeholder so dimensions are matched.
             mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(2)
         return mask
@@ -1540,37 +1540,37 @@ class SelfAttention(nn.Module):
     
     def forward(self, seq, lengths, device=None):
         
-        # * The max length is retrieved this way such that dataparallel works
+        # The max length is retrieved this way such that dataparallel works
         if self._batch_first:
             max_length = seq.shape[1]
         else:
             max_length = seq.shape[0]
 
-        # * Find queries and keys
+        # Find queries and keys
         q = self.Q(seq)
         k = self.K(seq)
         
-        # * Attention
+        # Attention
         output = self._calc_self_attention(q, k, seq, lengths, max_length, batch_first=self._batch_first, device=device)
 
         return output
 
     def _calc_self_attention(self, q, k, v, lengths, max_length, batch_first=False, device=None):
-        # * The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
-        # * The transpose means swap second to last and last dimension
-        # * masked_fill_ is in-place, masked_fill creates a new tensor
+        # The matrix multiplication is always done with using the last two dimensions, i.e. (*, 10, 11).(*, 11, 7) = (*, 10, 7) 
+        # The transpose means swap second to last and last dimension
+        # masked_fill_ is in-place, masked_fill creates a new tensor
         weights = torch.matmul(q, k.transpose(-2, -1)) / sqrt(self.n_out)
         mask = self._get_mask(lengths, max_length, batch_first=batch_first, device=device)
         weights = weights.masked_fill(~mask, float('-inf'))
         weights = self.softmax(weights)
         
-        # * Calculate weighted sum of v-vectors.
+        # Calculate weighted sum of v-vectors.
         output = torch.matmul(weights, v)
         
         return output
 
     def _get_mask(self, lengths, maxlen, batch_first=False, device=None):
-        # * Assumes mask.size[S, B, *] or mask.size[B, S, *]
+        # Assumes mask.size[S, B, *] or mask.size[B, S, *]
         if batch_first:
             mask = torch.arange(maxlen, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(1)
@@ -1599,7 +1599,7 @@ def add_linear_embedder(arch_dict, layer_dict):
         hsize = layer_dict['input_sizes'][i_layer+1]
         
         layers.append(ResBlock(arch_dict, layer_dict, ))
-        # * Add a matrix to linearly 
+        # Add a matrix to linearly 
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
         init_weights(arch_dict, arch_dict['nonlin'], layers[-1])
         if layer_dict.get('LayerNorm', False):
@@ -1621,24 +1621,24 @@ def add_ResBlock(arch_dict, layer_dict):
 def add_linear_layers(arch_dict, layer_dict):
     n_layers = len(layer_dict['input_sizes'])-1
     
-    # * Add n_layers linear layers with non-linearity and normalization
+    # Add n_layers linear layers with non-linearity and normalization
     layers = []
     for i_layer in range(n_layers):
         isize = layer_dict['input_sizes'][i_layer]
         hsize = layer_dict['input_sizes'][i_layer+1]
 
-        # * Add layer and initialize its weights
+        # Add layer and initialize its weights
         layers.append(nn.Linear(in_features=isize, out_features=hsize))
         init_weights(arch_dict, arch_dict['nonlin'], layers[-1])
 
-        # * If last layer, do not add non-linearities or normalization
+        # If last layer, do not add non-linearities or normalization
         if i_layer+1 == n_layers: continue
 
-        # * If not, add non-linearities and normalization in required order
+        # If not, add non-linearities and normalization in required order
         else:
             if layer_dict['norm_before_nonlin']:
 
-                # * Only add normalization layer if wanted!
+                # Only add normalization layer if wanted!
                 if arch_dict['norm']['norm'] != None:
                     layers.append(add_norm(arch_dict, arch_dict['norm'], hsize))
                 layers.append(add_non_lin(arch_dict, arch_dict['nonlin']))
@@ -1737,7 +1737,7 @@ def load_best_model(save_dir):
     n_devices = len(meta_pars['gpu'])
     model = MakeModel(arch_pars, device)
     
-    # * If several GPU's have been used during training, wrap it in dataparalelle
+    # If several GPU's have been used during training, wrap it in dataparalelle
     if n_devices > 1:
         model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
     model.load_state_dict(torch.load(best_pars, map_location=torch.device(device)))
@@ -1752,15 +1752,15 @@ def make_model_architecture(arch_dict):
     for layer in arch_dict['layers']:
         for key, layer_dict in layer.items():
         
-            # * has to split, since identical keys would get overwritten in OrderedDict
-            # * key = name.split('_')[-1]
+            # has to split, since identical keys would get overwritten in OrderedDict
+            # key = name.split('_')[-1]
 
-            # * Add modules of LSTMs, since we need to iterate over LSTM layers
+            # Add modules of LSTMs, since we need to iterate over LSTM layers
             if key == 'ResBlock':
                 modules.append(add_ResBlock(arch_dict, layer_dict))
             elif key == 'LSTM': 
                 modules = add_LSTM_module(arch_dict, layer_dict, modules)
-            # * Add a Sequential layer consisting of a linear block with normalization and nonlinearities
+            # Add a Sequential layer consisting of a linear block with normalization and nonlinearities
             elif key == 'Linear': 
                 modules.append(add_linear_layers(arch_dict, layer_dict))
             elif key == 'Conv1d':
