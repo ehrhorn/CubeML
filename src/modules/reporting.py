@@ -124,6 +124,7 @@ class Performance:
         self.db = SqliteFetcher(PATH_VAL_DB)
         self.dom_mask = data_pars['dom_mask']
         self.loss_func = arch_pars['loss_func']
+        self._pred_path = self._get_pred_path()
         
         self._energy_key = self._get_energy_key()
         self._pred_keys = self._get_prediction_keys()
@@ -446,7 +447,6 @@ class Performance:
         return keys
     
     def _get_data_dicts(self):
-        full_pred_address = self._get_pred_path()
         data_dir = self.data_pars['data_dir']
 
         # * Load loss aswell
@@ -455,10 +455,10 @@ class Performance:
         print(get_time(), 'Loading predictions...')
 
         raw_pred_dict = read_pickle_predicted_h5_data_v2(
-            full_pred_address, self._target_keys
+            self._pred_path, self._target_keys
         )
         pred_dict = read_pickle_predicted_h5_data_v2(
-            full_pred_address, keys
+            self._pred_path, keys
         )
         event_ids = [str(idx) for idx in pred_dict['indices']]
         scalar_feats = (
@@ -502,6 +502,7 @@ class Performance:
         print(get_time(), 'Number of DOMs found!')
         print('')
         del pred_dict['indices']
+        del raw_pred_dict['indices']
 
         return energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss, raw_pred_dict, raw_targets_dict
     
@@ -627,6 +628,8 @@ class Performance:
         if (self.loss_func == 'logcosh' or 
         self.loss_func == 'logcosh_full_weighted'):
             clip_vals = [0.0, 0.2]
+        elif self.loss_func == 'logscore':
+            clip_vals = [-np.inf, np.inf]
         else:
             raise KeyError('Performance._get_loss_clip_vals: Undefined loss'\
                  'function (%s) given!'%(self.loss_func))
@@ -915,9 +918,34 @@ class Performance:
             d['ylabel'] = 'Count'
             d['xlabel'] = 'Prediction'
             d['savefig'] = '/'.join([
-                base_path, pred+'_dist.png'
+                base_path, 'dist_'+pred+'.png'
             ])
             _ = make_plot(d)
+
+        # If probabilistic regression, save sigmas and z-score distributions
+        if is_probabilistic(self.loss_func):
+            
+            sigma_keys = ['sigma_'+key for key in raw_pred]
+            sigma_dict = read_pickle_predicted_h5_data_v2(
+            self._pred_path, sigma_keys
+            )
+            
+            for pred_key, sigma_key, target_key in zip(
+                raw_pred, sigma_dict, raw_target
+            ):
+                # Calculate z-scores
+                z = (raw_pred[pred_key] - raw_target[target_key]) / \
+                    sigma_dict[sigma_key]
+                
+                # Save distribution
+                d = {'data': [z]}
+                d['title'] = pred_key + ' z-score distribution'
+                d['ylabel'] = 'Count'
+                d['xlabel'] = 'z-score'
+                d['savefig'] = '/'.join([
+                    base_path, 'z_score_'+pred_key+'.png'
+                ])
+                _ = make_plot(d)
 
     def update_onenumber_performance(self):
         energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss = self._get_data_dicts()

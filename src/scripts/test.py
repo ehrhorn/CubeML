@@ -20,12 +20,11 @@
 # import sys
 # from time import sleep
 
+def a():
+    return True
 
-class Example:
+def b():
+    print(GLOBAL)
 
-    def _some_func(self):
-        return 2
-    
-class_instance = Example()
-private_return = class_instance._some_func()
-print(private_return)
+GLOBAL = a()
+b() 

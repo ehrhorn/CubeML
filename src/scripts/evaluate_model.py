@@ -1,5 +1,7 @@
 from src.modules.main_funcs import evaluate_model
-from src.modules.helper_functions import get_time, find_files, locate_model
+from src.modules.helper_functions import (
+    get_time, find_files, locate_model, load_model_pars
+)
 from src.modules.preprocessing import DomChargeScaler, EnergyNoLogTransformer
 import argparse
 from pathlib import Path
@@ -25,4 +27,5 @@ if __name__ == '__main__':
             wandb_ID = model.split('/')[-1]
         else:
             wandb_ID = None
+
         evaluate_model(model, wandb_ID=wandb_ID, predict=args.predict)

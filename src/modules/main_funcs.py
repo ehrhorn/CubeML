@@ -14,7 +14,7 @@ import json
 import subprocess
 import multiprocessing
 
-# * Custom classes and functions
+# Custom classes and functions
 import src.modules.loss_funcs
 from src.modules.classes import *
 from src.modules.loss_funcs import *
@@ -39,13 +39,13 @@ def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN
     loss_vals - list of loss function values
     '''
 
-    #* ======================================================================== 
-    #* MAKE LR SCAN
-    #* ========================================================================    
+    # ======================================================================== 
+    # MAKE LR SCAN
+    # ========================================================================    
 
-    #* Use a linearly or exponentially increasing LR throughout number of epochs
+    # Use a linearly or exponentially increasing LR throughout number of epochs
     n_steps = N_TRAIN*n_epochs/BATCH_SIZE
-    gamma = (end_lr/start_lr)**(1.0/n_steps) #* exponentially increasing lr
+    gamma = (end_lr/start_lr)**(1.0/n_steps) # exponentially increasing lr
     
     lambda1 = lambda step: gamma**step
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
@@ -80,10 +80,9 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
         wandb_ID {str} -- The unique W&B-ID of the experiment. If None, no logging is performed. (default: {None})
     """
     
-    #* ======================================================================== #
-    #* SAVE OPERATION PLOTS
-    #* ======================================================================== #
-
+    # ======================================================================== 
+    # SAVE OPERATION PLOTS
+    # ======================================================================== 
     if wandb_ID is not None:
         hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
         WANDB_DIR = get_project_root()+'/models'
@@ -92,9 +91,10 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
 
     log_operation_plots(model_dir, wandb_ID=wandb_ID)
 
-    #* ======================================================================== #
-    #* PREDICT USING BEST MODEL
-    #* ======================================================================== #
+    # ======================================================================== 
+    # PREDICT USING BEST MODEL
+    # ========================================================================
+     
     if predict:
         hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
 
@@ -103,9 +103,9 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
         else:
             calc_predictions(model_dir, wandb_ID=wandb_ID)
     
-    #* ======================================================================== #
-    #* REPORT PERFORMANCE
-    #* ======================================================================== #
+    # ======================================================================== #
+    # REPORT PERFORMANCE
+    # ======================================================================== #
 
     log_performance_plots(model_dir, wandb_ID=wandb_ID) 
     summarize_model_performance(model_dir, wandb_ID=wandb_ID)
@@ -114,14 +114,14 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
         wandb.log()
         wandb.join()
     
-    # * Update the meta_pars-file
+    # Update the meta_pars-file
     with open(model_dir+'/meta_pars.json') as json_file:
         meta_pars = json.load(json_file)
     meta_pars['status'] = 'Finished'
     with open(model_dir+'/meta_pars.json', 'w') as fp:
         json.dump(meta_pars, fp)
 
-    # * Close all open figures
+    # Close all open figures
     plt.close('all')
 
 def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
@@ -137,9 +137,9 @@ def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
         save {bool} -- Whether to save plots and dicts or not. (default: {True})
     """    
     
-    #* ======================================================================== 
-    #* SETUP AND UNPACK
-    #* ======================================================================== 
+    # ======================================================================== 
+    # SETUP AND UNPACK
+    # ======================================================================== 
     
     print(get_time(), 'LEARNING RATE FINDER INITIATED')
     BATCH_SIZE = hyper_pars['batch_size']
@@ -152,14 +152,14 @@ def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
     hyper_pars['optimizer']['lr'] = start_lr
     gpus = meta_pars['gpu']
 
-    #* ======================================================================== 
-    #* MAKE LR SCAN
-    #* ======================================================================== 
+    # ======================================================================== 
+    # MAKE LR SCAN
+    # ======================================================================== 
 
-    # * num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
+    # num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
     dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=8, shuffle=True, dataloader=data_pars['dataloader'])
 
-    # * Initialize model and log it - use GPU if available
+    # Initialize model and log it - use GPU if available
     model, optimizer, device, _ = initiate_model_and_optimizer(None, hyper_pars, data_pars, arch_pars, meta_pars, n_train=N_TRAIN)
 
     loss = get_loss_func(
@@ -168,20 +168,20 @@ def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
         device=device
     )
 
-    # * Setup generators - make a generator for training, validation on trainset and validation on test set
+    # Setup generators - make a generator for training, validation on trainset and validation on test set
     collate_fn = get_collate_fn(data_pars)
     train_generator = data.DataLoader(train_set, **dataloader_params_train, collate_fn=collate_fn)#, pin_memory=True)
     
-    # * Use IGNITE to train
+    # Use IGNITE to train
     pretrain_hyper_pars = hyper_pars['optimizer'].copy()
     pretrain_hyper_pars['lr'] = start_lr
     lr, loss_vals = calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, gpus, n_epochs=n_epochs, start_lr=pretrain_hyper_pars['lr'], end_lr=end_lr)
 
-    #* ======================================================================== 
-    #* SAVE RELEVANT THINGS
-    #* ========================================================================
+    # ======================================================================== 
+    # SAVE RELEVANT THINGS
+    # ========================================================================
     
-    data_dir = data_pars['data_dir'] #* WHere to load data from
+    data_dir = data_pars['data_dir'] # WHere to load data from
     lr_dir = make_lr_dir(data_dir, meta_pars['project'], BATCH_SIZE)
     _ = make_plot({'x': [lr], 'y': [loss_vals], 'xscale': 'log', 'savefig': lr_dir+'/lr_vs_loss.png', 'xlabel': 'Learning Rate', 'ylabel': 'Loss'})
     pickle.dump(lr, open(lr_dir+'/lr.pickle', 'wb'))
@@ -205,7 +205,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, met
     model = MakeModel(arch_pars, device)
     lr_scheduler = None
 
-    # * If several GPU's are available, use them all!
+    # If several GPU's are available, use them all!
     print('')
     n_devices = torch.cuda.device_count()
     meta_pars['n_devices'] = n_devices
@@ -218,13 +218,13 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, met
     else:
         print('Used device:', get_device(gpus[0]))
 
-    # * Makes model parameters to float precision
+    # Makes model parameters to float precision
     model = model.float()
 
     if hyper_pars['lr_schedule']['lr_scheduler'] == 'CyclicLR':
         hyper_pars['optimizer']['lr'] = hyper_pars['lr_schedule']['base_lr']
     
-    # * If training is to be continued on a pretrained model, load its parameters
+    # If training is to be continued on a pretrained model, load its parameters
     if meta_pars['objective'] == 'continue_training':
         checkpoint_path = get_project_root() + meta_pars['pretrained_path'] + '/backup.pth'
 
@@ -241,7 +241,7 @@ def initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, met
 
         print(get_time(), 'PRETRAINED MODEL LOADED!')
 
-    # * If a run crashed and is reinitiated, load the state prior to crashing; model pars, optmizer pars and lr-schedule pars
+    # If a run crashed and is reinitiated, load the state prior to crashing; model pars, optmizer pars and lr-schedule pars
     elif meta_pars['objective'] == 'continue_crashed':
         checkpoint_path = get_project_root() + get_path_from_root(meta_pars['crashed_path']) + '/backup.pth'
 
@@ -290,14 +290,14 @@ def calc_predictions_old(save_dir, wandb_ID=None):
     best_pars = find_best_model_pars(model_dir)
     n_devices = meta_pars.get('n_devices', 0)
     model = MakeModel(arch_pars, device)
-    # * If several GPU's have been used during training, wrap it in dataparalelle
+    # If several GPU's have been used during training, wrap it in dataparalelle
     if n_devices > 1:
         model = torch.nn.DataParallel(model, device_ids=None, output_device=None, dim=0)
     model.load_state_dict(torch.load(best_pars, map_location=torch.device(device)))
     model = model.to(device)
     model = model.float()
 
-    # * Loop over files
+    # Loop over files
     print(get_time(), 'Prediction begun.')
     pred_filename = str(best_pars).split('.pth')[0].split('/')[-1]
     pred_full_address = save_dir+'/data/predict'+pred_filename+'.h5'
@@ -305,7 +305,7 @@ def calc_predictions_old(save_dir, wandb_ID=None):
     n_predicted = 0
     n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
     
-    # * Create list of files to predict on - either load it from model-directory if specific files are to be predicted on or iterate over the data directory
+    # Create list of files to predict on - either load it from model-directory if specific files are to be predicted on or iterate over the data directory
     path = get_project_root() + data_pars['data_dir']
     try:
         with open(save_dir+'/val_files.pickle', 'rb') as f:
@@ -321,7 +321,7 @@ def calc_predictions_old(save_dir, wandb_ID=None):
         
         for file in file_list:
             
-            # * Do not predict more than wanted - takes up space aswell...
+            # Do not predict more than wanted - takes up space aswell...
             if n_predicted > n_predictions_wanted:
                 break
 
@@ -330,27 +330,27 @@ def calc_predictions_old(save_dir, wandb_ID=None):
              # TODO: Is always 0.00, since n_predicitons_wanted is np.inf.. It should be changed to len(val_set)
             print('Progress: %.0f %%. Predicting on %s'%(100*n_predicted/n_predictions_wanted, get_path_from_root(str(file))))
             
-            # * Extract validation data
+            # Extract validation data
             val_set = load_predictions(data_pars, meta_pars, 'val', file, use_whole_file=USE_WHOLE_FILE)
             predictions = {key: [] for key in val_set.targets}
             truths = {key: [] for key in val_set.targets}
 
             error_from_preds = {}
 
-            # * Predict 
+            # Predict 
             VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
             dataloader_params = {'batch_size': VAL_BATCH_SIZE, 'shuffle': False, 'num_workers': 8}
 
-            # * Setup generators
+            # Setup generators
             collate_fn = get_collate_fn(data_pars)
             indices = sort_indices(val_set, data_pars, dataloader_params=dataloader_params)
             val_generator = data.DataLoader(val_set, **dataloader_params, collate_fn=collate_fn)
 
-            # * Use IGNITE to predict
+            # Use IGNITE to predict
             def log_prediction(engine):
                 pred, truth = engine.state.output[0], engine.state.output[1]
                 
-                # * give list of functions to calculate
+                # give list of functions to calculate
                 for i_batch in range(pred.shape[0]):
                     for i_key, key in enumerate(predictions):
                         predictions[key].append(pred[i_batch, i_key])
@@ -360,17 +360,17 @@ def calc_predictions_old(save_dir, wandb_ID=None):
             evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
             evaluator_val.run(val_generator)
 
-            # * Sort w.r.t. index before saving
+            # Sort w.r.t. index before saving
             for key, values in predictions.items():
                 _, sorted_vals = sort_pairs(indices, values)
                 predictions[key] = sorted_vals
-            # * Sort w.r.t. index before saving
+            # Sort w.r.t. index before saving
             for key, values in truths.items():
                 _, sorted_vals = sort_pairs(indices, values)
                 truths[key] = sorted_vals
             indices = sorted(indices)
 
-            # * Run predictions through desired functions - transform back to 'true' values, if transformed
+            # Run predictions through desired functions - transform back to 'true' values, if transformed
             predictions_transformed = inverse_transform(predictions, save_dir)
             truths_transformed = inverse_transform(truths, save_dir)
 
@@ -378,7 +378,7 @@ def calc_predictions_old(save_dir, wandb_ID=None):
             for func in eval_functions:
                 error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
 
-            # * Save predictions
+            # Save predictions
             # name = str(file).split('.')[-2].split('/')[-1]
             name = Path(file).stem
             grp = f.create_group(name)
@@ -397,11 +397,11 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
     '''
 
-    # * Load the best model 
+    # Load the best model 
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
     model = load_best_model(save_dir)
 
-    # * Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
+    # Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
     n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
     LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
     VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
@@ -418,11 +418,11 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)#, pin_memory=True)
     N_VAL = get_set_length(val_set)
     
-    # * Run evaluator!
+    # Run evaluator!
     predictions, truths, indices, loss_vals = run_pickle_evaluator(model, val_generator, val_set.targets, gpus, 
         LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL, loss_func=loss)
     
-    # * Run predictions through desired functions - transform back to 'true' values, if transformed
+    # Run predictions through desired functions - transform back to 'true' values, if transformed
     predictions_transformed = inverse_transform(predictions, save_dir)
     truths_transformed = inverse_transform(truths, save_dir)
 
@@ -431,12 +431,12 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     for func in eval_functions:
         error_from_preds[func.__name__] = func(predictions_transformed, truths_transformed)
 
-    # * Save predictions in h5-file.
+    # Save predictions in h5-file.
     pred_full_address = save_dir+'/data/predictions.h5'
     
     print(get_time(), 'Saving predictions...')
     with h5.File(pred_full_address, 'w') as f:
-        # * We have to save as an integer
+        # We have to save as an integer
         f.create_dataset('index', data=np.array(indices))
         f.create_dataset('loss', data=np.array(loss_vals))
         for key, pred in predictions.items():
@@ -496,13 +496,14 @@ def run_experiment(file, log=True, debug_mode=False, gpu_id=None):
         meta_pars = dicts['meta_pars']
 
     if gpu_id:
+        # Force an error - not implemented yet
         print(meta_pars)
         a+=1
 
-    # * Delete file
+    # Delete file
     Path(file).unlink()
     
-    # * Only scan new experiments
+    # Only scan new experiments
     scan = meta_pars.get('lr_scan', False)
     if meta_pars['objective'] == 'explore_lr':
         explore_lr(hyper_pars, data_pars, arch_pars, meta_pars)
@@ -549,39 +550,58 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
     Returns:
         dict, dict, list -- Predictions, truths and indices in dataset
     """    
-    
-    # * Use IGNITE to predict
+
+    # Use IGNITE to predict
     predictions = {key: [] for key in targets}
     truths = {key: [] for key in targets}
     
-    loss_vals = []
+    # If a probabilistic regression is performed, make sure to save 
+    # standard deviations aswell 
+    # If a probabilistic regression is performed, make sure to save 
+    # standard deviations aswell 
+    loss_name = type(loss_func).__name__
+    PROBABILISTIC_REGRESSION = is_probabilistic(loss_name)
 
+    if PROBABILISTIC_REGRESSION:
+        sigma_keys = ['sigma_'+key for key in targets]
+        d = {key: [] for key in sigma_keys}
+        predictions.update(d)
+    else:
+        sigma_keys = None
+
+    loss_vals = []
     indices_PadSequence_sorted = []
     device = get_device(gpus[0])
-
-    # * The handler saving predictions
+    n_targets = len(targets)
+    
+    # The handler saving predictions
     def log_prediction(engine):
-        # * The indices returned by the Ignite Engine defined in pickle_evaluator sorts the indices for us        
+
+        # The indices returned by the Ignite Engine defined in pickle_evaluator sorts the indices for us        
         pred, target, indices = engine.state.output
         truth = target[0]
         weights = target[1]
         
-        # * Save loss values aswell - we call .item() to detach it from gradient graph
+        # Save loss values aswell - we call .item() to detach it from gradient graph
         loss = loss_func(pred, target, predict=True)
         loss_vals.extend([loss_val.item() for loss_val in loss])
-
         indices_PadSequence_sorted.extend(indices)
         for i_batch in range(pred.shape[0]):
-            for i_key, key in enumerate(predictions):
+            for i_key, key in enumerate(targets):
                 predictions[key].append(pred[i_batch, i_key].item())
                 truths[key].append(truth[i_batch, i_key].item())
-                
-        # * Log for sanity...
+            
+            # If probabilistic inference, remember to save sigmas aswell
+            if PROBABILISTIC_REGRESSION:
+                for i_key, key in zip(range(n_targets, 2*n_targets), sigma_keys):
+                    predictions[key].append(pred[i_batch, i_key].item())
+
+        # Log for sanity...
         if engine.state.iteration%(max(1, int(LOG_EVERY/VAL_BATCH_SIZE))) == 0:
             n_predicted = engine.state.iteration*VAL_BATCH_SIZE
             print(get_time(), 'Progress %.0f %%: Predicted %d of %d'%(100*n_predicted/N_VAL, n_predicted, N_VAL)) 
 
-    # * Start predicting!
+    # Start predicting!
     print(get_time(), 'Prediction begun.')
     evaluator_val = pickle_evaluator(model, device)
     evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
@@ -589,12 +609,12 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
     print(get_time(), 'Prediction finished!')
     # print(indices_PadSequence_sorted[:10])
     # print(predictions['true_primary_direction_z'][:10])
-    # * Sort predictions w.r.t. index before saving
+    # Sort predictions w.r.t. index before saving
     _, loss_vals_sorted = sort_pairs(indices_PadSequence_sorted, loss_vals)
     for key, values in predictions.items():
         _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
         predictions[key] = sorted_vals
-    # * Sort w.r.t. index before saving
+    # Sort w.r.t. index before saving
     for key, values in truths.items():
         _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
         truths[key] = sorted_vals
@@ -636,15 +656,15 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     EARLY_STOP_PATIENCE = hyper_pars['early_stop_patience']
     LOG_EVERY = meta_pars.get('log_every', 200000) # ! 200000 chosen as a default parameter
 
-    # * Only calculate train error on a fraction of the training data - a fraction equal to val. frac.
+    # Only calculate train error on a fraction of the training data - a fraction equal to val. frac.
     data_pars_copy = data_pars.copy()
     hyper_pars_copy = hyper_pars.copy()
     data_pars_copy['n_train_events_wanted'] = data_pars.get('n_val_events_wanted', np.inf)
     hyper_pars_copy['batch_size'] = data_pars['val_batch_size']
     
     print(get_time(), 'Loading data...')
-    # * We split in each file (after its been shuffled..)
-    # * Now load data
+    # We split in each file (after its been shuffled..)
+    # Now load data
     train_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'train', debug_mode=debug_mode)
     trainerr_set = load_data(hyper_pars_copy, data_pars_copy, arch_pars, meta_pars, 'train', debug_mode=debug_mode)
     val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'val', debug_mode=debug_mode)
@@ -652,7 +672,7 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)
     MAX_ITERATIONS = MAX_EPOCHS*N_TRAIN//BATCH_SIZE
-    # * Used for some lr-schedulers, so just add it.
+    # Used for some lr-schedulers, so just add it.
     hyper_pars['lr_schedule']['train_set_size'] = N_TRAIN
 
     if log:
@@ -662,18 +682,18 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     print('\nTrain set size: %d'%(N_TRAIN))
     print('Val. set size: %d'%(N_VAL))
     
-    #* ====================================================================== #
-    #* SETUP TRAINING
-    #* ====================================================================== #
+    # ====================================================================== #
+    # SETUP TRAINING
+    # ====================================================================== #
 
-    # * num_workers choice based on gut feeling - 
-    # * has to be high enough to not be a bottleneck
+    # num_workers choice based on gut feeling - 
+    # has to be high enough to not be a bottleneck
     n_workers = meta_pars['n_workers']
     dataloader_params_train = get_dataloader_params(BATCH_SIZE, num_workers=n_workers, shuffle=True, dataloader=data_pars['dataloader'])
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=n_workers, shuffle=False, dataloader=data_pars['dataloader'])
     dataloader_params_trainerr = get_dataloader_params(VAL_BATCH_SIZE, num_workers=n_workers, shuffle=False, dataloader=data_pars['dataloader'])
     
-    # * Initialize model and log it - use GPU if available
+    # Initialize model and log it - use GPU if available
     model, optimizer, device, lr_scheduler = initiate_model_and_optimizer(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, n_train=N_TRAIN)
 
     if log:
@@ -683,7 +703,7 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
         wandb.config.update({'Model parameters': get_n_parameters(model)})
     print('N_PARAMETERS:', get_n_parameters(model))
     
-    # * Get type of scheduler, since different schedulers need different kinds of updating.
+    # Get type of scheduler, since different schedulers need different kinds of updating.
     type_lr_scheduler = type(lr_scheduler)
     loss = get_loss_func(
         arch_pars['loss_func'], 
@@ -691,20 +711,20 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
         device=device
     )
 
-    # * Setup generators - make a generator for training, validation on trainset and validation on test set
+    # Setup generators - make a generator for training, validation on trainset and validation on test set
     collate_fn = get_collate_fn(data_pars)
     train_generator = data.DataLoader(train_set, **dataloader_params_train, collate_fn=collate_fn)#, pin_memory=True)
     val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)#, pin_memory=True)
     trainerr_generator = data.DataLoader(trainerr_set, **dataloader_params_trainerr, collate_fn=collate_fn)#, pin_memory=True)
     
-    # * Use IGNITE to train
+    # Use IGNITE to train
     trainer = create_supervised_trainer(model, optimizer, loss, device=device)
     evaluator_val = create_supervised_evaluator(model, metrics={'custom_loss': Loss(loss)}, device=device)
     evaluator_train = create_supervised_evaluator(model, metrics={'custom_loss': Loss(loss)}, device=device)
 
-    #* ========================================================================
-    #* SETUP SAVING OF IMPROVED MODELS
-    #* ========================================================================  
+    # ========================================================================
+    # SETUP SAVING OF IMPROVED MODELS
+    # ========================================================================  
     
     def custom_score_function(engine):
         loss = engine.state.metrics['custom_loss']
@@ -714,15 +734,15 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
         name = ''
         checkpointer = ModelCheckpoint(dirname=save_dir+'/checkpoints', filename_prefix=name, create_dir=True, save_as_state_dict=True, score_function=custom_score_function, score_name='Loss', n_saved=2, require_empty=False)
         
-        # * Add handler to evaluator
+        # Add handler to evaluator
         checkpointer_dict = {'model': model}
         evaluator_val.add_event_handler(Events.EPOCH_COMPLETED, checkpointer, checkpointer_dict)
 
-    #* ====================================================================== #
-    #* SETUP EARLY STOPPING
-    #* ====================================================================== #
+    # ====================================================================== #
+    # SETUP EARLY STOPPING
+    # ====================================================================== #
 
-    #* patience = how long to wait before stopping according to score_func, trainer = which engine to stop.
+    # patience = how long to wait before stopping according to score_func, trainer = which engine to stop.
     if earlystopping:
         print('Early stopping activated!')
         early_stop_handler = EarlyStopping(patience=EARLY_STOP_PATIENCE,
@@ -731,9 +751,9 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
         evaluator_val.add_event_handler(Events.EPOCH_COMPLETED, early_stop_handler)
 
 
-    #* ====================================================================== #
-    #* DO LEARNING RATE SCAN
-    #* ====================================================================== #
+    # ====================================================================== #
+    # DO LEARNING RATE SCAN
+    # ====================================================================== #
 
     if scan_lr_before_train:
         pretrain_hyper_pars = hyper_pars['optimizer'].copy()
@@ -760,14 +780,14 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
             im = PIL.Image.open(img_address)
             wandb.log({'Pretrain LR-scan': wandb.Image(im, caption='Pretrain LR-scan')}, commit=False)
 
-    #* ====================================================================== #
-    #* SETUP LOGGING
-    #* ====================================================================== #   
+    # ====================================================================== #
+    # SETUP LOGGING
+    # ====================================================================== #   
     
-    # * If continuing training, get how many epochs completed
+    # If continuing training, get how many epochs completed
     ITERATIONS_COMPLETED = get_iterations_completed(meta_pars)
 
-    # * Print log
+    # Print log
     def print_log(engine, set_name, metric_name):
         print("Events: {}/{} - {} {}: {:.2e}"
             .format((trainer.state.iteration+ITERATIONS_COMPLETED)*BATCH_SIZE, (MAX_ITERATIONS)*BATCH_SIZE, set_name, metric_name, engine.state.metrics[metric_name]))
@@ -775,7 +795,7 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     evaluator_train.add_event_handler(Events.COMPLETED, print_log, "train", 'custom_loss')
     evaluator_val.add_event_handler(Events.COMPLETED, print_log, "validation", 'custom_loss')
 
-    # * Log locally and to W&B
+    # Log locally and to W&B
     if log:
         def log_metric(engine, set_name, metric_name, list_address):
             append_list_and_save(list_address, engine.state.metrics[metric_name])
@@ -794,14 +814,14 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
         evaluator_train.add_event_handler(Events.COMPLETED, log_lr, 'Graphs/learning rate', optimizer, save_dir+'/data/lr.pickle')
         evaluator_val.add_event_handler(Events.COMPLETED, log_epoch, save_dir+'/data/epochs.pickle')
 
-    # * Time training and evaluation
+    # Time training and evaluation
     time_trainer = Timer(average=True)
     time_trainer.attach(trainer, resume=Events.ITERATION_STARTED, pause=Events.ITERATION_COMPLETED, step=Events.ITERATION_COMPLETED)
 
     time_evaluator = Timer(average=True)
     time_evaluator.attach(evaluator_val, resume=Events.ITERATION_STARTED, pause=Events.ITERATION_COMPLETED, step=Events.ITERATION_COMPLETED)
 
-    # * Call evaluator after each iteration - only evaluate after each LOG_EVERY events
+    # Call evaluator after each iteration - only evaluate after each LOG_EVERY events
     def evaluate(trainer):
 
         if (trainer.state.iteration+ITERATIONS_COMPLETED)%(int(LOG_EVERY/BATCH_SIZE)) == 0:
@@ -819,7 +839,7 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
                             
             #                 i_layer = log_weights_and_grads(i_layer, entry, step)
             
-            # * Run evaluation on train- and validation-sets
+            # Run evaluation on train- and validation-sets
             evaluator_train.run(trainerr_generator)
             evaluator_val.run(val_generator)
             if data_pars['dataloader'] == 'FullBatchLoader':
@@ -832,7 +852,7 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
                 trainerr_set.shuffle_indices()
                 val_set.shuffle_indices()
 
-            # * Log maximum memory allocated and speed.
+            # Log maximum memory allocated and speed.
             if log:
                 wandb.config.update({'Avg. Events/second (train)': BATCH_SIZE/time_trainer.value()}, allow_val_change=True)
                 wandb.config.update({'Avg. Events/second (eval.)': VAL_BATCH_SIZE/time_evaluator.value()}, allow_val_change=True)
@@ -840,7 +860,7 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
                     max_memory_allocated = torch.cuda.max_memory_allocated(device=device)/(1024*1024)
                     wandb.config.update({'Max memory allocated [MiB]': max_memory_allocated}, allow_val_change=True)
 
-                # * Save a backup after each epoch incase something crashes...
+                # Save a backup after each epoch incase something crashes...
                 backup = {'iterations_completed': trainer.state.iteration + ITERATIONS_COMPLETED,
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict()
@@ -859,9 +879,9 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
 
     
 
-    #* ======================================================================== #
-    #* SETUP LEARNING RATE SCHEDULER
-    #* ======================================================================== #
+    # ======================================================================== #
+    # SETUP LEARNING RATE SCHEDULER
+    # ======================================================================== #
     if type_lr_scheduler == torch.optim.lr_scheduler.CyclicLR:
         
         def update_lr(engine, lr_scheduler):
@@ -890,9 +910,9 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
     else:
         raise ValueError('Undefined lr_scheduler (%s) used for updating LR!'%(type_lr_scheduler))
 
-    #* ======================================================================== #
-    #* START TRAINING
-    #* ======================================================================== # 
+    # ======================================================================== #
+    # START TRAINING
+    # ======================================================================== # 
            
     print('Training begun')
     train_epochs = MAX_EPOCHS-(ITERATIONS_COMPLETED*BATCH_SIZE//N_TRAIN)
@@ -901,11 +921,11 @@ def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=T
 
 def train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=False, log=True, debug_mode=False):
     
-    #* ======================================================================== 
-    #* SETUP AND LOAD DATA
-    #* ======================================================================== 
+    # ======================================================================== 
+    # SETUP AND LOAD DATA
+    # ======================================================================== 
 
-    # * If training is on a pretrained model, copy and update data- and hyperpars with potential new things
+    # If training is on a pretrained model, copy and update data- and hyperpars with potential new things
     if meta_pars['objective'] == 'continue_training':
         save_dir, hyper_pars, data_pars, arch_pars = update_model_pars(hyper_pars, data_pars, meta_pars)
         wandb_ID = save_dir.split('/')[-1]
@@ -916,10 +936,10 @@ def train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_trai
         new_meta_pars['crashed_path'] = meta_pars['crashed_path']
         meta_pars = new_meta_pars
 
-    # * The script expects a H5-file with a structure as shown at https://github.com/ehrhorn/CubeML
-    data_dir = data_pars['data_dir'] # * WHere to load data from
-    file_keys = data_pars.get('file_keys', None) # * which cleaning lvl and transform should be applied?
-    group = meta_pars['group'] # * under which dir to save?
+    # The script expects a H5-file with a structure as shown at https://github.com/ehrhorn/CubeML
+    data_dir = data_pars['data_dir'] # WHere to load data from
+    file_keys = data_pars.get('file_keys', None) # which cleaning lvl and transform should be applied?
+    group = meta_pars['group'] # under which dir to save?
     project = meta_pars['project']
     particle = data_pars.get('particle', 'any')
 
@@ -931,8 +951,8 @@ def train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_trai
             save_dir = None
             wandb_ID = None
     
-    # * Save model parameters on W&B AND LOCALLY!
-    # * Shut down W&B first, if it is already running
+    # Save model parameters on W&B AND LOCALLY!
+    # Shut down W&B first, if it is already running
     if log:
         wandb_ID = save_dir.split('/')[-1]
         WANDB_NAME = save_dir.split('/')[-1]
@@ -966,7 +986,7 @@ def train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_trai
 
     train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_train=scan_lr_before_train, wandb_ID=wandb_ID, log=log, debug_mode=debug_mode)
     
-    # * Update the meta_pars-file and add .dvc-files to track the model in the wandb-dir and the models-dir
+    # Update the meta_pars-file and add .dvc-files to track the model in the wandb-dir and the models-dir
     if log:
         with open(save_dir+'/meta_pars.json') as json_file:
             meta_pars = json.load(json_file)

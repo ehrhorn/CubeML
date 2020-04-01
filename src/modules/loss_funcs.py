@@ -1,6 +1,9 @@
 import torch
 import numpy as np
 
+PROBABILISTIC_LOSS_FUNCS = ['logscore']
+POINTLIKE_LOSS_FUNCS = ['angle_loss', 'angle_squared_loss']
+
 #* ======================================================================== 
 #* LOSS FUNCTIONS
 #* ======================================================================== 
@@ -200,7 +203,6 @@ class logscore(torch.nn.Module):
         self._softplus = torch.nn.Softplus()
         self._min_sigma = min_sigma
 
-    
     def forward(self, x, y, predict=False):
         """Computes the empirical expected score using a normal distribution.
 
@@ -224,8 +226,10 @@ class logscore(torch.nn.Module):
         pred_shape = x.shape
 
         if 2*n_features != x.shape[-1]:
-            raise ValueError('Predictions.shape[-1] (%d) must equal' 
-            '2*targets.shape[-1] (%d)'%(pred_shape[-1], 2*n_features))
+            raise ValueError(
+                'Predictions.shape[-1] (%d) must equal' 
+                '2*targets.shape[-1] (%d)'%(pred_shape[-1], 2*n_features)
+        )
 
         # Calculate negative score - this is what we want to minimize.
         # log(normal) = c1/sigma + c2*((x-mu)/sigma)^2
@@ -266,3 +270,14 @@ def get_loss_func(name, weights=None, device=None):
         return logscore(weights=weights, device=device)
     else:
         raise ValueError('Unknown loss function requested!')
+
+def is_probabilistic(loss_name):
+    if loss_name in PROBABILISTIC_LOSS_FUNCS:
+        PROBABILISTIC_REGRESSION = True
+    elif loss_name in POINTLIKE_REGRESSION:
+        PROBABILISTIC_REGRESSION = False
+    else:
+        raise ValueError(
+        'Unknown loss function-kind encountered(%s)'%(name))
+    
+    return PROBABILISTIC_REGRESSION
