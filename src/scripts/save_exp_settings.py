@@ -107,7 +107,7 @@ if __name__ == '__main__':
     dataset = data_dir.split('/')[-1]
 
     # * Set weights to use by loss-func
-    loss_func_weights = [2, 1, 1, 1, 1, 2, 2, 2]
+    loss_func_weights = [1, 1, 1, 1, 1, 1, 1, 1]
 
     if args.optimizer == 'Adam':
 
@@ -226,6 +226,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = len(get_target_keys(data_pars, meta_pars))
+    n_target = n_target if not args.loss == 'logscore' else 2*n_target
     n1 = 256
     n2 = 2*n1+n_scalar_feat
 
@@ -275,7 +276,7 @@ if __name__ == '__main__':
         {'Linear':          {'input_sizes':        [n2, n_target],
                             'norm_before_nonlin':  True}}]
 
-    arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
+    arch_pars =         {'nonlin':             {'func':     'Mish'},
 
                         'loss_func':           error_func,
                         'loss_func_weights':   loss_func_weights,

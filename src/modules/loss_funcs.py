@@ -185,7 +185,7 @@ class logcosh_full_weighted(torch.nn.Module):
         return loss
 
 class logscore(torch.nn.Module):
-    def __init__(self, weights=None, device=None):
+    def __init__(self, weights=None, device=None, min_sigma=1e-3):
         super(logscore, self).__init__()
 
         if not device:
@@ -198,12 +198,8 @@ class logscore(torch.nn.Module):
         weights_normed = np.array(weights)/np.sum(weights)
         self._weights = torch.tensor(weights_normed, device=device)
         self._softplus = torch.nn.Softplus()
+        self._min_sigma = min_sigma
 
-    def _normal(self, target, mean, sigma):
-        const = 1.0/(sigma*np.sqrt(2*3.14159))
-        exponent = -0.5*((target-mean)/sigma)*((target-mean)/sigma)
-
-        return const*torch.exp(exponent)
     
     def forward(self, x, y, predict=False):
         """Computes the empirical expected score using a normal distribution.
@@ -231,24 +227,14 @@ class logscore(torch.nn.Module):
             raise ValueError('Predictions.shape[-1] (%d) must equal' 
             '2*targets.shape[-1] (%d)'%(pred_shape[-1], 2*n_features))
 
-        # * Calculate negative score - this is what we want to minimize
-        neg_score = -torch.log(
-            self._normal(
-                targets, 
-                x[:, :n_features],
-                self._softplus(
+        # Calculate negative score - this is what we want to minimize.
+        # log(normal) = c1/sigma + c2*((x-mu)/sigma)^2
+        mean = x[:, :n_features]
+        sigma = self._min_sigma+self._softplus(
                     x[:, n_features:]
                 )
-            )
-        )
+        neg_score = torch.log(sigma*np.sqrt(2*3.14159)) + 0.5*((targets-mean)/sigma)*((targets-mean)/sigma)
         
-        checker = self._normal(
-                targets, 
-                x[:, :n_features],
-                self._softplus(
-                    x[:, n_features:]))
-        print(checker)
-        # * Calculate estimate of expected score for each variable
         if not predict:
             loss = torch.mean(neg_score, dim=0)
         else:

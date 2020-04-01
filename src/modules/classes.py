@@ -887,6 +887,7 @@ def load_sqlite_weights(dataset, weights):
         weights = pickle.load(f)['weights']
 
     return weights
+
 #*======================================================================== 
 #* MODELS
 #*========================================================================
@@ -1443,6 +1444,22 @@ class MaxPool(nn.Module):
             mask = mask.unsqueeze(2)
         return mask
 
+class Mish(nn.Module):
+    
+    def __init__(self):
+                
+        super(Mish, self).__init__()
+        self._tanh = torch.nn.Tanh()
+        self._softplus = torch.nn.Softplus()
+    
+    def forward(self, x):
+        output = x * self._tanh(
+            self._softplus(
+                x
+            )
+        )
+        return output
+
 class NormNonlinWeight(nn.Module):
 
     def __init__(self, arch_dict, layer_dict, n_in, n_out, norm=None):
@@ -1657,6 +1674,9 @@ def add_non_lin(arch_dict, layer_dict):
     elif arch_dict['nonlin']['func'] == 'LeakyReLU':
         negslope = arch_dict['nonlin'].get('negslope', 0.01)
         return nn.LeakyReLU(negative_slope=negslope)
+    
+    elif arch_dict['nonlin']['func'] == 'Mish':
+        return Mish()
 
     else:
         raise ValueError('An unknown nonlinearity could not be added in model generation.')
@@ -1707,12 +1727,15 @@ def init_weights(arch_dict, layer_dict, layer):
             
             nn.init.kaiming_normal_(layer.weight, a=0, mode='fan_in', nonlinearity='relu')
             
-        elif layer_dict['func'] == 'LeakyReLU':
+        elif layer_dict['func'] == 'LeakyReLU' or layer_dict['func'] == 'Mish':
 
-            if 'negative_slope' in layer_dict: negslope = layer_dict['negative_slope']
+            if 'negative_slope' in layer_dict: 
+                negslope = layer_dict['negative_slope']
             else: negslope = 0.01
 
             nn.init.kaiming_normal_(layer.weight, a=negslope, mode='fan_in', nonlinearity='leaky_relu')
+        
+
 
         else:
             raise ValueError('An unknown initialization was encountered.')
