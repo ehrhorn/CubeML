@@ -133,10 +133,11 @@ class Performance:
         self._icecube_perf_keys = self._get_icecube_perf_keys()
         self._true_keys = get_target_keys(data_pars, meta_pars)
         self._conf_interval_keys = self._get_conf_interval_keys()
+        self._target_keys = get_target_keys(self.data_pars, self.meta_pars)
 
         self.wandb_ID = wandb_ID
-
-        energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss = self._get_data_dicts()
+        energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss, raw_pred_dict, raw_target_dict = self._get_data_dicts()
+        self._make_predictions_histograms(raw_pred_dict, raw_target_dict)
         self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict, n_doms)
         self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
         self.loss_error_correlations = self._calculate_loss_error_corrs(pred_dict, loss)
@@ -450,18 +451,36 @@ class Performance:
 
         # * Load loss aswell
         keys = self._pred_keys+['loss']
-        
+        full_pred_address = self._get_pred_path()
         print(get_time(), 'Loading predictions...')
-        pred_dict = read_pickle_predicted_h5_data_v2(full_pred_address, keys)
+
+        raw_pred_dict = read_pickle_predicted_h5_data_v2(
+            full_pred_address, self._target_keys
+        )
+        pred_dict = read_pickle_predicted_h5_data_v2(
+            full_pred_address, keys
+        )
         event_ids = [str(idx) for idx in pred_dict['indices']]
+        scalar_feats = (
+            self._energy_key+self._reco_keys+self._true_keys+self._target_keys
+        )
         fetched = self.db.fetch_features(
             all_events=event_ids, 
-            scalar_features=self._energy_key+self._reco_keys+self._true_keys,
+            scalar_features=scalar_feats
             )
 
-        energy_dict = {key: np.zeros(len(event_ids)) for key in self._energy_key}
-        crs_dict = {key: np.zeros(len(event_ids)) for key in self._reco_keys}
-        true_dict = {key: np.zeros(len(event_ids)) for key in self._true_keys}
+        energy_dict = {
+            key: np.zeros(len(event_ids)) for key in self._energy_key
+        }
+        crs_dict = {
+            key: np.zeros(len(event_ids)) for key in self._reco_keys
+        }
+        true_dict = {
+            key: np.zeros(len(event_ids)) for key in self._true_keys
+        }
+        raw_targets_dict = {
+            key: np.zeros(len(event_ids)) for key in self._target_keys
+        }
         for i_event, idx in enumerate(event_ids):
             for key in self._energy_key:
                 energy_dict[key][i_event] = fetched[idx][key]
@@ -469,7 +488,8 @@ class Performance:
                 crs_dict[key][i_event] = fetched[idx][key]
             for key in self._true_keys:
                 true_dict[key][i_event] = fetched[idx][key]
-        
+            for key in self._target_keys:
+                raw_targets_dict[key][i_event] = fetched[idx][key]
         print(get_time(), 'Predictions loaded!')
 
         # * Pop loss from dict
@@ -483,7 +503,7 @@ class Performance:
         print('')
         del pred_dict['indices']
 
-        return energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss
+        return energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss, raw_pred_dict, raw_targets_dict
     
     def _get_dom_dict(self):
         d = {'data': [self.dom_bin_edges[:-1]], 'bins': [self.dom_bin_edges], 
@@ -616,6 +636,8 @@ class Performance:
     def _get_n_doms(self, event_ids):
         if self.dom_mask == 'SRTInIcePulses':
             key = ['srt_in_ice_pulses_event_length']
+        elif self.dom_mask == 'SplitInIcePulses':
+            key = ['split_in_ice_pulses_event_length']
         else:
             raise KeyError('Unknown mask (%s) requested'%(self.dom_mask))
 
@@ -868,6 +890,34 @@ class Performance:
             im = PIL.Image.open(img_address)
             wandb.log({key+'_2Dperformance': wandb.Image(im, caption=key+'_2Dperformance')}, commit=False)
             im.close()
+
+    def _make_predictions_histograms(self, raw_pred, raw_target):
+        
+        base_path = '/'.join([
+            get_project_root(), self.model_dir, 'figures', 'distributions'
+        ])
+
+        # If the distributions-directory does not exist, make it.
+        if not Path(base_path).exists():
+            Path(base_path).mkdir()
+
+        for pred, target in zip(raw_pred, raw_target):
+            if pred != target:
+                # Ensure right match for histograms
+                raise KeyError(
+                    'Mismatch between prediction (%s) and target (%s)'%(
+                        pred, target
+                    )
+                )
+            d = {'data': [raw_pred[pred], raw_target[target]]}
+            d['title'] = pred
+            d['label'] = ['Model', 'Truth']
+            d['ylabel'] = 'Count'
+            d['xlabel'] = 'Prediction'
+            d['savefig'] = '/'.join([
+                base_path, pred+'_dist.png'
+            ])
+            _ = make_plot(d)
 
     def update_onenumber_performance(self):
         energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss = self._get_data_dicts()

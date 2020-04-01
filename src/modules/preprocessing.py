@@ -1453,27 +1453,27 @@ class SqlFetcher:
                                 )
                         )
 
-# class DomChargeScaler:
-#     def __init__(self):
-#         self._transformer = StandardScaler()
-#         self._clipmin = -np.inf
-#         self._clipmax = 100.0
-#     def transform(self, data):
-#         clipped_data = np.clip(data, self._clipmin, self._clipmax)
-#         data_transformed = self._transformer.transform(
-#             clipped_data.reshape(-1, 1)
-#         )
-#         return data_transformed
-#     def fit(self, data):
-#         clipped_data = np.clip(data, self._clipmin, self._clipmax)
-#         self._transformer.fit(clipped_data.reshape(-1, 1))
+class DomChargeScaler:
+    def __init__(self):
+        self._transformer = StandardScaler()
+        self._clipmin = -np.inf
+        self._clipmax = 100.0
+    def transform(self, data):
+        clipped_data = np.clip(data, self._clipmin, self._clipmax)
+        data_transformed = self._transformer.transform(
+            clipped_data.reshape(-1, 1)
+        )
+        return data_transformed
+    def fit(self, data):
+        clipped_data = np.clip(data, self._clipmin, self._clipmax)
+        self._transformer.fit(clipped_data.reshape(-1, 1))
         
-# class EnergyNoLogTransformer:
-#     def transform(self, logE):
-#         E = np.power(10.0, logE)
-#         data_transformed = E/self._std
-#         return data_transformed
-#     def fit(self, logE):
-#         E = np.power(10.0, logE)
-#         self._std = np.std(E)
+class EnergyNoLogTransformer:
+    def transform(self, logE):
+        E = np.power(10.0, logE)
+        data_transformed = E/self._std
+        return data_transformed
+    def fit(self, logE):
+        E = np.power(10.0, logE)
+        self._std = np.std(E)
 
