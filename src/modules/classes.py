@@ -243,6 +243,8 @@ class SqliteFetcher:
 
             base_query = 'SELECT {features} FROM {table} WHERE event_no '\
             'IN ({events})'
+            base_seq_query = 'SELECT {features} FROM {table} WHERE event '\
+            'IN ({events})'
             
             fetched_scalar, fetched_sequential, fetched_meta = [], [], []
             
@@ -263,7 +265,7 @@ class SqliteFetcher:
 
                 # Write query for sequential table and fetch all matching rows
                 if len(seq_features)>0:
-                    query = base_query.format(
+                    query = base_seq_query.format(
                         features=', '.join(seq_features),
                         table='sequential',
                         events=', '.join(['?'] * len(events))
