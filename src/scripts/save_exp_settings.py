@@ -79,7 +79,7 @@ if __name__ == '__main__':
     # * data_dir = '/data/MuonGun_Level2_139008'
     data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
 
-    # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time', 'energy_reg'
+    # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time', 'energy_reg', 'angles_reg'
     regression_type = args.regression
     if regression_type == 'None':
         raise KeyError('A regression type must be chosen! Use flag --regression')
@@ -225,8 +225,7 @@ if __name__ == '__main__':
 
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
-    n_target = len(get_target_keys(data_pars, meta_pars))
-    n_target = n_target if not args.loss == 'logscore' else 2*n_target
+    n_target = get_n_targets(data_pars, meta_pars, args.loss)
     n1 = 256
     n2 = 2*n1+n_scalar_feat
 
@@ -274,7 +273,10 @@ if __name__ == '__main__':
                              'norm':               'BatchNorm1D',
                              'type':               'x'}},
         {'Linear':          {'input_sizes':        [n2, n_target],
-                            'norm_before_nonlin':  True}}]
+                            'norm_before_nonlin':  True}},
+        ]
+    if regression_type == 'angle_reg':
+        layers.append({'Angle2Unitvector': []})
 
     arch_pars =         {'nonlin':             {'func':     'Mish'},
 

@@ -892,6 +892,30 @@ def load_sqlite_weights(dataset, weights):
 #* MODELS
 #*========================================================================
 
+class Angle2Unitvector(nn.Module):
+    
+    def __init__(self):
+        super(Angle2Unitvector, self).__init__()
+    
+    def forward(self, pred, device=None):
+
+        # if not device:
+        #     raise ValueError('A device must be supplied!')
+        
+        x = torch.unsqueeze(
+            torch.sin(pred[:, 0]) * torch.cos(pred[:, 1]), dim=1
+            )
+        y = torch.unsqueeze(
+            torch.sin(pred[:, 0]) * torch.sin(pred[:, 1]), dim=1
+            )
+        z = torch.unsqueeze(
+            torch.cos(pred[:, 0]), dim=1
+            )
+        
+        out = torch.cat((x, y, z), dim=1)
+        
+        return out
+
 class AveragePool(nn.Module):
     def __init__(self):
                 
@@ -1319,6 +1343,9 @@ class MakeModel(nn.Module):
             
             elif layer_name == 'ResBlockSeq':
                 seq = entry(seq)
+            
+            elif layer_name == 'Angle2Unitvector':
+                x = entry(x, device=device)
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -1810,6 +1837,8 @@ def make_model_architecture(arch_dict):
                 modules.append(BiLSTM(**layer_dict))
             elif key == 'ResAttention':
                 modules = add_ResAttention_modules(arch_dict, layer_dict, modules)
+            elif key == 'Angle2Unitvector':
+                modules.append(Angle2Unitvector())
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 

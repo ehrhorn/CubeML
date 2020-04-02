@@ -8,11 +8,38 @@ POINTLIKE_LOSS_FUNCS = ['angle_loss', 'angle_squared_loss']
 #* LOSS FUNCTIONS
 #* ======================================================================== 
 
-class angle_loss(torch.nn.Module):
+class cosine_loss(torch.nn.Module):
     '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds and multiplies denominator with 1e-7 and 1+1e-7 to avoid division with zero.
     '''
     def __init__(self):
-        super(angle_loss,self).__init__()
+        super(cosine_loss, self).__init__()
+        
+    def forward(self, x, y, predict=False):
+        """Computes cosine loss with weights
+        
+        Arguments:
+            x {torch.Tensor} -- Predictions of shape (B, 3), where 3 is number of targets
+            y {tuple} -- (targets, weights), where targets is of shape (B, 3) and weights of shape (B,)
+        
+        Returns:
+            [torch.Tensor] -- Averaged, weighted loss over batch.
+        """      
+          
+        # * Unpack into targets and weights
+        targets, weights = y
+        neg_cos = 1 - torch.sum(
+            x*targets, dim=-1
+        )
+
+        neg_cos_weighted = torch.mean(weights*neg_cos)
+
+        return neg_cos_weighted
+
+class angle_loss_old(torch.nn.Module):
+    '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds and multiplies denominator with 1e-7 and 1+1e-7 to avoid division with zero.
+    '''
+    def __init__(self):
+        super(self).__init__()
         
     def forward(self, x, y):
         dot_prods = torch.sum(x*y, dim=-1)
@@ -268,6 +295,8 @@ def get_loss_func(name, weights=None, device=None):
         return angle_squared_loss_with_L2()
     elif name == 'logscore':
         return logscore(weights=weights, device=device)
+    elif name == 'cosine_loss':
+        return cosine_loss()
     else:
         raise ValueError('Unknown loss function requested!')
 

@@ -1062,6 +1062,16 @@ def get_n_events_per_dir(data_dir):
     data_dir = get_project_root() + get_path_from_root(data_dir)
     return len([event for event in Path(data_dir+'/pickles/0').iterdir()])
 
+def get_n_targets(data_pars, meta_pars, loss_func_name):
+    n_targets = len(get_target_keys(data_pars, meta_pars))
+
+    if loss_func_name == 'logscore':
+        n_targets *= 2
+    elif loss_func_name == 'cosine_loss':
+        n_targets = 2
+    
+    return n_targets
+
 def get_n_tot_pickles(dataset):
     """Loops over <DATASET>/pickles/ to find total amount of events.
     
@@ -1249,6 +1259,9 @@ def get_target_keys(data_pars, meta_pars):
         
         elif meta_pars['group'] == 'full_reg':
             target_keys = ['true_primary_energy', 'true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z', 'true_primary_time', 'true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
+        
+        elif meta_pars['group'] == 'angle_reg':
+            target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
         
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
