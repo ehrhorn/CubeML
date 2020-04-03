@@ -445,6 +445,20 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
             f.create_dataset(key, data=pred)#np.array([x.cpu().numpy() for x in pred]))
     print(get_time(), 'Predictions saved!')
 
+    # save_for_mads(predictions_transformed, indices)
+
+# def save_for_mads(d, indices):
+#     # Create DB for Mads
+#     import pandas as pd
+#     mads_keys = get_mads_keys(d.keys())
+#     a+=1
+#     # predictions_transformed = convert
+#     # d.update({'indices': np.array(indices)})
+
+#     # pd.DataFrame.from_dict()
+#     # print(predictions_transformed)
+
+
 def pickle_evaluator(model, device, non_blocking=False):
     """Custom evaluator. Prepares an Ignite Engine for inference specifically for evaluation with the PickleLoader as dataloader
     

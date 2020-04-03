@@ -963,6 +963,12 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
 
     return scheduler
 
+def get_mads_keys(keys):
+    mads_keys = []
+    
+    for key in keys:
+        print(key)
+
 def get_set_length(dataloader):
     '''Determines the set length given a custom setholder for Torch's dataloader. Defaults to returning len(dataloader).
     '''

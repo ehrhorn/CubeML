@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 PROBABILISTIC_LOSS_FUNCS = ['logscore']
-POINTLIKE_LOSS_FUNCS = ['angle_loss', 'angle_squared_loss']
+POINTLIKE_LOSS_FUNCS = ['cosine_loss', 'logcosh', 'logcosh_full_weighted']
 
 #* ======================================================================== 
 #* LOSS FUNCTIONS
@@ -303,10 +303,10 @@ def get_loss_func(name, weights=None, device=None):
 def is_probabilistic(loss_name):
     if loss_name in PROBABILISTIC_LOSS_FUNCS:
         PROBABILISTIC_REGRESSION = True
-    elif loss_name in POINTLIKE_REGRESSION:
+    elif loss_name in POINTLIKE_LOSS_FUNCS:
         PROBABILISTIC_REGRESSION = False
     else:
         raise ValueError(
-        'Unknown loss function-kind encountered(%s)'%(name))
+        'Unknown loss function-kind encountered(%s)'%(loss_name))
     
     return PROBABILISTIC_REGRESSION
