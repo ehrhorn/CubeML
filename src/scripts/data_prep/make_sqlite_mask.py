@@ -142,7 +142,7 @@ def find_dom_interval_passed_cands(pack):
         elif dom_mask == 'SRTInIcePulses':
             len_key = 'srt_in_ice_pulses_event_length'
         
-        data_dict = db.fetch_features(events=chunk, meta_features=[len_key])
+        data_dict = db.fetch_features(all_events=chunk, meta_features=[len_key])
         
         for event_id, event_dict in data_dict.items():
             n_doms = event_dict[len_key]
@@ -175,7 +175,7 @@ def find_energy_interval_passed_cands(pack):
     for i_chunk, chunk in enumerate(chunks):
         
         # * Fetch energy
-        data_dict = db.fetch_features(events=chunk, scalar_features=[energy_key])
+        data_dict = db.fetch_features(all_events=chunk, scalar_features=[energy_key])
         energies_transformed = np.array(
             [data_d[energy_key] for event_id, data_d in data_dict.items()]
         )
@@ -260,8 +260,8 @@ if __name__ == '__main__':
 
     # * Loop over different DBs
     for path, ext in zip(
-        [PATH_TRAIN_DB, PATH_VAL_DB, PATH_TEST_DB], 
-        ['_train.pickle', '_val.pickle', '_test.pickle']
+        [PATH_TRAIN_DB, PATH_VAL_DB], 
+        ['_train.pickle', '_val.pickle']
     ):
         
         db = SqliteFetcher(path)

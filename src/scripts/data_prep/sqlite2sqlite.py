@@ -7,11 +7,10 @@ import argparse
 import sys
 import sqlite3
 
-from sklearn.preprocessing import QuantileTransformer, RobustScaler, StandardScaler
+from sklearn.preprocessing import QuantileTransformer, RobustScaler
 from src.modules.helper_functions import get_project_root, get_time, get_path_from_root, make_multiprocess_pack, convert_keys
 from src.modules.reporting import make_plot
 # from src.modules.preprocessing import *
-
 
 def get_tot_charge(event):
     """Calculates the total charge of an event and adds it to a dictionary.
@@ -319,49 +318,49 @@ def wanted_groups():
             new_name = data_dir+'/'+dir_name+'/'+str(new_name)+'.pickle'
             pickle.dump(event, open(new_name, 'wb'))
 
-def make_transformers(data_dir, indices):
+# def make_transformers(data_dir, indices):
 
-    transformer_path = data_dir + '/transformers/' + particle_code + '_' + prefix +'.pickle'
+#     transformer_path = data_dir + '/transformers/' + particle_code + '_' + prefix +'.pickle'
 
-    files = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)])
-    random.shuffle(files)    
+#     files = sorted([str(file) for file in Path(data_dir).iterdir() if file.suffix == '.h5' and confirm_particle_type(particle_code, file)])
+#     random.shuffle(files)    
 
-    keys = pp.get_feature_keys()
-    dicts = pp.get_feature_plot_dicts()
-    clip_dicts = pp.get_feature_clip_dicts()
-    transformer_dict = pp.get_feature_transformers()
+#     keys = pp.get_feature_keys()
+#     dicts = pp.get_feature_plot_dicts()
+#     clip_dicts = pp.get_feature_clip_dicts()
+#     transformer_dict = pp.get_feature_transformers()
 
-    n_wanted_sample = 10e6
-    n_wanted_histogram = 1e6
-    dicts = [dicts[key] for key in keys]
-    clip_dicts = [clip_dicts[key] for key in keys]
-    files_list = [files]*len(keys)
-    n_wanted_sample = [n_wanted_sample for key in keys]
-    n_wanted_histogram = [n_wanted_histogram for key in keys]
-    particle_code = [particle_code for key in keys]
-    transformers = [transformer_dict[key] for key in keys]
+#     n_wanted_sample = 10e6
+#     n_wanted_histogram = 1e6
+#     dicts = [dicts[key] for key in keys]
+#     clip_dicts = [clip_dicts[key] for key in keys]
+#     files_list = [files]*len(keys)
+#     n_wanted_sample = [n_wanted_sample for key in keys]
+#     n_wanted_histogram = [n_wanted_histogram for key in keys]
+#     particle_code = [particle_code for key in keys]
+#     transformers = [transformer_dict[key] for key in keys]
 
-    packages = [entry for entry in zip(keys, dicts, clip_dicts, files_list, n_wanted_sample, n_wanted_histogram, particle_code, transformers)]
+#     packages = [entry for entry in zip(keys, dicts, clip_dicts, files_list, n_wanted_sample, n_wanted_histogram, particle_code, transformers)]
 
-    # * Use multiprocessing for parallelizing the job.
-    available_cores = cpu_count()
-    with Pool(available_cores) as p:
-        transformers = p.map(pp.fit_feature_transformers, packages)
+#     # * Use multiprocessing for parallelizing the job.
+#     available_cores = cpu_count()
+#     with Pool(available_cores) as p:
+#         transformers = p.map(pp.fit_feature_transformers, packages)
 
-    # * Update or create a transformer-pickle
-    if Path(transformer_path).is_file():
-        transformers_combined= joblib.load(open(transformer_path, "rb"))
-    else:
-        transformers_combined = {}
+#     # * Update or create a transformer-pickle
+#     if Path(transformer_path).is_file():
+#         transformers_combined= joblib.load(open(transformer_path, "rb"))
+#     else:
+#         transformers_combined = {}
     
-    # * Combine transformers    
-    for entry in transformers:
-        transformers_combined.update(entry)
+#     # * Combine transformers    
+#     for entry in transformers:
+#         transformers_combined.update(entry)
     
-    # * Save it again
-    joblib.dump(transformers_combined, open(transformer_path, 'wb'))
-    print('Updated transformers saved at:')
-    print(transformer_path)
+#     # * Save it again
+#     joblib.dump(transformers_combined, open(transformer_path, 'wb'))
+#     print('Updated transformers saved at:')
+#     print(transformer_path)
 
 def get_feature_dicts():
     d  = {
@@ -438,7 +437,7 @@ def get_feature_dicts():
             },
         
         'dom_pulse_width': 
-            {'transformer': StandardScaler(),
+            {'transformer': RobustScaler(),
             'kind': 'sequential',
             'feature_calculator': None
             },
@@ -450,13 +449,13 @@ def get_feature_dicts():
             },
         
         'true_primary_time': 
-            {'transformer': StandardScaler(),
+            {'transformer': RobustScaler(),
             'kind': 'scalar',
             'feature_calculator': None
             },
         
         'dom_n_hit_multiple_doms': 
-            {'transformer': StandardScaler(),
+            {'transformer': RobustScaler(),
             'kind': 'scalar',
             'feature_calculator': None
             },
@@ -594,13 +593,13 @@ def get_feature_dicts():
             },
         
         'tot_charge': 
-            {'transformer': StandardScaler(),
+            {'transformer': RobustScaler(),
             'kind': 'scalar',
             'feature_calculator': get_tot_charge
             },
         
         'dom_charge_significance': 
-            {'transformer': StandardScaler(),
+            {'transformer': RobustScaler(),
             'kind': 'sequential',
             'feature_calculator': get_charge_significance,
             'clip': {'min': None, 'max': 15}
@@ -632,13 +631,13 @@ def get_feature_dicts():
             },
         
         'dom_d_closest': 
-            {'transformer': StandardScaler(),
+            {'transformer': RobustScaler(),
             'kind': 'sequential',
             'feature_calculator': get_d_closest
             },
         
         'dom_d_minkowski_closest': 
-            {'transformer': StandardScaler(),
+            {'transformer': RobustScaler(),
             'kind': 'sequential',
             'feature_calculator': get_d_minkowski_closest
             },
@@ -825,7 +824,6 @@ def load_and_fit_transformer(pack):
 
     id_iter = 0
     data =np.array([])
-    
     loaded = 0
     feature_dict = feature_dicts[key]
     transformer = feature_dict['transformer']
@@ -844,17 +842,23 @@ def load_and_fit_transformer(pack):
 
         # * Loop over events
         for event_id, event in events.items():
-
+            
             # * If dealing with a derived feature, calculate it!
             if fnc:
                 new_data = fnc(event)
             
             # * If not, just load it
             else:
-                new_data = event[key]
-            
+                # We want to make same transformation on x, y and z-coords - 
+                # thats the reason for the little maneuver
+                if key in ['dom_x', 'dom_y', 'dom_z']:
+                    new_data = event['dom_x']
+                    new_data = np.append(new_data, event['dom_y'])
+                    new_data = np.append(new_data, event['dom_z'])
+                else:
+                    new_data = event[key]
+                
             data = np.append(data, new_data)
-
             if isinstance(new_data, np.ndarray):
                 loaded += new_data.shape[0]
             elif isinstance(new_data, (float, int)):
@@ -887,7 +891,8 @@ def load_and_fit_transformer(pack):
 
 def fit_transformers(db, n_data, feature_dicts, n_cpus=cpu_count()):
     # * Assumes a RANDOMIZED DB!
-    ids = [str(i) for i in range(n_data)]
+    bounds = db.get_id_bounds()
+    ids = np.arange(bounds[0], bounds[1])[:n_data]
     keys = [key for key in feature_dicts]
     
     # * Multiprocess
@@ -1095,6 +1100,7 @@ class SqlFetcher:
         names_sequential, fetched_sequential, fetched_meta
             ):
 
+        
         # * get the from- and to-indices of each event.
         cumsum = np.append([0], np.cumsum([entry[0] for entry in fetched_meta]))
         all_from = cumsum[:-1]
@@ -1464,7 +1470,7 @@ class SqlFetcher:
 
 # class DomChargeScaler:
 #     def __init__(self):
-#         self._transformer = StandardScaler()
+#         self._transformer = RobustScaler()
 #         self._clipmin = -np.inf
 #         self._clipmax = 100.0
 #     def transform(self, data):
@@ -1496,7 +1502,7 @@ if __name__ == '__main__':
     parser.add_argument('--chunksize', default=20000, type=int, 
     help='Sets the amount of events to process and save at a time.'
     'Splits the entire data into chunks of this size.')
-    parser.add_argument('--n_transform', default=2000000, type=int, 
+    parser.add_argument('--n_transform', default=500000, type=int, 
     help='Sets the amount of datapoints to use in approximating their' 
     'distribution during fitting of transformer')
     parser.add_argument('--bs', default=4000, type=int, 

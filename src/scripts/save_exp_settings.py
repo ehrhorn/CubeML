@@ -278,7 +278,7 @@ if __name__ == '__main__':
     if regression_type == 'angle_reg':
         layers.append({'Angle2Unitvector': []})
 
-    arch_pars =         {'nonlin':             {'func':     'Mish'},
+    arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
 
                         'loss_func':           error_func,
                         'loss_func_weights':   loss_func_weights,

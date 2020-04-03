@@ -260,8 +260,8 @@ if __name__ == '__main__':
         interpolator = None
         all_weights = {}
         for path, keyword in zip(
-            [PATH_TRAIN_DB, PATH_VAL_DB, PATH_TEST_DB], 
-            ['train', 'val', 'test'],
+            [PATH_TRAIN_DB, PATH_VAL_DB], 
+            ['train', 'val'],
         ):
             # * Get DB and mask
             db = SqliteFetcher(path)
