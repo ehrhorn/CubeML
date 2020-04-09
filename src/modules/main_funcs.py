@@ -445,19 +445,23 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
             f.create_dataset(key, data=pred)#np.array([x.cpu().numpy() for x in pred]))
     print(get_time(), 'Predictions saved!')
 
-    # save_for_mads(predictions_transformed, indices)
+    save_for_mads(predictions_transformed, indices, save_dir)
 
-# def save_for_mads(d, indices):
-#     # Create DB for Mads
-#     import pandas as pd
-#     mads_keys = get_mads_keys(d.keys())
-#     a+=1
-#     # predictions_transformed = convert
-#     # d.update({'indices': np.array(indices)})
-
-#     # pd.DataFrame.from_dict()
-#     # print(predictions_transformed)
-
+def save_for_mads(d, indices, save_dir):
+    # Create DB for Mads
+    print('')
+    print(get_time(), 'Creating DB for MADS!')
+    import pandas as pd
+    keys = [key for key in d]
+    mads_keys = get_mads_keys(keys)
+    d = convert_keys(d, keys, mads_keys)
+    d.update({'event_no': np.array(indices)})
+    df = pd.DataFrame.from_dict(d)
+    df.sort_values(by='event_no', inplace=True)
+    with sqlite3.connect(save_dir+'/data/mads.db') as con:
+        df.to_sql('truth', con=con, if_exists='replace')
+    print(get_time(), 'Creation finished!')
+    
 
 def pickle_evaluator(model, device, non_blocking=False):
     """Custom evaluator. Prepares an Ignite Engine for inference specifically for evaluation with the PickleLoader as dataloader

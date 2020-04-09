@@ -965,9 +965,19 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
 
 def get_mads_keys(keys):
     mads_keys = []
-    
+    new_keys = {
+        'true_primary_energy': 'energy',
+        'true_primary_position_x': 'position_x',
+        'true_primary_position_y': 'position_y',
+        'true_primary_position_z': 'position_z',
+        'true_primary_time': 'time',
+        'true_primary_direction_x': 'direction_x',
+        'true_primary_direction_y': 'direction_y',
+        'true_primary_direction_z': 'direction_z',
+    }
     for key in keys:
-        print(key)
+        mads_keys.append(new_keys[key])
+    return mads_keys
 
 def get_set_length(dataloader):
     '''Determines the set length given a custom setholder for Torch's dataloader. Defaults to returning len(dataloader).

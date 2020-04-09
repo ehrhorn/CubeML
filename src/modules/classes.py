@@ -439,6 +439,7 @@ class SqliteFetcher:
             )
             cursor.executemany(query, [[e[0], e[1]] for e in zip(values, ids)])
 
+
 class PickleLoader(data.Dataset):
     '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads and closes the file again upon every __getitem__.
 
