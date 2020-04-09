@@ -210,13 +210,20 @@ class Performance:
             names = ['len_error_68th', 'vertex_t_error_sigma']
         if self.meta_pars['group'] == 'vertex_reg_no_time':
             names = ['len_error_68th']
-        elif self.meta_pars['group'] == 'direction_reg':
+        elif (
+            self.meta_pars['group'] == 'direction_reg' or
+            self.meta_pars['group'] == 'angle_reg'
+        ):
             names = ['directional_error_68th']
         elif self.meta_pars['group'] == 'energy_reg':
             names = ['log_frac_E_error_sigma']
         elif self.meta_pars['group'] == 'full_reg':
             names = ['len_error_68th', 'directional_error_68th',
                     'vertex_t_error_sigma', 'log_frac_E_error_sigma']
+        else:
+            raise KeyError(
+            'Unknown regression type (%s) enountered!'%(self.meta_pars['group'])
+        )
         
         errors = []
         for name in names:
@@ -391,7 +398,10 @@ class Performance:
             keys = ['len_error', 'retro_len_error']
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
             keys = ['len_error', 'retro_len_error']
-        elif self.meta_pars['group'] == 'direction_reg':
+        elif (
+            self.meta_pars['group'] == 'direction_reg' or
+            self.meta_pars['group'] == 'angle_reg'
+        ):
             keys = ['directional_error', 'retro_directional_error']
         elif self.meta_pars['group'] == 'energy_reg':
             keys = []
@@ -540,7 +550,10 @@ class Performance:
             funcs = [retro_x_error, retro_y_error, retro_z_error,
                     retro_len_error]
         
-        elif self.meta_pars['group'] == 'direction_reg':
+        elif (
+            self.meta_pars['group'] == 'direction_reg' or
+            self.meta_pars['group'] == 'angle_reg'
+        ):
             funcs = [retro_azi_error, retro_polar_error, 
                     retro_directional_error]
         
@@ -630,6 +643,8 @@ class Performance:
             clip_vals = [0.0, 0.2]
         elif self.loss_func == 'logscore':
             clip_vals = [-np.inf, np.inf]
+        elif self.loss_func == 'cosine_loss':
+            clip_vals = [0.0, 0.5]
         else:
             raise KeyError('Performance._get_loss_clip_vals: Undefined loss'\
                  'function (%s) given!'%(self.loss_func))
@@ -741,8 +756,11 @@ class Performance:
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
             keys = self._get_prediction_keys()
         
-        elif self.meta_pars['group'] == 'direction_reg':
-            keys = ['azi_error', 'polar_error']
+        elif (
+            self.meta_pars['group'] == 'direction_reg' or
+            self.meta_pars['group'] == 'angle_reg'
+        ):
+            keys = self._get_prediction_keys()
         
         elif self.meta_pars['group'] == 'energy_reg':
             keys = self._get_prediction_keys()
@@ -790,7 +808,8 @@ class Performance:
                 reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 
                 'retro_crs_prefit_z']
             
-            elif self.meta_pars['group'] == 'direction_reg':
+            elif (self.meta_pars['group'] == 'direction_reg' or
+                self.meta_pars['group'] == 'angle_reg'):
                 reco_keys = ['retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
             
             elif self.meta_pars['group'] == 'energy_reg':

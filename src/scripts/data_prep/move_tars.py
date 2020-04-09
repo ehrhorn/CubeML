@@ -39,8 +39,7 @@ def move_tars():
 
     # * Zip and multiprocess
     packed = [entry for entry in zip(from_tarballs, to_list)]
-    available_cores = cpu_count()
-    with Pool(available_cores+8) as p:
+    with Pool() as p:
         p.map(move_tar, packed)
     
     print(get_time(), 'Finished copying tarballs!')

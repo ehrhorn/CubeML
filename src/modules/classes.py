@@ -236,6 +236,15 @@ class SqliteFetcher:
             if not isinstance(all_events[0], str):
                 all_events = [str(event) for event in all_events]
 
+            if 'event_no' in scalar_features or 'event_no' in meta_features:
+                raise KeyError('event_no cannot be requested!')
+
+            # if 'event' in seq_features or 'event_no':
+            #     raise KeyError('event in seq_features cannot be requested!')
+
+            # # Ensure all_events are sorted
+            # all_events.sort()
+
             # If > self._max_events_per_query are wanted, 
             # load over several rounds
             n_chunks = n_events//self._max_events_per_query
@@ -251,7 +260,6 @@ class SqliteFetcher:
             # Process chunks
             all_dicted_data = {}
             for events in chunks:
-                
                 # Write query for scalar table and fetch all matching rows
                 if len(scalar_features) > 0:
                     query = base_query.format(
@@ -323,6 +331,9 @@ class SqliteFetcher:
         if not isinstance(ids[0], str):
             raise ValueError('Events must be IDs as strings')
 
+        # Make sure IDs are sorted
+        # ids.sort()
+
         # Prepare single-number queries
         scalar_cols = ['scalar.'+e for e in scalars]
         target_cols = ['scalar.'+e for e in targets]
@@ -335,7 +346,7 @@ class SqliteFetcher:
             events=', '.join(['?'] * n_events)
         )
         
-         # Prepare sequences-query
+        # Prepare sequences-query
         all_seq_cols_feats = seqs+mask
         seq_query = 'SELECT {features} FROM sequential WHERE event IN ({events})'.format(
             features=', '.join(all_seq_cols_feats),

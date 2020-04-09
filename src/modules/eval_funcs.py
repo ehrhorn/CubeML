@@ -23,7 +23,7 @@ def get_eval_functions(meta_pars):
 
     regression_type = meta_pars['group']
 
-    if regression_type == 'direction_reg':
+    if regression_type == 'direction_reg' or regression_type == 'angle_reg':
         eval_funcs = [azi_error, polar_error, directional_error]
     elif regression_type == 'full_reg':
         eval_funcs = [relative_E_error, log_frac_E_error, vertex_x_error,

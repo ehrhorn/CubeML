@@ -30,8 +30,12 @@ class cosine_loss(torch.nn.Module):
         neg_cos = 1 - torch.sum(
             x*targets, dim=-1
         )
-
-        neg_cos_weighted = torch.mean(weights*neg_cos)
+        
+        # * Mean over the batch
+        if not predict:
+            neg_cos_weighted = torch.mean(weights*neg_cos)
+        else:
+            neg_cos_weighted = weights*neg_cos
 
         return neg_cos_weighted
 
