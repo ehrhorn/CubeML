@@ -27,5 +27,4 @@ if __name__ == '__main__':
             wandb_ID = model.split('/')[-1]
         else:
             wandb_ID = None
-
         evaluate_model(model, wandb_ID=wandb_ID, predict=args.predict)

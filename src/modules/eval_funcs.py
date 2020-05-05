@@ -337,7 +337,7 @@ def len_error(pred, truth, reporting=False):
     yerr = torch.tensor(pred[y_key])-torch.tensor(truth[y_key])
     zerr = torch.tensor(pred[z_key])-torch.tensor(truth[z_key])
 
-    direrr = torch.sqrt(sqr(xerr)+sqr(yerr)+sqr(zerr))
+    direrr = torch.sqrt(sqr(xerr) + sqr(yerr) + sqr(zerr))
 
     return direrr
 

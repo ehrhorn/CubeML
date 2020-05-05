@@ -88,7 +88,7 @@ def evaluate_model(model_dir, wandb_ID=None, predict=True):
         WANDB_DIR = get_project_root()+'/models'
         PROJECT = meta_pars['project']
         wandb.init(resume=True, id=wandb_ID, dir=WANDB_DIR, project=PROJECT)
-
+    print(model_dir)
     log_operation_plots(model_dir, wandb_ID=wandb_ID)
 
     # ======================================================================== 
@@ -625,26 +625,32 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
     evaluator_val.add_event_handler(Events.ITERATION_COMPLETED, log_prediction)
     evaluator_val.run(val_generator)
     print(get_time(), 'Prediction finished!')
-    # print(indices_PadSequence_sorted[:10])
-    # print(predictions['true_primary_direction_z'][:10])
-    # Sort predictions w.r.t. index before saving
+
     _, loss_vals_sorted = sort_pairs(indices_PadSequence_sorted, loss_vals)
     for key, values in predictions.items():
         _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
         predictions[key] = sorted_vals
+        
     # Sort w.r.t. index before saving
     for key, values in truths.items():
         _, sorted_vals = sort_pairs(indices_PadSequence_sorted, values)
         truths[key] = sorted_vals
     indices = sorted(indices_PadSequence_sorted)
-    # print(indices[:5])
-    # print(predictions['true_primary_direction_z'][:5])
-    # print(truths['true_primary_direction_z'][:5])
 
-    # return predictions, truths, indices_PadSequence_sorted, loss_vals
     return predictions, truths, indices, loss_vals_sorted
 
-def train(save_dir, hyper_pars, data_pars, arch_pars, meta_pars, earlystopping=True, scan_lr_before_train=False, wandb_ID=None, log=True, debug_mode=False):
+def train(
+    save_dir, 
+    hyper_pars, 
+    data_pars, 
+    arch_pars, 
+    meta_pars, 
+    earlystopping=True, 
+    scan_lr_before_train=False, 
+    wandb_ID=None, 
+    log=True, 
+    debug_mode=False
+    ):
     """Main training script. Takes experiment-defining dictionaries as input and trains the model induced by them.
     
     Arguments:
@@ -979,10 +985,10 @@ def train_model(hyper_pars, data_pars, arch_pars, meta_pars, scan_lr_before_trai
         n_seq_feats = len(data_pars['seq_feat'])
 
         wandb.init(project=meta_pars['project'], name=WANDB_NAME, tags=meta_pars['tags'], id=wandb_ID, reinit=True, dir=WANDB_DIR)
-        wandb.config.update(hyper_pars)
-        wandb.config.update(data_pars)
-        wandb.config.update(arch_pars)
-        wandb.config.update({'n_seq_feats': n_seq_feats})
+        wandb.config.update(hyper_pars, allow_val_change=True)
+        wandb.config.update(data_pars, allow_val_change=True)
+        wandb.config.update(arch_pars, allow_val_change=True)
+        wandb.config.update({'n_seq_feats': n_seq_feats}, allow_val_change=True)
 
         with open(save_dir+'/hyper_pars.json', 'w') as fp:
             json.dump(hyper_pars, fp)

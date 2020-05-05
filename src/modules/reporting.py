@@ -56,13 +56,13 @@ class AziPolarHists:
         azi_max_dev = 15
         polar_max_dev = 15
         
-        # * exclude errors outside of first interval
+        # exclude errors outside of first interval
         azi_sorted, polar_sorted = sort_pairs(self.pred_dict['azi_error'], self.pred_dict['polar_error'])
         i_azi = np.searchsorted(azi_sorted, [-azi_max_dev, azi_max_dev])
         azi_sorted = azi_sorted[i_azi[0]:i_azi[1]]
         polar_sorted = polar_sorted[i_azi[0]:i_azi[1]]
 
-        # * exclude errors outside of second interval
+        # exclude errors outside of second interval
         polar_sorted, azi_sorted = sort_pairs(polar_sorted, azi_sorted)
         i_polar = np.searchsorted(polar_sorted, [-polar_max_dev, polar_max_dev])
         azi_sorted = azi_sorted[i_polar[0]:i_polar[1]]
@@ -72,18 +72,18 @@ class AziPolarHists:
 
     def save(self):
         
-        # * Save standard histograms first
+        # Save standard histograms first
         for key, pred in self.pred_dict.items():
             img_address = get_project_root() + self.model_dir+'/figures/'+str(key)+'.png'
             figure = make_plot({'data': [pred], 'xlabel': str(key), 'savefig': img_address})
 
-            # * Load img with PIL - png format can be logged
+            # Load img with PIL - png format can be logged
             if self.wandb_ID is not None:
                 im = PIL.Image.open(img_address)
                 wandb.log({str(key): wandb.Image(im, caption=key)}, commit=False)
                 im.close()
 
-        # * Save 2D-histogram
+        # Save 2D-histogram
         img_address = get_project_root() + self.model_dir+'/figures/azi_vs_polar.png'
         azi, polar = self._exclude_azi_polar()
 
@@ -116,7 +116,6 @@ class Performance:
 
     def __init__(self, model_dir, wandb_ID=None):
         hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
-
         self.model_dir = get_path_from_root(model_dir)
         self.data_pars = data_pars
         self.meta_pars = meta_pars
@@ -129,7 +128,7 @@ class Performance:
         self._energy_key = self._get_energy_key()
         self._pred_keys = self._get_prediction_keys()
         self._reco_keys = self._get_reco_keys()
-        # * There should be equally many performance keys and icecube perf keys
+        # There should be equally many performance keys and icecube perf keys
         self._performance_keys = self._get_performance_keys()
         self._icecube_perf_keys = self._get_icecube_perf_keys()
         self._true_keys = get_target_keys(data_pars, meta_pars)
@@ -145,29 +144,29 @@ class Performance:
 
     def _calculate_loss_error_corrs(self, pred_d, loss):
 
-        # * Correlation between loss and predicted values is calculated to 
-        # * hopefully see if loss function is focused too heavily on some of the variables
-        # * We look at ABSOLUTE value of error, since we are using symmetric
-        # * loss functions.
+        # Correlation between loss and predicted values is calculated to 
+        # hopefully see if loss function is focused too heavily on some of the variables
+        # We look at ABSOLUTE value of error, since we are using symmetric
+        # loss functions.
         corrs = {}
         loss_clip = self._get_loss_clip_vals()
         
         for key, data in pred_d.items():
-            # * Clip values, since it's concentrated at a certain range.
+            # Clip values, since it's concentrated at a certain range.
             _, clip_vals = self._get_I3_2D_clip_and_d(key)
             
-            # * Strip NaNs
+            # Strip NaNs
             n_nans, data, loss_stripped = strip_nans(data, loss)
             loss_stripped_clipped = np.clip(loss_stripped, loss_clip[0], loss_clip[1])
 
-            # * corrcoef returns correlation matrix - we are only interested 
-            # * in one of the numbers
+            # corrcoef returns correlation matrix - we are only interested 
+            # in one of the numbers
             abs_data = np.abs(np.clip(data, clip_vals[0], clip_vals[1]))
             
             print('WARNING: %d NAN(S) FOUND IN LOSS-ERROR CORRELATIONS!'%(n_nans)) if n_nans>0 else None
             corrs[key] = np.corrcoef(abs_data, loss_stripped)[1, 0]
 
-            # * Make 2d-scatterplot or HEATMAP! like i3-performance
+            # Make 2d-scatterplot or HEATMAP! like i3-performance
             d = {}
             title = r'%s - loss correlation'%(key)
             savepath = get_project_root()+self.model_dir+'/figures/'+key+'_LossCorr.png'
@@ -178,7 +177,7 @@ class Performance:
             d['title'] = title
             fig_h = make_plot(d)
 
-        # * Make barh-plots
+        # Make barh-plots
         bar_pos = np.arange(0, len(corrs)) + 0.5
         names = [key for key in corrs]
         data = [data for key, data in corrs.items()]
@@ -188,7 +187,7 @@ class Performance:
         d['savefig'] = get_project_root()+self.model_dir+'/figures/CorrCoeff.png'
         fig = make_plot(d)
 
-        # * Save a histogram of loss values aswell
+        # Save a histogram of loss values aswell
         d = {'data': [loss]}
         d['xlabel'] = 'Loss value (%s)'%(self.loss_func)
         d['ylabel'] = 'Count'
@@ -200,11 +199,11 @@ class Performance:
         return corrs
 
     def _calculate_onenum_performance(self, data_dict=None):
-        # * Performance for each variable in names is calculated as the 
-        # * geometric mean of the bin-values. Finally, they are combined as
-        # * a geometric mean of all the geometric means. This has the
-        # * advantage that a fractional decrease of x percent in any of 
-        # * them contributes equally to the final performance
+        # Performance for each variable in names is calculated as the 
+        # geometric mean of the bin-values. Finally, they are combined as
+        # a geometric mean of all the geometric means. This has the
+        # advantage that a fractional decrease of x percent in any of 
+        # them contributes equally to the final performance
         
         if self.meta_pars['group'] == 'vertex_reg':
             names = ['len_error_68th', 'vertex_t_error_sigma']
@@ -235,12 +234,12 @@ class Performance:
 
     def _calculate_performance(self, energy_dict, pred_dict, crs_dict, true_dict, n_doms):
         
-        # * Transform back and extract values into list
+        # Transform back and extract values into list
         true_transformed = inverse_transform(true_dict, 
                                 get_project_root()+self.model_dir)
         energy_transformed = inverse_transform(energy_dict, 
                                 get_project_root()+self.model_dir)
-        # * We want energy as array
+        # We want energy as array
         energy = np.array(convert_to_proper_list(energy_transformed[self._energy_key[0]]))
 
         self.counts, self.bin_edges = np.histogram(energy, 
@@ -252,23 +251,23 @@ class Performance:
         self.dom_bin_centers = calc_bin_centers(self.dom_bin_edges)
         self.wilcoxon = {}
         
-        # * Calculate how well Icecube does.
+        # Calculate how well Icecube does.
         for name, func, model_key in zip(
             self._icecube_perf_keys, 
             self._get_error_funcs(), 
             self._performance_keys
             ):
             
-            # * We calculate 2 different forms of performance measures: One
-            # * kind as the width of the distribution (for unbounded
-            # * distributions), another as the upper 68th percentile 
-            # * of the distribution (for distributions with a lower bound of 0)
+            # We calculate 2 different forms of performance measures: One
+            # kind as the width of the distribution (for unbounded
+            # distributions), another as the upper 68th percentile 
+            # of the distribution (for distributions with a lower bound of 0)
             print(get_time(), 'Calculating %s performance...'%(name))
 
-            # * Performance as a function of energy
+            # Performance as a function of energy
             error = func(crs_dict, true_transformed, reporting=True)
 
-            # * Make Wilcoxon signed-rank test
+            # Make Wilcoxon signed-rank test
             diff = np.array(error)-pred_dict[model_key]
             test_statistic, p_val = wilcoxon(diff, alternative='greater')
             self.wilcoxon[model_key] = p_val
@@ -285,7 +284,7 @@ class Performance:
                 setattr(self, name+'_84th', upper_perc)
                 setattr(self, name+'_16th', lower_perc)
 
-                # * Performance as a function of number of doms
+                # Performance as a function of number of doms
                 sigma, sigmaerr, median, upper_perc, lower_perc =\
                     calc_width_as_fn_of_data(n_doms, error, self.dom_bin_edges)
                 setattr(self, 'dom_'+name+'_sigma', sigma)
@@ -297,7 +296,7 @@ class Performance:
             else:
                 percentiles = [68, 50, 32]
                 
-                # * As a function of energy
+                # As a function of energy
                 vals, errs = calc_percentiles_as_fn_of_data(
                     energy, error, self.bin_edges, percentiles)
                 
@@ -305,7 +304,7 @@ class Performance:
                     setattr(self, '%s_%sth'%(name, str(perc)), val)
                     setattr(self, '%s_err%sth'%(name, str(perc)), err)
 
-                # * As a function of DOMs
+                # As a function of DOMs
                 vals, errs = calc_percentiles_as_fn_of_data(
                     n_doms, error, self.dom_bin_edges, percentiles)
                 
@@ -316,15 +315,15 @@ class Performance:
             print(get_time(), 'Calculation finished!')
             print('')
                 
-        # * Calculate performance for our predictions
+        # Calculate performance for our predictions
         for (key, data), i3_key in zip(pred_dict.items(), self._icecube_perf_keys):
             
             print(get_time(), 'Calculating %s performance...'%(key))
             
-            # * Same split as above
+            # Same split as above
             if key not in self._conf_interval_keys:
             
-                # * Performance as a function of energy
+                # Performance as a function of energy
                 sigma, sigmaerr, median, upper_perc, lower_perc = calc_width_as_fn_of_data(energy, data, self.bin_edges)
                 setattr(self, key+'_sigma', sigma)
                 setattr(self, key+'_sigmaerr', sigmaerr)
@@ -332,14 +331,14 @@ class Performance:
                 setattr(self, key+'_84th', upper_perc)
                 setattr(self, key+'_16th', lower_perc)
 
-                # * We make the I3-plot here so we do not have to save all 
-                # * the data. First we retrieve the corresponding Icecube data
+                # We make the I3-plot here so we do not have to save all 
+                # the data. First we retrieve the corresponding Icecube data
                 i3_med = getattr(self, i3_key+'_50th')
                 i3_upper = getattr(self, i3_key+'_84th')
                 i3_lower = getattr(self, i3_key+'_16th')
                 self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc, i3_med=i3_med, i3_upper=i3_upper, i3_lower=i3_lower)
 
-                # * Performance as a function of number of doms
+                # Performance as a function of number of doms
                 sigma, sigmaerr, median, upper_perc, lower_perc = calc_width_as_fn_of_data(n_doms, data, self.dom_bin_edges)
                 setattr(self, 'dom_'+key+'_sigma', sigma)
                 setattr(self, 'dom_'+key+'_sigmaerr', sigmaerr)
@@ -350,14 +349,14 @@ class Performance:
             else:
                 percentiles = [68, 50, 32]
                 
-                # * As a function of energy
+                # As a function of energy
                 vals, errs = calc_percentiles_as_fn_of_data(
                     energy, data, self.bin_edges, percentiles)
                 for perc, val, err, in zip(percentiles, vals, errs):
                     setattr(self, '%s_%sth'%(key, str(perc)), val)
                     setattr(self, '%s_err%sth'%(key, str(perc)), err)
                 
-                # * As a function of DOMs
+                # As a function of DOMs
                 vals, errs = calc_percentiles_as_fn_of_data(
                     n_doms, data, self.dom_bin_edges, percentiles)
                 
@@ -368,10 +367,10 @@ class Performance:
             print(get_time(), 'Calculation finished!')
             print('')
 
-        # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
+        # Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._icecube_perf_keys):
             
-            # * Remember to split in conf bounds and widths
+            # Remember to split in conf bounds and widths
             if (model_key not in self._conf_interval_keys):
                 retro_sigma = getattr(self, retro_key+'_sigma')
                 model_sigma = getattr(self, model_key+'_sigma')
@@ -393,7 +392,7 @@ class Performance:
 
     def _get_conf_interval_keys(self):
 
-        # * A combination of I3-keys and our predictions
+        # A combination of I3-keys and our predictions
         if self.meta_pars['group'] == 'vertex_reg':
             keys = ['len_error', 'retro_len_error']
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
@@ -459,7 +458,7 @@ class Performance:
     def _get_data_dicts(self):
         data_dir = self.data_pars['data_dir']
 
-        # * Load loss aswell
+        # Load loss aswell
         keys = self._pred_keys+['loss']
         full_pred_address = self._get_pred_path()
         print(get_time(), 'Loading predictions...')
@@ -502,13 +501,13 @@ class Performance:
                 raw_targets_dict[key][i_event] = fetched[idx][key]
         print(get_time(), 'Predictions loaded!')
 
-        # * Pop loss from dict
+        # Pop loss from dict
         loss = pred_dict['loss']
         del pred_dict['loss']
 
         print(get_time(), 'Finding number of DOMs in events')
         n_doms = self._get_n_doms(event_ids)
-        # * Indices have done, what we wanted them to do - delete them
+        # Indices have done, what we wanted them to do - delete them
         print(get_time(), 'Number of DOMs found!')
         print('')
         del pred_dict['indices']
@@ -639,7 +638,9 @@ class Performance:
     def _get_loss_clip_vals(self):
 
         if (self.loss_func == 'logcosh' or 
-        self.loss_func == 'logcosh_full_weighted'):
+            self.loss_func == 'logcosh_full_weighted' or
+            self.loss_func == 'L1' or 
+            self.loss_func == 'L1_UnitVectorPenalty'):
             clip_vals = [0.0, 0.2]
         elif self.loss_func == 'logscore':
             clip_vals = [-np.inf, np.inf]
@@ -780,9 +781,12 @@ class Performance:
 
     def _get_pred_path(self):
         path_to_data = get_project_root() + self.model_dir + '/data'
+        path = None
         for file in Path(path_to_data).iterdir():
             if file.suffix == '.h5':
                 path = str(file)
+        if not path:
+            raise ValueError('No predictions found in folder.')
         return path
     
     def _get_prediction_keys(self):
@@ -870,8 +874,8 @@ class Performance:
         
         d2, clip_vals = self._get_I3_2D_clip_and_d(key)
 
-        # * Strip potential NaNs: subtract arrays --> find indices, since a number - nan is also nan.
-        # * Notify if NaNs are found.
+        # Strip potential NaNs: subtract arrays --> find indices, since a number - nan is also nan.
+        # Notify if NaNs are found.
         n_nans, energy, data = strip_nans(energy, data)
         print('WARNING: %d NAN(S) FOUND IN I3 PERFORMANCE PLOT!'%(n_nans)) if n_nans>0 else None
         
@@ -881,7 +885,7 @@ class Performance:
         f2 = make_plot(d2)
         
         d = {}
-        # * If an Icecube reconstruction is available, plot it aswell
+        # If an Icecube reconstruction is available, plot it aswell
         if not i3_med:
             d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers]
             d['y'] = [upper_perc, median, lower_perc]
@@ -907,7 +911,7 @@ class Performance:
         f3 = make_plot(d, h_figure=f2)
         plt.close('all')
         
-        # * Load img with PIL - this format can be logged
+        # Load img with PIL - this format can be logged
         if self.wandb_ID is not None:
             im = PIL.Image.open(img_address)
             wandb.log({key+'_2Dperformance': wandb.Image(im, caption=key+'_2Dperformance')}, commit=False)
@@ -931,7 +935,12 @@ class Performance:
                         pred, target
                     )
                 )
-            d = {'data': [raw_pred[pred], raw_target[target]]}
+            clip_min = np.min(raw_target[target]), 
+            clip_max = np.max(raw_target[target])
+            d = {'data': [
+                np.clip(raw_pred[pred], clip_min, clip_max), 
+                raw_target[target]
+            ]}
             d['title'] = pred
             d['label'] = ['Model', 'Truth']
             d['ylabel'] = 'Count'
@@ -948,22 +957,56 @@ class Performance:
             sigma_dict = read_pickle_predicted_h5_data_v2(
             self._pred_path, sigma_keys
             )
-            
+            z_clip_val = 5
             for pred_key, sigma_key, target_key in zip(
                 raw_pred, sigma_dict, raw_target
             ):
                 # Calculate z-scores
                 z = (raw_pred[pred_key] - raw_target[target_key]) / \
-                    sigma_dict[sigma_key]
+                    (sigma_dict[sigma_key])
+                z_clipped = np.clip(z, -z_clip_val, z_clip_val)
+                # print((np.percentile(z, 84)-np.percentile(z, 16))/2)
                 
-                # Save distribution
-                d = {'data': [z]}
-                d['title'] = pred_key + ' z-score distribution'
-                d['ylabel'] = 'Count'
-                d['xlabel'] = 'z-score'
-                d['savefig'] = '/'.join([
+                # Fit a gaussian
+                p, cov, chisquare, p_val = fit_nonnormed_gauss(z_clipped)
+                fit_d = {
+                    'fit_func': nonnormed_gauss.__name__,
+                    'fitted_pars': p,
+                    'cov_matrix': cov,
+                    'chisquare': chisquare,
+                    'p_val': p_val
+                }
+
+                # Save fit
+                setattr(self, sigma_key+'_fit', fit_d)
+
+                # Save plot of distribution
+                x = np.linspace(-z_clip_val, z_clip_val, 500)
+                y = nonnormed_gauss(x, *p)
+                d1 = {'data': [z_clipped]}
+                fig = make_plot(d1)
+                d2 = {'x': [x], 'y': [y]}
+                d2['title'] = pred_key + ' z-score distribution'
+                d2['ylabel'] = 'Count'
+                d2['xlabel'] = 'z-score'
+                d2['label'] = ['fit: Area=%3.2e, mean=%3.2e, sigma=%3.2e' % tuple(p)]
+                d2['savefig'] = '/'.join([
                     base_path, 'z_score_'+pred_key+'.png'
                 ])
+                _ = make_plot(d2, h_figure=fig)
+
+                # Save sigma-distribution
+                d = {
+                    'data': [
+                        np.clip(sigma_dict[sigma_key], 0, 1.0)
+                    ],
+                    'savefig': '/'.join([
+                        base_path, 'sigma_'+pred_key+'.png'
+                    ]),
+                    'ylabel': 'Count',
+                    'xlabel': sigma_key,
+                    'title': sigma_key+' distribution'
+                }
                 _ = make_plot(d)
 
     def update_onenumber_performance(self):
@@ -999,12 +1042,12 @@ class Performance:
             plt.close('all')
 
             if self.wandb_ID is not None:
-                # * Load img with PIL - this format can be logged. Remmeber to close it again
+                # Load img with PIL - this format can be logged. Remmeber to close it again
                 im = PIL.Image.open(img_address)
                 wandb.log({pred_key+'_performance': wandb.Image(im, caption=pred_key+'_performance')}, commit=False)
                 im.close()
                 
-                # * Log the data for nice plotting on W&B
+                # Log the data for nice plotting on W&B
                 if pred_key not in self._conf_interval_keys:
                     
                     for num1, num2 in zip(getattr(self, pred_key+'_sigma'), self.bin_centers):
@@ -1013,7 +1056,7 @@ class Performance:
                     for num1, num2 in zip(getattr(self, pred_key+'_68th'), self.bin_centers):
                         wandb.log({pred_key+'_68th': num1, pred_key+'_bincenter2': num2})
                 
-                # * Save the performance class-instance for easy transfers between local and cloud
+                # Save the performance class-instance for easy transfers between local and cloud
                 wandb.save(perf_savepath)
 
             img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_DOMperformance.png'
@@ -1024,10 +1067,10 @@ class Performance:
             d_dom['savefig'] = img_address
             _ = make_plot(d_dom, h_figure=h_fig, axes_index=0)
 
-            # * Log to W&B to compare
+            # Log to W&B to compare
             if self.wandb_ID is not None:
                 
-                # * Log the data for nice plotting on W&B
+                # Log the data for nice plotting on W&B
                 if pred_key not in self._conf_interval_keys:
 
                     for num1, num2 in zip(getattr(self, 'dom_'+pred_key+'_sigma'), self.dom_bin_centers):
@@ -1069,7 +1112,7 @@ class Performance_pickle:
         self._energy_key = self._get_energy_key()
         self._pred_keys = self._get_prediction_keys()
         self._reco_keys = self._get_reco_keys()
-        # * There should be equally many performance keys and icecube perf keys
+        # There should be equally many performance keys and icecube perf keys
         self._performance_keys = self._get_performance_keys()
         self._icecube_perf_keys = self._get_icecube_perf_keys()
         self._true_keys = get_target_keys(data_pars, meta_pars)
@@ -1086,28 +1129,28 @@ class Performance_pickle:
 
     def _calculate_loss_error_corrs(self, pred_d, loss):
 
-        # * Correlation between loss and predicted values is calculated to 
-        # * hopefully see if loss function is focused too heavily on some of the variables
-        # * We look at ABSOLUTE value of error, since we are using symmetric
-        # * loss functions.
+        # Correlation between loss and predicted values is calculated to 
+        # hopefully see if loss function is focused too heavily on some of the variables
+        # We look at ABSOLUTE value of error, since we are using symmetric
+        # loss functions.
         corrs = {}
         loss_clip = self._get_loss_clip_vals()
         loss_clipped = np.clip(loss, loss_clip[0], loss_clip[1])
         for key, data in pred_d.items():
-            # * Clip values, since it's concentrated at a certain range.
+            # Clip values, since it's concentrated at a certain range.
             _, clip_vals = self._get_I3_2D_clip_and_d(key)
             
-            # * Strip NaNs
+            # Strip NaNs
             n_nans, data, loss_stripped = strip_nans(data, loss)
 
-            # * corrcoef returns correlation matrix - we are only interested 
-            # * in one of the numbers
+            # corrcoef returns correlation matrix - we are only interested 
+            # in one of the numbers
             abs_data = np.abs(np.clip(data, clip_vals[0], clip_vals[1]))
             
             print('WARNING: %d NAN(S) FOUND IN LOSS-ERROR CORRELATIONS!'%(n_nans)) if n_nans>0 else None
             corrs[key] = np.corrcoef(abs_data, loss_stripped)[1, 0]
 
-            # * Make 2d-scatterplot or HEATMAP! like i3-performance
+            # Make 2d-scatterplot or HEATMAP! like i3-performance
             d = {}
             title = r'%s - loss correlation'%(key)
             savepath = get_project_root()+self.model_dir+'/figures/'+key+'_LossCorr.png'
@@ -1118,7 +1161,7 @@ class Performance_pickle:
             d['title'] = title
             fig_h = make_plot(d)
 
-        # * Make barh-plots
+        # Make barh-plots
         bar_pos = np.arange(0, len(corrs)) + 0.5
         names = [key for key in corrs]
         data = [data for key, data in corrs.items()]
@@ -1128,7 +1171,7 @@ class Performance_pickle:
         d['savefig'] = get_project_root()+self.model_dir+'/figures/CorrCoeff.png'
         fig = make_plot(d)
 
-        # * Save a histogram of loss values aswell
+        # Save a histogram of loss values aswell
         d = {'data': [loss]}
         d['xlabel'] = 'Loss value (%s)'%(self.loss_func)
         d['ylabel'] = 'Count'
@@ -1140,11 +1183,11 @@ class Performance_pickle:
         return corrs
 
     def _calculate_onenum_performance(self, data_dict=None):
-        # * Performance for each variable in names is calculated as the 
-        # * geometric mean of the bin-values. Finally, they are combined as
-        # * a geometric mean of all the geometric means. This has the
-        # * advantage that a fractional decrease of x percent in any of 
-        # * them contributes equally to the final performance
+        # Performance for each variable in names is calculated as the 
+        # geometric mean of the bin-values. Finally, they are combined as
+        # a geometric mean of all the geometric means. This has the
+        # advantage that a fractional decrease of x percent in any of 
+        # them contributes equally to the final performance
         
         if self.meta_pars['group'] == 'vertex_reg':
             names = ['len_error_68th', 'vertex_t_error_sigma']
@@ -1168,12 +1211,12 @@ class Performance_pickle:
 
     def _calculate_performance(self, energy_dict, pred_dict, crs_dict, true_dict, n_doms):
         
-        # * Transform back and extract values into list
+        # Transform back and extract values into list
         true_transformed = inverse_transform(true_dict, 
                                 get_project_root()+self.model_dir)
         energy_transformed = inverse_transform(energy_dict, 
                                 get_project_root()+self.model_dir)
-        # * We want energy as array
+        # We want energy as array
         energy = np.array(convert_to_proper_list(energy_transformed[self._energy_key[0]]))
 
         self.counts, self.bin_edges = np.histogram(energy, 
@@ -1184,19 +1227,19 @@ class Performance_pickle:
                                                 bins=N_BINS_PERF_PLOTS)
         self.dom_bin_centers = calc_bin_centers(self.dom_bin_edges)
         
-        # * Calculate how well Icecube does.
+        # Calculate how well Icecube does.
         for name, func, model_key in zip(self._icecube_perf_keys, self._get_error_funcs(), self._performance_keys):
             
-            # * We calculate 2 different forms of performance measures: One
-            # * kind as the width of the distribution (for unbounded
-            # * distributions), another as the upper 68th percentile 
-            # * of the distribution (for distributions with a lower bound of 0)
+            # We calculate 2 different forms of performance measures: One
+            # kind as the width of the distribution (for unbounded
+            # distributions), another as the upper 68th percentile 
+            # of the distribution (for distributions with a lower bound of 0)
             print(get_time(), 'Calculating %s performance...'%(name))
 
-            # * Performance as a function of energy
+            # Performance as a function of energy
             error = func(crs_dict, true_transformed, reporting=True)
 
-            # # * Make Wilcoxon signed-rank test
+            # # Make Wilcoxon signed-rank test
             # print('')
             # print(get_time(), 'Making Wilcoxon signed-rank test')
             # print(type(error), type(pred_dict[model_key]))
@@ -1215,7 +1258,7 @@ class Performance_pickle:
                 setattr(self, name+'_84th', upper_perc)
                 setattr(self, name+'_16th', lower_perc)
 
-                # * Performance as a function of number of doms
+                # Performance as a function of number of doms
                 sigma, sigmaerr, median, upper_perc, lower_perc =\
                     calc_width_as_fn_of_data(n_doms, error, self.dom_bin_edges)
                 setattr(self, 'dom_'+name+'_sigma', sigma)
@@ -1227,7 +1270,7 @@ class Performance_pickle:
             else:
                 percentiles = [68, 50, 32]
                 
-                # * As a function of energy
+                # As a function of energy
                 vals, errs = calc_percentiles_as_fn_of_data(
                     energy, error, self.bin_edges, percentiles)
                 
@@ -1235,7 +1278,7 @@ class Performance_pickle:
                     setattr(self, '%s_%sth'%(name, str(perc)), val)
                     setattr(self, '%s_err%sth'%(name, str(perc)), err)
 
-                # * As a function of DOMs
+                # As a function of DOMs
                 vals, errs = calc_percentiles_as_fn_of_data(
                     n_doms, error, self.dom_bin_edges, percentiles)
                 
@@ -1246,15 +1289,15 @@ class Performance_pickle:
             print(get_time(), 'Calculation finished!')
             print('')
                 
-        # * Calculate performance for our predictions
+        # Calculate performance for our predictions
         for (key, data), i3_key in zip(pred_dict.items(), self._icecube_perf_keys):
             
             print(get_time(), 'Calculating %s performance...'%(key))
             
-            # * Same split as above
+            # Same split as above
             if key not in self._conf_interval_keys:
             
-                # * Performance as a function of energy
+                # Performance as a function of energy
                 sigma, sigmaerr, median, upper_perc, lower_perc = calc_width_as_fn_of_data(energy, data, self.bin_edges)
                 setattr(self, key+'_sigma', sigma)
                 setattr(self, key+'_sigmaerr', sigmaerr)
@@ -1262,14 +1305,14 @@ class Performance_pickle:
                 setattr(self, key+'_84th', upper_perc)
                 setattr(self, key+'_16th', lower_perc)
 
-                # * We make the I3-plot here so we do not have to save all 
-                # * the data. First we retrieve the corresponding Icecube data
+                # We make the I3-plot here so we do not have to save all 
+                # the data. First we retrieve the corresponding Icecube data
                 i3_med = getattr(self, i3_key+'_50th')
                 i3_upper = getattr(self, i3_key+'_84th')
                 i3_lower = getattr(self, i3_key+'_16th')
                 self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc, i3_med=i3_med, i3_upper=i3_upper, i3_lower=i3_lower)
 
-                # * Performance as a function of number of doms
+                # Performance as a function of number of doms
                 sigma, sigmaerr, median, upper_perc, lower_perc = calc_width_as_fn_of_data(n_doms, data, self.dom_bin_edges)
                 setattr(self, 'dom_'+key+'_sigma', sigma)
                 setattr(self, 'dom_'+key+'_sigmaerr', sigmaerr)
@@ -1281,14 +1324,14 @@ class Performance_pickle:
             else:
                 percentiles = [68, 50, 32]
                 
-                # * As a function of energy
+                # As a function of energy
                 vals, errs = calc_percentiles_as_fn_of_data(
                     energy, data, self.bin_edges, percentiles)
                 for perc, val, err, in zip(percentiles, vals, errs):
                     setattr(self, '%s_%sth'%(key, str(perc)), val)
                     setattr(self, '%s_err%sth'%(key, str(perc)), err)
                 
-                # * As a function of DOMs
+                # As a function of DOMs
                 vals, errs = calc_percentiles_as_fn_of_data(
                     n_doms, data, self.dom_bin_edges, percentiles)
                 
@@ -1298,10 +1341,10 @@ class Performance_pickle:
             
             print(get_time(), 'Calculation finished!')
 
-        # * Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
+        # Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._icecube_perf_keys):
             
-            # * Remember to split in conf bounds and widths
+            # Remember to split in conf bounds and widths
             if (model_key not in self._conf_interval_keys):
                 retro_sigma = getattr(self, retro_key+'_sigma')
                 model_sigma = getattr(self, model_key+'_sigma')
@@ -1370,7 +1413,7 @@ class Performance_pickle:
         data_dir = self.data_pars['data_dir']
         prefix = 'transform'+str(self.data_pars['file_keys']['transform'])
 
-        # * Load loss aswell
+        # Load loss aswell
         keys = self._pred_keys+['loss']
         
         print(get_time(), 'Loading predictions...')
@@ -1380,13 +1423,13 @@ class Performance_pickle:
         true_dict = read_pickle_data(data_dir, pred_dict['indices'], self._true_keys, prefix=prefix)
         print(get_time(), 'Predictions loaded!')
 
-        # * Pop loss from dict
+        # Pop loss from dict
         loss = pred_dict['loss']
         del pred_dict['loss']
 
         print(get_time(), 'Finding number of DOMs in events')
         n_doms = get_n_doms(pred_dict['indices'], self.dom_mask, data_dir)
-        # * Indices have done, what we wanted them to do - delete them
+        # Indices have done, what we wanted them to do - delete them
         print(get_time(), 'Number of DOMs found!')
         print('')
         del pred_dict['indices']
@@ -1504,7 +1547,7 @@ class Performance_pickle:
     
     def _get_conf_interval_keys(self):
 
-        # * A combination of I3-keys and our predictions
+        # A combination of I3-keys and our predictions
         if self.meta_pars['group'] == 'vertex_reg':
             keys = ['len_error', 'retro_len_error']
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
@@ -1737,8 +1780,8 @@ class Performance_pickle:
         
         d2, clip_vals = self._get_I3_2D_clip_and_d(key)
 
-        # # * Strip potential NaNs: subtract arrays --> find indices, since a number - nan is also nan.
-        # # * Notify if NaNs are found.
+        # # Strip potential NaNs: subtract arrays --> find indices, since a number - nan is also nan.
+        # # Notify if NaNs are found.
         # bad_indices = np.isnan(energy-data)
         # good_indices = ~bad_indices
         # n_nans = np.sum(bad_indices)
@@ -1753,7 +1796,7 @@ class Performance_pickle:
         f2 = make_plot(d2)
         
         d = {}
-        # * If an Icecube reconstruction is available, plot it aswell
+        # If an Icecube reconstruction is available, plot it aswell
         if not i3_med:
             d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers]
             d['y'] = [upper_perc, median, lower_perc]
@@ -1779,7 +1822,7 @@ class Performance_pickle:
         f3 = make_plot(d, h_figure=f2)
         plt.close('all')
         
-        # * Load img with PIL - this format can be logged
+        # Load img with PIL - this format can be logged
         if self.wandb_ID is not None:
             im = PIL.Image.open(img_address)
             wandb.log({key+'_2Dperformance': wandb.Image(im, caption=key+'_2Dperformance')}, commit=False)
@@ -1818,12 +1861,12 @@ class Performance_pickle:
             plt.close('all')
 
             if self.wandb_ID is not None:
-                # * Load img with PIL - this format can be logged. Remmeber to close it again
+                # Load img with PIL - this format can be logged. Remmeber to close it again
                 im = PIL.Image.open(img_address)
                 wandb.log({pred_key+'_performance': wandb.Image(im, caption=pred_key+'_performance')}, commit=False)
                 im.close()
                 
-                # * Log the data for nice plotting on W&B
+                # Log the data for nice plotting on W&B
                 if pred_key not in self._conf_interval_keys:
                     
                     for num1, num2 in zip(getattr(self, pred_key+'_sigma'), self.bin_centers):
@@ -1832,7 +1875,7 @@ class Performance_pickle:
                     for num1, num2 in zip(getattr(self, pred_key+'_68th'), self.bin_centers):
                         wandb.log({pred_key+'_68th': num1, pred_key+'_bincenter2': num2})
                 
-                # * Save the performance class-instance for easy transfers between local and cloud
+                # Save the performance class-instance for easy transfers between local and cloud
                 wandb.save(perf_savepath)
 
             img_address = get_project_root()+self.model_dir+'/figures/'+pred_key+'_DOMperformance.png'
@@ -1843,10 +1886,10 @@ class Performance_pickle:
             d_dom['savefig'] = img_address
             _ = make_plot(d_dom, h_figure=h_fig, axes_index=0)
 
-            # * Log to W&B to compare
+            # Log to W&B to compare
             if self.wandb_ID is not None:
                 
-                # * Log the data for nice plotting on W&B
+                # Log the data for nice plotting on W&B
                 if pred_key not in self._conf_interval_keys:
 
                     for num1, num2 in zip(getattr(self, 'dom_'+pred_key+'_sigma'), self.dom_bin_centers):
@@ -1861,15 +1904,20 @@ class FeaturePermutationImportance:
     def __init__(self, save_dir, wandb_ID=None, ):    
 
         self.save_dir = get_path_from_root(save_dir)
+        hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(self.save_dir)
+        self.hyper_pars = hyper_pars
+        self.data_pars = data_pars
+        self.arch_pars = arch_pars
+        self.meta_pars = meta_pars
         self.wandb_ID = wandb_ID
         self.feature_importances = {}
 
     def calc_feature_importance_from_errors(self, baseline_errors, permuted_errors):
-        # * Use (84th-16th)/2 as metric. Corresponds to sigma. 
+        # Use (84th-16th)/2 as metric. Corresponds to sigma. 
         bl_percentiles, bl_lower, bl_upper = estimate_percentile(baseline_errors, [0.15865, 0.84135], bootstrap=False)
         permuted_percentiles, permuted_lower, permuted_upper = estimate_percentile(permuted_errors, [0.15865, 0.84135], bootstrap=False)
 
-        # * Use error propagation to get errors
+        # Use error propagation to get errors
         bl_sigmas = (bl_upper-bl_lower)/2
         bl_metric = [(bl_percentiles[1]-bl_percentiles[0])/2]
         bl_metric_error = [np.sqrt(np.sum(bl_sigmas*bl_sigmas))/2]
@@ -1883,22 +1931,30 @@ class FeaturePermutationImportance:
         return feature_importance[0], e_feature_importance[0]
 
     def calc_all_seq_importances(self, n_predictions_wanted=np.inf):
-        # * Option given to just calculate all
-        hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(self.save_dir)
-        
-        # * Get indices of features to permute - both scalar and sequential
-        all_seq_features = data_pars['seq_feat']
+        # Option given to just calculate all
+        # Get indices of features to permute - both scalar and sequential
+        all_seq_features = self.data_pars['seq_feat']
         for feature in all_seq_features:
-            self.calc_permutation_importance(seq_features=[feature], n_predictions_wanted=n_predictions_wanted)
+            self.calc_permutation_importance(
+                seq_features=[feature], 
+                n_predictions_wanted=n_predictions_wanted
+            )
         
-    def calc_permutation_importance(self, seq_features=[], scalar_features=[], n_predictions_wanted=np.inf):
-        hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(self.save_dir)
+    def calc_permutation_importance(
+        self, 
+        seq_features=[], 
+        scalar_features=[], 
+        n_predictions_wanted=np.inf
+        ):
+        hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(
+            self.save_dir
+            )
         
-        # * Get indices of features to permute - both scalar and sequential
+        # Get indices of features to permute - both scalar and sequential
         all_seq_features = data_pars['seq_feat']
         all_scalar_features = data_pars['scalar_feat']
         
-        # * Ensure features actually exist
+        # Ensure features actually exist
         try:    
             seq_indices = [all_seq_features.index(entry) for entry in seq_features]
             scalar_indices = [all_scalar_features.index(entry) for entry in scalar_features]
@@ -1906,14 +1962,14 @@ class FeaturePermutationImportance:
             print(get_time(), 'ERROR: Atleast one of features (%s, %s) does not exist. Returning.'%(', '.join(seq_features), ', '.join(scalar_features)))
             return
         
-        # * Check it hasn't already been calculated
+        # Check it hasn't already been calculated
         if self.check_duplication(seq_features, scalar_features):
             return
         
-        # * Load the best model
+        # Load the best model
         model = load_best_model(self.save_dir)
 
-        # * Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
+        # Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
         data_pars['n_predictions_wanted'] = n_predictions_wanted
         LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
         VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
@@ -1922,16 +1978,25 @@ class FeaturePermutationImportance:
         dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
         val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
         
-        # * SET MODE TO PERMUTE IN COLLATE_FN
+        # SET MODE TO PERMUTE IN COLLATE_FN
         collate_fn = get_collate_fn(data_pars, mode='permute', permute_seq_features=seq_indices)
         val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)
-        N_VAL = get_set_length(val_set)
+        N_VAL = min(get_set_length(val_set), n_predictions_wanted)
 
-        # * Run evaluator!
-        predictions, truths, indices = run_pickle_evaluator(model, val_generator, val_set.targets, gpus, 
-            LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL)
+        # Run evaluator!
+        loss_func = get_loss_func(self.arch_pars['loss_func'])
+        predictions, truths, indices, loss = run_pickle_evaluator(
+            model, 
+            val_generator, 
+            val_set.targets, 
+            gpus, 
+            LOG_EVERY=LOG_EVERY, 
+            VAL_BATCH_SIZE=VAL_BATCH_SIZE, 
+            N_VAL=N_VAL,
+            loss_func=loss_func
+        )
 
-        # * Run predictions through desired functions - transform back to 'true' values, if transformed
+        # Run predictions through desired functions - transform back to 'true' values, if transformed
         predictions_transformed = inverse_transform(predictions, self.save_dir)
         truths_transformed = inverse_transform(truths, self.save_dir)
 
@@ -1940,22 +2005,29 @@ class FeaturePermutationImportance:
         baseline = {}
         pred_full_address = get_project_root()+self.save_dir+'/data/predictions.h5'
 
-        # * Calculate PFI for all evaluation functions.
+        # Calculate PFI for all evaluation functions.
         print(get_time(), 'Calculating PFI for evaluation functions...')
         for func in eval_functions:
             name = func.__name__
            
-            # * Calculate new errors.
+            # Calculate new errors.
             error_from_preds[name] = func(predictions_transformed, truths_transformed)
-
-            # * load baseline errors
+            
+            # load baseline errors
             with h5.File(pred_full_address, 'r') as f:
                 baseline[name] = f[name][:]
 
-            # * Calculate feature importance = (permuted_metric-baseline_metric)/baseline_metric
-            feature_importance, feature_importance_err = self.calc_feature_importance_from_errors(baseline[name], error_from_preds[name])
+            # print(name)
+            # print(error_from_preds[name][:5], torch.std(torch.tensor(error_from_preds[name])))
+            # print(baseline[name][:5], torch.std(torch.tensor(baseline[name])))
 
-            # * Save dictionary as an attribute. Should contain permuted feature-names and FI. Each new permutation importance is saved as an entry in a list.
+            # Calculate feature importance = (permuted_metric-baseline_metric)/baseline_metric
+            feature_importance, feature_importance_err = self.calc_feature_importance_from_errors(baseline[name], error_from_preds[name])
+            # print(feature_importance)
+            # print('')
+
+
+            # Save dictionary as an attribute. Should contain permuted feature-names and FI. Each new permutation importance is saved as an entry in a list.
             features = seq_features.copy()
             features.extend(scalar_features)
             d = {'permuted': features, 'feature_importance': feature_importance, 'error': feature_importance_err}
@@ -1963,19 +2035,19 @@ class FeaturePermutationImportance:
         print(get_time(), 'PFI Calculation finished!')
         
     def save(self):
-        # * Save the results as a class instance
+        # Save the results as a class instance
         save_path = get_project_root()+self.save_dir+'/data/FeaturePermutationImportance.pickle'
         self.make_plots()
         with open(save_path, 'wb') as f:
             pickle.dump(self, f)
-            print(get_time(), 'Saved FeaturePermutationImportance at %s'%(get_path_from_root(save_path)))
+            print(get_time(), 'Saved FeaturePermutaionImportance at %s'%(get_path_from_root(save_path)))
 
     def check_duplication(self, seq_features, scalar_features):
         
         features = seq_features.copy()
         features.extend(scalar_features)
         
-        # * Check no duplication
+        # Check no duplication
         try:
             some_key = [key for key in self.feature_importances][0]
             for d in self.feature_importances[some_key]:
@@ -1987,7 +2059,7 @@ class FeaturePermutationImportance:
             else:
                 conclusion = False
         except IndexError:
-            # * Nothing added so far. Continue with calculation
+            # Nothing added so far. Continue with calculation
             conclusion = False
 
         if conclusion == False:
@@ -1998,7 +2070,7 @@ class FeaturePermutationImportance:
     
     def save_feature_importance(self, name, dfi):
         
-        # * dfi = dict_feature_imporatnce
+        # dfi = dict_feature_imporatnce
         if name not in self.feature_importances:
             self.feature_importances[name] = [dfi]
         else:
@@ -2006,11 +2078,11 @@ class FeaturePermutationImportance:
     
     def make_plots(self):
 
-        # * Loop over each performance function
+        # Loop over each performance function
         for func, data in self.feature_importances.items():
             
-            # * Loop over all permuted features
-            # * sort wrt importance
+            # Loop over all permuted features
+            # sort wrt importance
             sorted_data = sorted(data, key=lambda x: x['feature_importance'])
             names, fi, errors = [], [], []
             for d in sorted_data:
@@ -2019,7 +2091,7 @@ class FeaturePermutationImportance:
                 fi.append(d['feature_importance'])
                 errors.append(d['error'])
 
-            # * Make barplot
+            # Make barplot
             bar_pos = np.arange(0, len(names)) + 0.5
             d = {'keyword': 'barh', 'y': bar_pos, 'width': fi, 'height': 0.7, 'names': names, 'errors': errors}
             d['title'] = 'Permutation Importance - %s'%(func)
@@ -2066,14 +2138,14 @@ def get_performance_plot_dicts(model_dir, plot_dicts):
         else:
             
             for key, item in plot_dicts[0].items():
-                # * Only add to the lists - labels remain the same - this is what the try/except catches
+                # Only add to the lists - labels remain the same - this is what the try/except catches
                 try:
                     plot_dicts[0][key].append(azi_dict[key][0])
                 except AttributeError:
                     pass
 
             for key, item in plot_dicts[1].items():
-                # * Only add to the lists - labels remain the same - this is what the try/except catches
+                # Only add to the lists - labels remain the same - this is what the try/except catches
                 try:
                     plot_dicts[1][key].append(polar_dict[key][0])
                 except AttributeError:
@@ -2101,14 +2173,14 @@ def get_performance_plot_dicts(model_dir, plot_dicts):
         else:
             
             for key, item in plot_dicts[0].items():
-                # * Only add to the lists - labels remain the same - this is what the try/except catches
+                # Only add to the lists - labels remain the same - this is what the try/except catches
                 try:
                     plot_dicts[0][key].append(azi_dict[key][0])
                 except AttributeError:
                     pass
 
             for key, item in plot_dicts[1].items():
-                # * Only add to the lists - labels remain the same - this is what the try/except catches
+                # Only add to the lists - labels remain the same - this is what the try/except catches
                 try:
                     plot_dicts[1][key].append(polar_dict[key][0])
                 except AttributeError:
@@ -2214,7 +2286,7 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
                 h_axis = h_figure.axes[axes_index].twinx()
     
     if 'subplot' in plot_dict:
-        # * By default, x-axis is shared
+        # By default, x-axis is shared
         h_axis = h_figure.add_axes(position, sharex=h_figure.axes[0])
     
     if 'x' in plot_dict and 'y' in plot_dict:
@@ -2222,7 +2294,7 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
         
         for i_set, dataset in enumerate(plot_dict['y']):
-            # * Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
+            # Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
             plot_keys = ['label', 'drawstyle', 'color', 'zorder', 'linestyle']
             #* Set baseline
             d = {'linewidth': 1.5}
@@ -2359,12 +2431,12 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
     else:
         raise ValueError('Unknown plot wanted!')
     
-    # * Plot vertical lines if wanted
+    # Plot vertical lines if wanted
     if 'axvline' in plot_dict:
         for vline in plot_dict['axvline']:
             h_axis.axvline(x=vline, color = 'k', ls = ':')
     
-    # * ... And horizontal lines
+    # ... And horizontal lines
     if 'axhline' in plot_dict:
         for hline in plot_dict['axhline']:
             h_axis.axhline(y=hline, color = 'k', ls = '--')

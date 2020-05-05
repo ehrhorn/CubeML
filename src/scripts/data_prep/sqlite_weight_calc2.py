@@ -1,7 +1,7 @@
 import numpy as np
 import sys
-import pickle
 import argparse
+import joblib
 
 from multiprocessing import Pool, cpu_count
 from scipy import interpolate
@@ -12,7 +12,6 @@ from src.modules.eval_funcs import retro_relE_error
 from src.modules.reporting import make_plot
 from src.modules.classes import SqliteFetcher
 from src.modules.constants import *
-from src.modules.preprocessing import DomChargeScaler, EnergyNoLogTransformer
 
 
 description = 'Calculates weights for a dataset.'
@@ -101,8 +100,11 @@ def calc_weights_multiprocess(pack):
 
     # * Inverse transform it
     transformer_path = '/'.join([PATH_DATA_OSCNEXT, 'sqlite_transformers.pickle'])
-    transformers = pickle.load(open(transformer_path, 'rb'))
-    transformer = transformers[true_key[0]]
+    transformers = joblib.load(open(transformer_path, 'rb'))
+    try:
+        transformer = transformers[true_key[0]]
+    except KeyError:
+        transformer = None
     
     # * inverse transform
     if transformer is not None:
@@ -140,7 +142,7 @@ def calc_energy_performance_weights(ids, db):
 
     # * Transform true logE. Load first
     transformer_path = '/'.join([PATH_DATA_OSCNEXT, 'sqlite_transformers.pickle'])
-    transformers = pickle.load(open(transformer_path, 'rb'))
+    transformers = joblib.load(open(transformer_path, 'rb'))
     transformer = transformers[true_key]
     
     # * inverse transform
@@ -354,12 +356,15 @@ if __name__ == '__main__':
             db = SqliteFetcher(path)
             db_specific_masks = [e+'_'+keyword for e in masks]
             ids = load_pickle_mask(PATH_DATA_OSCNEXT, db_specific_masks)
+            ids = [
+                str(i) for i in ids
+            ]
             
             # * If developing, use less data
             if args.dev:
-                USE_N_EVENTS = 1000000
+                USE_N_EVENTS = 1000
                 PRINT_EVERY = 100
-                ids = ids[:100000]
+                ids = ids[:1000]
                 
             
             # * Calculate weights and potentially interpolator

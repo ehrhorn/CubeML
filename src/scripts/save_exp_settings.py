@@ -22,8 +22,12 @@ parser.add_argument('-s', '--scan_lr', action='store_true',
         help='Performs a learning rate scan before training.')
 parser.add_argument('--max_lr', default=5e-3, type=float, 
         help='Sets the max learning rate for the OneCycle learning rate schedule.')
-parser.add_argument('--min_lr', default=1e-4, type=float, 
-        help='Sets the min learning rate for the OneCycle learning rate schedule.')
+parser.add_argument(
+        '--min_lr', 
+        default=1e-4, 
+        type=float, 
+        help='Sets the min learning rate for the OneCycle learning rate schedule.'
+)
 parser.add_argument('--lr', default=1e-3, type=float, 
         help='Sets the learning rate.')
 parser.add_argument('--start_lr', default=1e-6, type=float, 
@@ -66,6 +70,12 @@ parser.add_argument('--optimizer', default='Adam', type=str,
         help='Sets which optimizer to use. Options: Adam, SGD')
 parser.add_argument('--n_workers', default=5, type=int,
         help='Sets number of workers to use during loading.')
+parser.add_argument(
+        '--nonlin', 
+        default='LeakyReLU', 
+        type=str,
+        help='Sets which nonlinearity to use.'
+)
 
 
 args = parser.parse_args()
@@ -76,43 +86,47 @@ if __name__ == '__main__':
     #* DEFINE SCRIPT OBJECTIVE
     #* ========================================================================
 
-    # * data_dir = '/data/MuonGun_Level2_139008'
+    # data_dir = '/data/MuonGun_Level2_139008'
     data_dir = '/data/oscnext-genie-level5-v01-01-pass2'
 
-    # * Options: 'full_reg', 'direction_reg', 'vertex_reg', 'vertex_reg_no_time', 'energy_reg', 'angles_reg'
+    # Options: 'full_reg', 'direction_reg', 'vertex_reg', 
+    # 'vertex_reg_no_time', 'energy_reg', 'angle_reg'
     regression_type = args.regression
     if regression_type == 'None':
         raise KeyError('A regression type must be chosen! Use flag --regression')
 
-    # * Options: 'train_new', 'continue_training', 'explore_lr', 'continue_crashed'
+    # Options: 'train_new', 'continue_training', 'explore_lr', 
+    # 'continue_crashed'
     objective = 'train_new'
     if args.explore_lr:
         objective = 'explore_lr'
 
-    # * Options: 'angle_loss', 'L1', 'L2', 'logcosh', 'angle_squared_loss'
+    # Options: 'angle_loss', 'L1', 'L2', 'logcosh', 'angle_squared_loss',
+    # 'cosine_loss'
     error_func = args.loss
     if error_func == 'None':
         raise KeyError('A loss function must be chosen! Use flag --loss')
 
-    # * Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
+    # Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
     particle = 'muon_neutrino'
 
-    # * Options: 'all', 'dom_interval_min<VAL>_max<VAL>' (keywords: 'min_doms', 'max_doms')
+    # Options: 'all', 'dom_interval_min<VAL>_max<VAL>' 
+    # (keywords: 'min_doms', 'max_doms')
     mask_names = args.masks
     if mask_names == 'None':
         raise KeyError('Masks must be chosen!')
 
-    # * Set project
+    # Set project
     project = 'cubeml_test' if args.dev else 'cubeml'
     dataset = data_dir.split('/')[-1]
 
-    # * Set weights to use by loss-func
+    # Set weights to use by loss-func
     loss_func_weights = [1, 1, 1, 1, 1, 1, 1, 1]
 
     if args.optimizer == 'Adam':
 
         optimizer = {'optimizer':      'Adam',
-                        'lr':             1e-5,
+                        'lr':             args.max_lr*0.1,
                         'betas':          (0.9, 0.998),
                         'eps':            1.0e-9
                         }
@@ -179,27 +193,26 @@ if __name__ == '__main__':
                                 'dom_z', 
                                 'dom_time', 
                                 
-                                # 'dom_charge_significance',
-                                # 'dom_frac_of_n_doms',
-                                # 'dom_d_to_prev',
-                                # 'dom_v_from_prev',
-                                # 'dom_d_minkowski_to_prev',
-                                # 'dom_d_closest',
-                                # 'dom_d_minkowski_closest',
+                                'dom_charge_significance',
+                                'dom_frac_of_n_doms',
+                                'dom_d_to_prev',
+                                'dom_v_from_prev',
+                                'dom_d_minkowski_to_prev',
+                                'dom_d_closest',
+                                'dom_d_minkowski_closest',
                                 
-                                # 'dom_atwd',
-                                # 'dom_charge_stdscaler',
-                                # 'dom_pulse_width',
-                                # 'dom_closest1_x',
-                                # 'dom_closest1_y',
-                                # 'dom_closest1_z',
-                                # 'dom_closest1_time',
-                                # 'dom_closest1_charge',
-                                # 'dom_closest2_x',
-                                # 'dom_closest2_y',
-                                # 'dom_closest2_z',
-                                # 'dom_closest2_time',
-                                # 'dom_closest2_charge'
+                                'dom_atwd',
+                                'dom_pulse_width',
+                                'dom_closest1_x',
+                                'dom_closest1_y',
+                                'dom_closest1_z',
+                                'dom_closest1_time',
+                                'dom_closest1_charge',
+                                'dom_closest2_x',
+                                'dom_closest2_y',
+                                'dom_closest2_z',
+                                'dom_closest2_time',
+                                'dom_closest2_charge'
                                 ],
                                 # 'dom_d_vertex',
                                 # 'dom_d_minkowski_vertex',
@@ -223,6 +236,11 @@ if __name__ == '__main__':
                 'val_batch_size':      256 if not args.dev else 21
                 }
 
+    if (
+            'dom_charge_significance' in data_pars['seq_feat'] 
+            and 'electron_neutrino' in mask_names
+    ):
+        raise NameError('Keep in mind that some features are not transformed yet!')
 
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
@@ -242,7 +260,7 @@ if __name__ == '__main__':
         #                      'type':              'seq'}},
         {'RnnBlock':        {'n_in':             n_seq_feat,
                             'n_out':             n1,
-                            'rnn_type':          'LSTM',
+                            'rnn_type':          'GRU',
                             'n_parallel':        1,
                             'num_layers':        2,
                             'residual':          False,
@@ -278,8 +296,10 @@ if __name__ == '__main__':
         ]
     if regression_type == 'angle_reg':
         layers.append({'Angle2Unitvector': []})
+    elif args.loss == 'logscore':
+        layers.append({'SoftPlusSigma': []})
 
-    arch_pars =         {'nonlin':             {'func':     'LeakyReLU'},
+    arch_pars =         {'nonlin':             {'func':     args.nonlin},
 
                         'loss_func':           error_func,
                         'loss_func_weights':   loss_func_weights,
@@ -297,7 +317,7 @@ if __name__ == '__main__':
                 'arch_pars': arch_pars, 'meta_pars': meta_pars}
     exp_dir = get_project_root() + '/experiments/'
 
-    # * Finally! Make model directory 
+    # Finally! Make model directory 
     base_name = strftime("%Y-%m-%d-%H.%M.%S", localtime())
     exp_name = exp_dir+base_name+'.json'
     with open(exp_name, 'w') as name:

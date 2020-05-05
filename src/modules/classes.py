@@ -93,6 +93,7 @@ class SqliteFetcher:
         self._path = str(db_path)
         self._tables = None
         self._len = None
+        self._rows = None
         self._event_lengths_key = 'split_in_ice_pulses_event_length' 
         self._max_events_per_query = 50000
         self._fetch_query_seq = 'SELECT {features} FROM {table} WHERE event '\
@@ -111,9 +112,21 @@ class SqliteFetcher:
             query = 'SELECT event_no FROM meta'
             cursor.execute(query)
 
-            event_ids = [e[0] for e in cursor.fetchall()]
+            event_ids = [str(e[0]) for e in cursor.fetchall()]
 
         return event_ids
+    
+    @property
+    def rows(self):
+        
+        with sqlite3.connect(self._path) as db:
+            cursor = db.cursor()
+            query = 'SELECT row FROM sequential'
+            cursor.execute(query)
+
+            rows = sorted([str(e[0]) for e in cursor.fetchall()])
+
+        return rows
 
     @property
     def length(self):
@@ -129,6 +142,21 @@ class SqliteFetcher:
             self._len = len(event_nums)
         
         return self._len
+    
+    @property
+    def n_rows(self):
+        
+        if not self._rows:
+        
+            with sqlite3.connect(self._path) as db:
+                cursor = db.cursor()
+                query = 'SELECT COUNT(*) FROM sequential'
+                cursor.execute(query)
+
+                row_nums = cursor.fetchall()
+            self._rows = row_nums[0][0]
+        
+        return self._rows
     
     @property
     def tables(self):
@@ -232,9 +260,9 @@ class SqliteFetcher:
             if n_events == 0:
                 raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
 
-            # If events are not strings, convert them
+            # If events are not strings, raise error
             if not isinstance(all_events[0], str):
-                all_events = [str(event) for event in all_events]
+                raise ValueError('SqliteFetcher: IDs must be strings!')
 
             if 'event_no' in scalar_features or 'event_no' in meta_features:
                 raise KeyError('event_no cannot be requested!')
@@ -438,7 +466,7 @@ class SqliteFetcher:
                 name=name,
             )
             cursor.executemany(query, [[e[0], e[1]] for e in zip(values, ids)])
-
+            db.commit()
 
 class PickleLoader(data.Dataset):
     '''A Pytorch dataloader for neural nets with sequential and scalar variables. This dataloader does not load data into memory, but opens a h5-file, reads and closes the file again upon every __getitem__.
@@ -1360,6 +1388,9 @@ class MakeModel(nn.Module):
             
             elif layer_name == 'Angle2Unitvector':
                 x = entry(x, device=device)
+            
+            elif layer_name == 'SoftPlusSigma':
+                x = entry(x, device=device)
 
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
@@ -1634,6 +1665,26 @@ class SelfAttention(nn.Module):
             mask = mask.unsqueeze(1)
         return mask
 
+class SoftPlusSigma(nn.Module):
+
+    def __init__(self, min_sigma=1e-3):
+        super(SoftPlusSigma, self).__init__()
+        self._min_sigma = min_sigma
+        self._softplus = torch.nn.Softplus()
+    
+    def forward(self, x, device=None):
+
+        # if not device:
+        #     raise ValueError('A device must be supplied!')
+        
+        n_features = x.shape[-1]//2
+        mean = x[:, :n_features]+0.0
+        sigma = self._min_sigma+self._softplus(
+                    x[:, n_features:]
+                )
+        out = torch.cat((mean, sigma), dim=-1)
+        return out
+
 #* ======================================================================== 
 #* MODEL FUNCTIONS
 #* ========================================================================
@@ -1853,6 +1904,8 @@ def make_model_architecture(arch_dict):
                 modules = add_ResAttention_modules(arch_dict, layer_dict, modules)
             elif key == 'Angle2Unitvector':
                 modules.append(Angle2Unitvector())
+            elif key == 'SoftPlusSigma':
+                modules.append(SoftPlusSigma())
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 

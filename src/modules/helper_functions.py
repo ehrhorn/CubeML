@@ -14,6 +14,8 @@ import json
 import shelve
 from ignite.engine import Events
 from multiprocessing import cpu_count, Pool
+from scipy.optimize import curve_fit
+from scipy.stats import chi2
 
 import src.modules.loss_funcs
 from src.modules.constants import *
@@ -442,6 +444,28 @@ def calc_widths(sorted_data, entries, width_measure='iqr'):
     else:
         return widths
 
+def chi_squared_test(observed, expected, errors=None, dof=None):
+    
+    if errors is not None:
+        presquared = (observed-expected)/errors
+        chi_squared = np.sum(
+            presquared*presquared
+        )
+    else:
+        raise NotImplementedError('chi_squared_test: Calculation with'
+        'no errors not implemented yet'
+    )
+
+    if dof is not None:
+        par = expected.shape[0]-1-dof
+    else:
+        par = expected.shape[0]-1
+   
+    p_val = chi2.sf(chi_squared, par)
+
+    return chi_squared, p_val
+
+
 def confirm_particle_type(particle_code, file):
     """When loading data and looping over files, this function tries to 
     confirm if the file in question contains events with the right particle.
@@ -679,6 +703,46 @@ def find_files(name, main_dir=None):
         files_str.append(str(file))
     
     return files_str
+
+def fit_nonnormed_gauss(data, assume_poisson=True):
+    # Fit non-normalized gaussian
+    y, edges = np.histogram(data, bins='fd')
+    x = np.array(calc_bin_centers(edges))
+    
+    if assume_poisson:
+        yerr = np.clip(
+            np.sqrt(y), 1, np.inf
+        )
+    else:
+        yerr = None
+
+    mean_est = np.mean(data)
+    sigma_est = np.std(data)
+    norm_est = np.sum(y)*(edges[1]-edges[0])
+
+    pars, cov = curve_fit(
+        nonnormed_gauss, 
+        x, 
+        y, 
+        p0=np.array([norm_est, mean_est, sigma_est]), 
+        sigma=yerr
+    )
+
+    # Do chisquared-test
+    mask = (-10.0 < x) &  (x < 10)
+    y_selected = y[mask]
+    x_selected = x[mask]
+    yerr_selected = np.sqrt(y_selected)
+    expected = nonnormed_gauss(x, *pars)
+    chisquare, p_val = chi_squared_test(
+        y, 
+        expected, 
+        yerr, 
+        dof=pars.shape[0]
+    )
+
+    return pars, cov, chisquare, p_val
+
 
 def flatten_list_of_lists(l):
     """Given a list of lists (e.g. from multiprocessing), unpacks the elements of the sublists into a single list.
@@ -967,6 +1031,7 @@ def get_mads_keys(keys):
     mads_keys = []
     new_keys = {
         'true_primary_energy': 'energy',
+        'sigma_true_primary_energy': 'sigma_energy',
         'true_primary_position_x': 'position_x',
         'true_primary_position_y': 'position_y',
         'true_primary_position_z': 'position_z',
@@ -1327,7 +1392,8 @@ def inverse_transform(data, model_dir):
 
 
     transformers_path = get_project_root()+get_path_from_root(model_dir)+'/transformers.pickle'
-    transformers = pickle.load(open(transformers_path, "rb"))
+    transformers = joblib.load(open(transformers_path, "rb"))
+
     transformed = {}
     
     for key in data:
@@ -1615,11 +1681,17 @@ def make_multiprocess_pack(discriminator, *stuff):
     zip-iterator
         A zip-object with packed stuff.
     """    
-    lists = [discriminator]
     n_copies = len(discriminator)
+    lists = [discriminator]
     for entry in stuff:
         lists.append([entry]*n_copies)
     return zip(*lists)
+
+def nonnormed_gauss(x, N, mu, sigma):
+    const = N/(np.sqrt(2*np.pi)*sigma)
+    # const = N
+    exponent = -0.5*(x-mu)*(x-mu)/(sigma*sigma)
+    return const*np.exp(exponent)
 
 def print_progress(start_time, progress, total):
     """Prints elapsed time in hours and minutes since start of program.
@@ -2185,265 +2257,3 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
 
     return model_dir, hyper_pars, data_pars, arch_pars
     
-    
-
-
-
-
-
-def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 0.775, 0.77]):
-    """A custom plot function using PyPlot. If 'x' AND 'y' are in plot_dict, a xy-graph is returned, if 'data' is given, a histogram is returned.
-    
-    Arguments:
-        plot_dict {dictionary} -- a dictionary with custom keywords, see each plotting function.
-    
-    Keyword Arguments:
-        h_figure {plt.figure_handle} -- a figure handle to plot more stuff to (default: {None})
-        axes_index {int} -- which axis to plot on (in case of several axes on one figure) (default: {None})
-        position {list} -- the position of the plot as [x_left_lower_corner, y_left_lower_corner, width, height] (default: {[0.125, 0.11, 0.775, 0.77]})
-    
-    Raises:
-        ValueError: If unknown plot wanted
-    
-    Returns:
-        [plt.figure_handle] -- handle to figure.
-    """    
-    
-    plt.style.use('default')
-    alpha = 0.3
-    if 'grid' in plot_dict:
-        grid_on = plot_dict['grid']
-    else:
-        grid_on = True
-
-    if h_figure == None:
-
-        h_figure = plt.figure()
-        h_axis = h_figure.add_axes(position)
-    else:
-        h_axis = h_figure.gca()
-
-    if 'twinx' in plot_dict and h_figure != None:
-        if plot_dict['twinx']:
-            if axes_index == None:
-                h_axis = h_figure.axes[0].twinx()
-            else:
-                h_axis = h_figure.axes[axes_index].twinx()
-    
-    if 'subplot' in plot_dict:
-        # * By default, x-axis is shared
-        h_axis = h_figure.add_axes(position, sharex=h_figure.axes[0])
-    
-    if 'x' in plot_dict and 'y' in plot_dict:
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
-        
-        for i_set, dataset in enumerate(plot_dict['y']):
-            # * Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
-            plot_keys = ['label', 'drawstyle', 'color', 'zorder', 'linestyle']
-            #* Set baseline
-            d = {'linewidth': 1.5}
-            for key in plot_dict:
-                if key in plot_keys: d[key] = plot_dict[key][i_set] 
-            h_axis.plot(plot_dict['x'][i_set], dataset, **d)
-            
-        if 'label' in plot_dict: 
-            h_axis.legend()
-        
-    elif 'data' in plot_dict:
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
-
-        for i_set, data in enumerate(plot_dict['data']):
-            
-            plot_keys = ['label', 'alpha', 'density', 'bins', 'weights', 'histtype', 'log', 'color']
-            
-            #* Set baseline
-            if len(plot_dict['data']) > 1:
-                d = {'alpha': 0.6, 'density': False, 'bins': 'fd'}
-            else:
-                d = {'alpha': 1.0, 'density': False, 'bins': 'fd'}
-
-            for key in plot_dict:
-                if key in plot_keys: d[key] = plot_dict[key][i_set] 
-            
-            h_axis.hist(data, **d)
-
-            if 'label' in plot_dict: h_axis.legend()
-        
-    elif 'hist2d' in plot_dict:
-
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
-
-        set1 = plot_dict['hist2d'][0]
-        set2 = plot_dict['hist2d'][1]
-
-        if type(set1) == torch.Tensor: set1 = set1.cpu().numpy()
-        if type(set2) == torch.Tensor: set2 = set2.cpu().numpy()
-
-        #* Get bin-widths
-        _, widths1 = np.histogram(set1, bins='fd')
-        _, widths2 = np.histogram(set2, bins='fd')
-
-        #* Rescale 
-        widths1 = np.linspace(min(widths1), max(widths1), int(0.5 + widths1.shape[0]/4.0))
-        widths2 = np.linspace(min(widths2), max(widths2), int(0.5 + widths2.shape[0]/4.0))
-        plt.hist2d(set1, set2, bins=[widths1, widths2], zorder=plot_dict.get('zorder', 0), cmap='Oranges')
-        plt.colorbar()
-
-    elif 'hexbin' in plot_dict:
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
-
-        set1 = plot_dict['hexbin'][0]
-        set2 = plot_dict['hexbin'][1]
-
-        if type(set1) == torch.Tensor: set1 = set1.cpu().numpy()
-        if type(set2) == torch.Tensor: set2 = set2.cpu().numpy()
-
-        #* Get bin-widths - my attempt to modularize generation of 2d-histograms
-        _, widths1 = np.histogram(set1, bins='fd')
-        _, widths2 = np.histogram(set2, bins='fd')
-
-        if 'range' in plot_dict:
-            xmin = plot_dict['range'][0][0]
-            xmax = plot_dict['range'][0][1]
-            ymin = plot_dict['range'][1][0]
-            ymax = plot_dict['range'][1][1]
-        else:
-            try:
-                if set1.shape[0] == 0:
-                    print('ERROR: Empty list was given to make_plot (hexbin). No plot created.')
-                    return -1
-                xmin = set1.min()
-                xmax = set1.max()
-                ymin = set2.min()
-                ymax = set2.max()
-            except AttributeError:
-                if len(set1) == 0:
-                    print('ERROR: Empty list was given to make_plot (hexbin). No plot created.')
-                    return -1
-                xmin = min(set1)
-                xmax = max(set1)
-                ymin = min(set2)
-                ymax = max(set2)
-            
-        #* Rescale. Factor of 4 comes form trial and error
-        n1 = int(0.5 + widths1.shape[0]/4.0)
-        n2 = int(0.5 + widths2.shape[0]/4.0)
-        plt.hexbin(set1, set2, gridsize = (n1, n2))
-        plt.axis([xmin, xmax, ymin, ymax])
-        plt.colorbar()
-        
-    elif 'edges' in plot_dict:
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
-
-        #* Calculate bin centers and 'x-error'
-        centers = []
-        xerrs = []
-        for edges in plot_dict['edges']:
-            centers.append(calc_bin_centers(edges))
-            xerrs.append(calc_dists_to_binedges(edges))
-        
-        for i_set in range(len(centers)):
-            x = centers[i_set]
-            xerr = xerrs[i_set]
-            y = plot_dict['y'][i_set]
-            yerr = plot_dict['yerr'][i_set]
-            edges = plot_dict['edges'][i_set]
-
-            plot_keys = ['label']
-            #* Set baseline
-            d = {'linewidth': 1.5}
-            for key in plot_dict:
-                if key in plot_keys: d[key] = plot_dict[key][i_set] 
-            
-            plt.errorbar(x, y, yerr=yerr, xerr=xerr, fmt='.', **d)
-            
-        if 'label' in plot_dict: h_axis.legend()
-
-    elif plot_dict.get('keyword', 'None') == 'barh':
-        h_axis.barh(plot_dict['y'], plot_dict['width'], xerr=plot_dict.get('errors', None))
-        h_axis.set_yticklabels(plot_dict['names'])
-        h_axis.set_yticks(plot_dict['y'])
-        h_axis.set_ylim((0, len(plot_dict['y'])))
-        # plt.tight_layout()
-    else:
-        raise ValueError('Unknown plot wanted!')
-    
-    # * Plot vertical lines if wanted
-    if 'axvline' in plot_dict:
-        for vline in plot_dict['axvline']:
-            h_axis.axvline(x=vline, color = 'k', ls = ':')
-    
-    # * ... And horizontal lines
-    if 'axhline' in plot_dict:
-        for hline in plot_dict['axhline']:
-            h_axis.axhline(y=hline, color = 'k', ls = '--')
-
-    if grid_on:
-        if 'y_major_ticks_multiple' in plot_dict:
-            multiple = plot_dict['y_major_ticks_multiple']
-            h_axis.yaxis.set_major_locator(MultipleLocator(multiple))
-        if 'y_minor_ticks_multiple' in plot_dict:
-            multiple = plot_dict['y_minor_ticks_multiple']
-            major_ticks = h_axis.get_yticks()
-            major_size = abs(major_ticks[0]-major_ticks[1])
-            h_axis.yaxis.set_minor_locator(MultipleLocator(multiple*major_size))
-        h_axis.grid(alpha=alpha)
-        h_axis.grid(True, which='minor', alpha=alpha, linestyle=':')
-
-    if 'text' in plot_dict:
-        plt.text(*plot_dict['text'], transform=h_axis.transAxes)
-    
-    if 'title' in plot_dict:
-        plt.title(plot_dict['title'])
-
-    if 'yrange' in plot_dict:
-        h_axis.set_ylim(**plot_dict['yrange'])
-
-    if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-    if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
-    if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
-    if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
-
-    if 'savefig' in plot_dict: 
-        h_figure.savefig(plot_dict['savefig'], bbox_inches='tight')
-        fig_name = Path(plot_dict['savefig']).name
-        print(get_time(), 'Saved figure: %s'%(fig_name))
-        plt.close(fig=h_figure)
-
-    return h_figure
-
-def summarize_model_performance(model_dir, wandb_ID=None):
-    """Summarizes a model's performance with a single number by updating the meta_pars-dictionary of the experiment.
-    
-    Arguments:
-        model_dir {str} -- full or relative path to the model directory
-    
-    Keyword Arguments:
-        wandb_ID {str} -- The wandb-ID for the specific experimented. Supplied if logging to wandb.com is wanted. (default: {None})
-    """    
-    
-    _, _, _, meta_pars = load_model_pars(model_dir)
-    path = model_dir + '/data/Performance.pickle'
-    perf_class = pickle.load(open(path,"rb"))
-
-    try:
-        onenum_performance = perf_class.onenumber_performance
-    except AttributeError:
-        print('\nNO ONE-NUMBER PERFORMANCE MEASURE DEFINED. RETURNING -1\n')
-        onenum_performance = -1
-    
-    if wandb_ID is not None:
-        wandb.config.update({'Performance': onenum_performance}, allow_val_change=True)
-
-    meta_pars['performance'] = onenum_performance
-    
-    with open(model_dir+'/meta_pars.json', 'w') as fp:
-        json.dump(meta_pars, fp)

@@ -1,4 +1,3 @@
-import h5py as h5
 import numpy as np
 from pathlib import Path
 import subprocess
@@ -229,7 +228,6 @@ def find_particles(pack):
 def make_all_mask(db, ids):
     # * Make mask - a list of indices
     mask = [int(e) for e in ids]
-    print(mask[:10])
     mask_name = 'all'
     
     return mask, mask_name

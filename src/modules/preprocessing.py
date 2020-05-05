@@ -3,6 +3,7 @@ import numpy as np
 import sqlite3
 from sklearn.preprocessing import QuantileTransformer, RobustScaler, StandardScaler
 from src.modules.helper_functions import make_multiprocess_pack, get_time
+from src.modules.constants import *
 
 def get_tot_charge(event):
     """Calculates the total charge of an event and adds it to a dictionary.
@@ -694,20 +695,23 @@ def get_geom_features(n_nearest=2):
     return d
 
 def get_n_nearest_data(
-    db, id_chunk, geom_features, geom_dict_path, n_cpus=cpu_count()
+    db, 
+    row_chunk, 
+    geom_features, 
+    geom_dict, 
     ):
     """Finds and extracts data from the nearest n DOMs
     
     Parameters
     ----------
-    db_path : str
-        Absolute path to the Shelve-database
-    id_chunk : list
-        list of event IDs to extract data for
+    db : SqliteFetcher
+        A database fetcher-instance.
+    row_chunk : list
+        list of rows in database to extract data for. Each row should correspond to one DOM.
     geom_features : dict
         What geometry data to extract, e.g. nearest DOMs x-value
-    geom_dict_path : str
-        full path to geometry dictionary (dictionary containing nearest DOMs for each DOM)
+    geom_dict : dict
+        geometry dictionary (dictionary containing nearest DOMs for each DOM)
     
     Returns
     -------
@@ -715,14 +719,14 @@ def get_n_nearest_data(
         Data of nearest N doms for each event ID
     """    
     # * Chunk ID's for multiprocessing
-    n_chunks = n_cpus
-    id_chunks = np.array_split(id_chunk, n_chunks)
+    row_chunks = np.array_split(row_chunk, AVAILABLE_CORES)
 
     # * Multiprocess
     packed = make_multiprocess_pack(
-        id_chunks, db, geom_features, geom_dict_path
+        row_chunks, db, geom_features, geom_dict
     )
-    with Pool(processes=n_cpus) as p:
+    
+    with Pool() as p:
         print(get_time(), 'Finding n nearest DOMs...')
         data = p.map(get_n_nearest_data_multiprocess, packed)
         print(get_time(), 'N nearest DOMs found!')
@@ -734,18 +738,101 @@ def get_n_nearest_data(
 
     return all_events
 
+def get_n_nearest_data_sqlite_multi(pack):
+
+    chunk, db, geom_dict, transformers = pack
+
+    geom_feats = get_geom_features()
+    # * Extract how many neighbors wanted
+    dummy = next(iter(geom_feats))
+    n_nearest = geom_feats[dummy]['n_nearest']
+    seq = ['row', 'dom_key', 'dom_time', 'dom_charge']
+    data_d = {key: [] for key in geom_feats}
+    data_d.update({'row': []})
+
+    q_transformed = transformers['dom_charge'].transform(
+        np.array([0]).reshape(-1, 1)
+    )[0, 0]
+    t_transformed = transformers['dom_time'].transform(
+        np.array([5000]).reshape(-1, 1)
+    )[0, 0]
+
+    raw_events = db.fetch_features(chunk, seq_features=seq)
+    
+    # Loop over events
+    for index, raw_event in raw_events.items():
+
+        # * Loop over DOMs in each event
+        n_doms = len(raw_event['dom_key'])
+        for i_dom, dom_id in enumerate(raw_event['dom_key']):
+            
+            # * Get nearest n doms
+            closest_doms = geom_dict[dom_id]['closest'][:n_nearest]
+            for i_closest, closest_dom in enumerate(closest_doms):
+                
+                # * Check if closest lit up aswell
+                where = np.where(raw_event['dom_key'] == closest_dom)[0]
+                if where.shape[0]>0:
+                    
+                    # * Sort w.r.t. absolute distance in time.
+                    t = raw_event['dom_time'][i_dom]
+                    t_dist = np.abs(raw_event['dom_time'][where]-t)
+                    # * Oneliner: zips, Sorts w.r.t. distance in time and extracts index of closest
+                    closest_index = sorted(
+                        zip(where, t_dist), key=lambda x: x[1]
+                    )[0][0]
+
+                    # * Assign Q and t-value
+                    q = raw_event['dom_charge'][closest_index]
+                    t = raw_event['dom_time'][closest_index]
+                
+                # * If not, assign Q = 0.0, time = 4.000 ns.
+                # * 4.000 is chosen such that DOMs which did not light up gets a unique time (only times >-10k are in dataset)
+                else:
+                    q = q_transformed
+                    t = t_transformed
+                
+                # * Get x, y, z-values aswell from the geometry dictionary
+                x = geom_dict[dom_id]['coordinates'][0]
+                y = geom_dict[dom_id]['coordinates'][1]
+                z = geom_dict[dom_id]['coordinates'][2]
+
+                # * make new name: Closest DOM charge is named 'dom_closest1_charge' and so on.
+                x_name = 'dom_closest%d_x'%(i_closest+1)
+                y_name = 'dom_closest%d_y'%(i_closest+1)
+                z_name = 'dom_closest%d_z'%(i_closest+1)
+                q_name = 'dom_closest%d_charge'%(i_closest+1)
+                t_name = 'dom_closest%d_time'%(i_closest+1)
+                
+                data_d[x_name].append(x) 
+                data_d[y_name].append(y) 
+                data_d[z_name].append(z) 
+                data_d[q_name].append(q) 
+                data_d[t_name].append(t)
+
+        data_d['row'].extend(raw_event['row'])
+
+    # Transform x, y, z - they are in raw format.
+    for key, items in geom_feats.items():
+
+        transformer_key = items['transformer']
+        if transformer_key in ['dom_x', 'dom_y', 'dom_z']:
+            data_d[key] = np.squeeze(
+                transformers[transformer_key].transform(
+                    np.array(data_d[key]).reshape(-1, 1)
+                )
+            )
+    
+    return data_d
+
 def get_n_nearest_data_multiprocess(pack):
     # * Unpack
-    ids, db, geom_features, geom_dict_path = pack
-
-    # * Load geometry dictionary
-    with open(geom_dict_path, 'rb') as f:
-        geom_dict = pickle.load(f)
+    rows, db, geom_features, geom_dict = pack
 
     # * Extract how many neighbors wanted
     dummy = next(iter(geom_features))
     n_nearest = geom_features[dummy]['n_nearest']
-    events = {str(index): {} for index in ids}
+    
     
     # * Load events
     feats = ['dom_key', 'dom_time', 'dom_charge']
