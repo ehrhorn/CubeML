@@ -10,7 +10,7 @@
 from src.modules.classes import *
 from pathlib import Path
 from src.modules.reporting import *
-from srsc.modules.constants import *
+from src.modules.constants import *
 # import src.modules.loss_funcs as lf
 # import src.modules.helper_functions as hf
 # from src.modules.eval_funcs import *
@@ -23,8 +23,7 @@ from srsc.modules.constants import *
 # import sys
 # from time import sleep
 
-phi = np.random.uniform(low=0.0, high=np.pi, size=(1000))
-x = np.cos(phi)
-_ = make_plot(
-    {'data': [x], 'savefig': get_projet_root()+'/LOL.png'}
-)
+hz = 2e-3
+sperday = 60*60*24
+neutperday = hz*sperday
+print(neutperday)

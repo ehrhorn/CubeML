@@ -644,7 +644,9 @@ class Performance:
             clip_vals = [0.0, 0.2]
         elif self.loss_func == 'logscore':
             clip_vals = [-np.inf, np.inf]
-        elif self.loss_func == 'cosine_loss':
+        elif (self.loss_func == 'cosine_loss' or
+            self.loss_func == 'cosine_similarity' or
+            self.loss_func == 'cosine_similarity_UnitVectorPenalty'):
             clip_vals = [0.0, 0.5]
         else:
             raise KeyError('Performance._get_loss_clip_vals: Undefined loss'\

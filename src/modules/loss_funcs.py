@@ -9,7 +9,9 @@ POINTLIKE_LOSS_FUNCS = [
     'logcosh', 
     'logcosh_full_weighted', 
     'L1',
-    'L1_UnitVectorPenalty'
+    'L1_UnitVectorPenalty',
+    'cosine_similarity',
+    'cosine_similarity_UnitVectorPenalty'
 ]
 
 #* ======================================================================== 
@@ -46,6 +48,85 @@ class cosine_loss(torch.nn.Module):
             neg_cos_weighted = weights*neg_cos
 
         return neg_cos_weighted
+
+class cosine_similarity(torch.nn.Module):
+       
+    def __init__(self, eps=0.01, clip_val=10.0):
+        super(cosine_similarity, self).__init__()
+        self._clip_val = clip_val
+        self._eps = eps
+
+    def _clip_x(self, grad):
+        return torch.clamp(grad, min=-self._clip_val, max=self._clip_val)
+
+    def forward(self, x, y, predict=False):
+        # Register a hook, which clips the gradient values to try to avoid producing nans. 
+        # This can only be done during forward pass - therefore try, except.
+        try:
+            x.register_hook(self._clip_x)
+        except RuntimeError:
+            pass
+
+        # Unpack into targets and weights
+        targets, weights = y
+
+        # Add eps to avoid infinite gradient if x is the zero-vector
+        len_x = torch.sqrt(self._eps*self._eps + torch.sum(x*x, dim=-1))
+        len_y = torch.sqrt(torch.sum(targets*targets, dim=-1))
+        dot_prods = torch.sum(x*targets, dim=-1)
+        
+        # Multiply by a number slightly larger than one to avoid the derivative of acos becoming infinite.
+        cos = 1 - dot_prods/(len_x * len_y)
+
+        # Weight and mean over the batch if training
+        if not predict:
+            loss_weighted = torch.mean(weights*cos)
+        else:
+            loss_weighted = weights*cos
+
+        return loss_weighted
+
+class cosine_similarity_UnitVectorPenalty(torch.nn.Module):
+       
+    def __init__(self, eps=1e-3, clip_val=10.0):
+        super(cosine_similarity_UnitVectorPenalty, self).__init__()
+        self._clip_val = clip_val
+        self._eps = eps
+
+    def _clip_x(self, grad):
+        return torch.clamp(grad, min=-self._clip_val, max=self._clip_val)
+
+    def forward(self, x, y, predict=False):
+        # Register a hook, which clips the gradient values to try to avoid producing nans. 
+        # This can only be done during forward pass - therefore try, except.
+        try:
+            x.register_hook(self._clip_x)
+        except RuntimeError:
+            pass
+
+        # Unpack into targets and weights
+        targets, weights = y
+
+        # Add eps to avoid infinite gradient if x is the zero-vector
+        len_x = torch.sqrt(
+            self._eps*self._eps + torch.sum(x*x, dim=-1)
+        )
+        len_y = torch.sqrt(torch.sum(targets*targets, dim=-1))
+        dot_prods = torch.sum(x*targets, dim=-1)
+        
+        # Multiply by a number slightly larger than one to avoid the derivative of acos becoming infinite.
+        cos = 1 - dot_prods/(len_x * len_y)
+
+        # Calculate penalty for predictions not having unit length
+        pen = (1.0 - len_x) * (1.0 - len_x)
+
+        # Weight and mean over the batch if training
+        if not predict:
+            loss_weighted = torch.mean(weights * (cos + pen))
+        else:
+            loss_weighted = weights * (cos + pen)
+
+        return loss_weighted
 
 class angle_loss_old(torch.nn.Module):
     '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds and multiplies denominator with 1e-7 and 1+1e-7 to avoid division with zero.
@@ -383,6 +464,10 @@ def get_loss_func(name, weights=None, device=None):
         return logscore(weights=weights, device=device)
     elif name == 'cosine_loss':
         return cosine_loss()
+    elif name == 'cosine_similarity':
+        return cosine_similarity()
+    elif name == 'cosine_similarity_UnitVectorPenalty':
+        return cosine_similarity_UnitVectorPenalty()
     else:
         raise ValueError('Unknown loss function requested!')
 
