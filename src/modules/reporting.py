@@ -4,7 +4,9 @@ import pickle
 import torch
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MultipleLocator
+import matplotlib as mpl
 from time import localtime, strftime
+import os
 
 from torch.utils import data
 from scipy.stats import wilcoxon
@@ -1914,10 +1916,13 @@ class FeaturePermutationImportance:
         self.wandb_ID = wandb_ID
         self.feature_importances = {}
 
-    def calc_feature_importance_from_errors(self, baseline_errors, permuted_errors):
+    def _calc_feature_importance_from_errors(self, baseline_errors, permuted_errors):
+        
         # Use (84th-16th)/2 as metric. Corresponds to sigma. 
-        bl_percentiles, bl_lower, bl_upper = estimate_percentile(baseline_errors, [0.15865, 0.84135], bootstrap=False)
-        permuted_percentiles, permuted_lower, permuted_upper = estimate_percentile(permuted_errors, [0.15865, 0.84135], bootstrap=False)
+        bl_percentiles, bl_lower, bl_upper = estimate_percentile(
+            baseline_errors, [15.865, 84.135], bootstrap=False
+            )
+        permuted_percentiles, permuted_lower, permuted_upper = estimate_percentile(permuted_errors, [15.865, 84.135], bootstrap=False)
 
         # Use error propagation to get errors
         bl_sigmas = (bl_upper-bl_lower)/2
@@ -1931,18 +1936,45 @@ class FeaturePermutationImportance:
         feature_importance, e_feature_importance = calc_relative_error(bl_metric, permuted_metric, e1=bl_metric_error, e2=permuted_metric_error)
         
         return feature_importance[0], e_feature_importance[0]
+    
+    def _calc_feature_importance_median(self, baseline_errors, permuted_errors):
+        
+        # Use median loss as metric. 
+        bl_median, bl_upper, bl_lower = estimate_percentile(
+            baseline_errors, [50.0], bootstrap=False
+            )
+        permuted_median, permuted_upper, permuted_lower = estimate_percentile(
+            permuted_errors, [50.0], bootstrap=False
+            )
+
+        # The sigma of the median estimate is 
+        # ( (median+sigma+_est) - (median-sigma-_est) )/ 2
+        bl_sigma = (bl_upper-bl_lower)/2
+        permuted_sigma = (permuted_upper-permuted_lower)/2
+
+        feature_importance, e_feature_importance = calc_relative_error(bl_median, permuted_median, e1=bl_sigma, e2=permuted_sigma)
+        
+        return feature_importance[0], e_feature_importance[0]
 
     def calc_all_seq_importances(self, n_predictions_wanted=np.inf):
         # Option given to just calculate all
         # Get indices of features to permute - both scalar and sequential
         all_seq_features = self.data_pars['seq_feat']
         for feature in all_seq_features:
-            self.calc_permutation_importance(
+            self._calc_permutation_importance(
                 seq_features=[feature], 
                 n_predictions_wanted=n_predictions_wanted
             )
-        
-    def calc_permutation_importance(
+    
+    def calc_seq_feature_importance(self, n_predictions_wanted=np.inf, feature=None):
+        if feature == None:
+            raise ValueError('A sequential feature must be given!')
+        self._calc_permutation_importance(
+            seq_features=[feature], 
+            n_predictions_wanted=n_predictions_wanted
+        )
+
+    def _calc_permutation_importance(
         self, 
         seq_features=[], 
         scalar_features=[], 
@@ -1977,8 +2009,15 @@ class FeaturePermutationImportance:
         VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
         gpus = meta_pars['gpu']
         device = get_device(gpus[0])
-        dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
-        val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
+        dataloader_params_eval = get_dataloader_params(
+            VAL_BATCH_SIZE, 
+            num_workers=8, 
+            shuffle=False, 
+            dataloader=data_pars['dataloader']
+            )
+        val_set = load_data(
+            hyper_pars, data_pars, arch_pars, meta_pars, 'predict'
+            )
         
         # SET MODE TO PERMUTE IN COLLATE_FN
         collate_fn = get_collate_fn(data_pars, mode='permute', permute_seq_features=seq_indices)
@@ -1997,7 +2036,6 @@ class FeaturePermutationImportance:
             N_VAL=N_VAL,
             loss_func=loss_func
         )
-
         # Run predictions through desired functions - transform back to 'true' values, if transformed
         predictions_transformed = inverse_transform(predictions, self.save_dir)
         truths_transformed = inverse_transform(truths, self.save_dir)
@@ -2011,22 +2049,26 @@ class FeaturePermutationImportance:
         print(get_time(), 'Calculating PFI for evaluation functions...')
         for func in eval_functions:
             name = func.__name__
-           
-            # Calculate new errors.
-            error_from_preds[name] = func(predictions_transformed, truths_transformed)
             
-            # load baseline errors
+            # Calculate new errors.
+            error_from_preds[name] = func(
+                predictions_transformed, truths_transformed
+                )
+            
+            # load baseline errors of the events calculating PFI on
             with h5.File(pred_full_address, 'r') as f:
-                baseline[name] = f[name][:]
-
-            # print(name)
-            # print(error_from_preds[name][:5], torch.std(torch.tensor(error_from_preds[name])))
-            # print(baseline[name][:5], torch.std(torch.tensor(baseline[name])))
+                # We cant load all indices
+                # we might only be calculating PFI for some
+                all_indices_baseline = f['index'][:]
+                _, indices_baseline, _ = np.intersect1d(
+                    all_indices_baseline, indices, return_indices=True
+                    )
+                baseline[name] = f[name][indices_baseline]
 
             # Calculate feature importance = (permuted_metric-baseline_metric)/baseline_metric
-            feature_importance, feature_importance_err = self.calc_feature_importance_from_errors(baseline[name], error_from_preds[name])
-            # print(feature_importance)
-            # print('')
+            feature_importance, feature_importance_err = self._calc_feature_importance_from_errors(baseline[name], error_from_preds[name])
+            print(feature_importance)
+            print('')
 
 
             # Save dictionary as an attribute. Should contain permuted feature-names and FI. Each new permutation importance is saved as an entry in a list.
@@ -2034,6 +2076,111 @@ class FeaturePermutationImportance:
             features.extend(scalar_features)
             d = {'permuted': features, 'feature_importance': feature_importance, 'error': feature_importance_err}
             self.save_feature_importance(name, d)
+        print(get_time(), 'PFI Calculation finished!')
+
+    def calc_seq_permutation_importance(
+        self, 
+        steps=10,
+        n_predictions_wanted=np.inf
+        ):
+        hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(
+            self.save_dir
+            )
+        
+        # Load the best model
+        model = load_best_model(self.save_dir)
+        pred_full_address = get_project_root()+self.save_dir+'/data/predictions.h5'
+
+        # Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
+        data_pars['n_predictions_wanted'] = n_predictions_wanted
+        LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
+        VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
+        gpus = meta_pars['gpu']
+        device = get_device(gpus[0])
+        dataloader_params_eval = get_dataloader_params(
+            VAL_BATCH_SIZE, 
+            num_workers=8, 
+            shuffle=False, 
+            dataloader=data_pars['dataloader']
+            )
+        val_set = load_data(
+            hyper_pars, data_pars, arch_pars, meta_pars, 'predict'
+            )
+        window_size = 1/steps
+        window_center = []
+        importance = []
+        e_importance = []
+        # Start scanning
+        for i_step in range(steps):
+            # Find fraction of DOMs to permute
+            from_frac = i_step / steps
+            to_frac = (i_step + 1) / steps
+
+            # If the window exceeds sequence length, we are done.
+            if to_frac > 1.0:
+                break
+
+            # Print for sanity
+            print(get_time(), 'Scanning window: %.2f - %.2f'%(from_frac, to_frac))
+
+
+            # SET MODE TO PERMUTE_SEQ IN COLLATE_FN
+            collate_fn = get_collate_fn(
+                data_pars, mode='permute_seq', from_frac=from_frac, to_frac=to_frac)
+            val_generator = data.DataLoader(val_set, **dataloader_params_eval, collate_fn=collate_fn)
+            N_VAL = min(get_set_length(val_set), n_predictions_wanted)
+
+            # Run evaluator!
+            loss_func = get_loss_func(self.arch_pars['loss_func'])
+            predictions, truths, indices, permuted_loss = run_pickle_evaluator(
+                model, 
+                val_generator, 
+                val_set.targets, 
+                gpus, 
+                LOG_EVERY=LOG_EVERY, 
+                VAL_BATCH_SIZE=VAL_BATCH_SIZE, 
+                N_VAL=N_VAL,
+                loss_func=loss_func
+            )
+
+            # load baseline errors of the events calculating PFI on
+            with h5.File(pred_full_address, 'r') as f:
+                # We cant load all indices
+                # we might only be calculating PFI for some
+                all_indices_baseline = f['index'][:]
+                _, indices_baseline, _ = np.intersect1d(
+                    all_indices_baseline, indices, return_indices=True
+                    )
+                baseline_loss = f['loss'][indices_baseline]
+
+            # Calculate feature importance = (permuted_metric-baseline_metric)/baseline_metric
+            feature_importance, feature_importance_err = self._calc_feature_importance_median(baseline_loss, permuted_loss)
+            
+            # Add PFI of scanned window
+            window_center.append((to_frac + from_frac) / 2)
+            importance.append(feature_importance)
+            e_importance.append(feature_importance_err)
+
+        # Little hack to get nice plot
+        window_center.insert(0, 0)
+        importance.insert(0, importance[0])
+        e_importance.insert(0, 0)
+
+        window_center.append(1)
+        importance.append(importance[-1])
+        e_importance.append(0)
+
+        # window_center.append(1)
+        # Save plot
+        d = {'x': [window_center], 'y': [importance], 'yerr': [e_importance]}
+        d['title'] = 'DOM PI'
+        d['xlabel'] = 'Window'
+        d['ylabel'] = 'Importance'
+        d['drawstyle'] = ['steps-mid', 'steps-mid']
+        d['xrange'] = {'left': 0.0, 'right': 1.0}
+        d['yrange'] = {'bottom': 0.0, 'top': max(importance) + max(e_importance)}
+        d['savefig'] = get_project_root()+self.save_dir+'/figures/DOMPI.png'
+        fig = make_plot(d) 
         print(get_time(), 'PFI Calculation finished!')
         
     def save(self):
@@ -2297,12 +2444,17 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         
         for i_set, dataset in enumerate(plot_dict['y']):
             # Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
-            plot_keys = ['label', 'drawstyle', 'color', 'zorder', 'linestyle']
+            plot_keys = [
+                'label', 'drawstyle', 'color', 'zorder', 'linestyle', 'yerr'
+                ]
             #* Set baseline
             d = {'linewidth': 1.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
-            h_axis.plot(plot_dict['x'][i_set], dataset, **d)
+            if 'yerr' in plot_dict:
+                h_axis.errorbar(plot_dict['x'][i_set], dataset, **d)
+            else:
+                h_axis.plot(plot_dict['x'][i_set], dataset, **d)
             
         if 'label' in plot_dict: 
             h_axis.legend()
@@ -2463,6 +2615,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
 
     if 'yrange' in plot_dict:
         h_axis.set_ylim(**plot_dict['yrange'])
+    if 'xrange' in plot_dict:
+        h_axis.set_xlim(**plot_dict['xrange'])
 
     if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
     if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
@@ -2476,6 +2630,45 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         plt.close(fig=h_figure)
 
     return h_figure
+
+def save_thesis_pgf(path, f):
+    all_figs_path = str(path.parent.parent) + '/all_pgf/' + str(path.parent.stem) + '.pgf'
+    f.savefig(str(path.parent) + '/fig.png', bbox_inches='tight')
+    f.savefig(all_figs_path, bbox_inches='tight')
+    print(get_time(), str(path.parent.stem) + ' saved.')
+
+def setup_pgf_plotting():
+    # Setup saving of pgf-plots for thesis
+    mpl.use("pgf")
+    mpl.rcParams.update({
+        "pgf.texsystem": "pdflatex",
+        'font.family': 'serif',
+        'font.size': 32,
+        'text.usetex': True,
+        'pgf.rcfonts': False,
+        'text.latex.preamble': [
+            r'\usepackage{amsmath}'
+        ],
+    })
+
+def get_figure_width(frac_of_textwidth=1.0):
+    textwidth = 4.65015 # inches
+    return textwidth*frac_of_textwidth
+
+def get_figure_height(width=None):
+    ratio = 4.8/6.4
+    return width * ratio
+
+def get_frac_of_textwidth(keyword='single_fig'):
+    
+    if keyword == 'single_fig':
+        frac = 1.0
+    elif keyword == '2subfigs':
+        frac = 0.65
+    else:
+        raise KeyError('Unknown keyword (%s) given to get_frac_of_textwidth!'%(keyword))
+    return frac
+        
 
 def summarize_model_performance(model_dir, wandb_ID=None):
     """Summarizes a model's performance with a single number by updating the meta_pars-dictionary of the experiment.

@@ -9,8 +9,23 @@ description = 'Loops over a directory containing a dataset of h5-files and repor
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument('-p', '--path', nargs='+', metavar='', type=str, help='Paths to model directories')
 parser.add_argument('-n', '--n_predictions', type=int, default=-1, help='Number of predictions to use in calculating FPI')
-parser.add_argument('--predict', action='store_true', help='Whether to predict with the trained model (default: False)')
-parser.add_argument('--wandb', type=int, default=0, help='Whether to log (1) to W&B or not (0) (default: 0)')
+parser.add_argument(
+    '--seq_features', 
+    nargs='+', 
+    default='None', 
+    type=str, 
+    help='Sets the masks to choose data. Options:'\
+    'dom_interval_SplitInIcePulses_min0_max200,'\
+    'dom_interval_SRTInIcePulses_min0_max200, muon_neutrino,'\
+    'energy_interval_min0.0_max3.0')
+parser.add_argument(
+    '--seq_permutation', 
+    action='store_true',
+    help='Randomizes the DOMs in the interval [from_frac, to_frac] in sequences.'\
+         'From_frac and to_frac must be supplied')
+
+parser.add_argument('--steps', type=int, default=10, help='The fractional size of the scanning window')
+
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -23,12 +38,23 @@ if __name__ == '__main__':
 
         print('')
         print(get_time(), 'Used model: %s. Calculating Permutation Feature Importance.'%(Path(model_dir).name))
-        if args.wandb:
-            wandb_ID = model.split('/')[-1]
-        else:
-            wandb_ID = None
-
+        
+        # Default to calculate for all features
         n_wanted = args.n_predictions if args.n_predictions != -1 else inf
         fpi = FeaturePermutationImportance(model)
-        fpi.calc_all_seq_importances(n_predictions_wanted=n_wanted)
-        fpi.save()
+        
+        if args.seq_features == 'all':
+            fpi.calc_all_seq_importances(n_predictions_wanted=n_wanted)
+            fpi.save()
+        elif args.seq_features != 'None':
+            for feature in args.seq_features:
+                fpi.calc_seq_feature_importance(
+                    n_predictions_wanted=n_wanted, feature=feature)
+            
+            fpi.save()
+        elif args.seq_permutation != 'None':
+            fpi.calc_seq_permutation_importance(
+                steps=args.steps,
+                n_predictions_wanted=n_wanted
+            )
+            fpi.save()

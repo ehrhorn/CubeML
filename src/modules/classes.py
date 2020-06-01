@@ -15,10 +15,17 @@ from src.modules.helper_functions import *
 class PadSequence:
     '''A helper-function for lstm_v2_loader, which zero-pads shortest sequences.
     '''
-    def __init__(self, mode='normal', permute_seq_features=None, permute_scalar_features=None):
+    def __init__(
+        self, mode='normal', 
+        permute_seq_features=None, 
+        permute_scalar_features=None,
+        from_frac=0.0,
+        to_frac=1.0):
         self._mode = mode
         self._permute_seq_features = permute_seq_features
         self._permute_scalar_features = permute_scalar_features
+        self._from_frac = from_frac
+        self._to_frac = to_frac
 
     def __call__(self, batch):
         # Inference and training is handled differently - therefore a keyword is passed along
@@ -47,8 +54,11 @@ class PadSequence:
 
         # permute-mode is used for permutation importance
         if self._mode == 'permute':
-            sequences, scalar_vars = self._permute(sequences, 
-                                     scalar_vars, [len(x) for x in sequences])
+            sequences, scalar_vars = self._permute(
+                sequences, scalar_vars, [len(x) for x in sequences]
+                )
+        if self._mode == 'permute_seq':
+            sequences = self._permute_seq(sequences)
 
         # pad_sequence returns a tensor(seqlen, batch, n_features)
         sequences_padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True)
@@ -85,6 +95,34 @@ class PadSequence:
             scalars[:, index] = torch.tensor(np.random.choice(scalars[:, index].numpy(), batch_size))
 
         return seqs, scalars
+    
+    def _permute_seq(self, seqs): 
+        
+        # Make a copy to ensure all sampling is from same distribution
+        seqs_permuted = [seq.clone().detach()+0.0 for seq in seqs]
+        n_seqs = len(seqs)
+        seq_lengths = np.array([len(x) for x in seqs])
+        for i_seq in range(n_seqs):
+            # seq.shape = [seqlen, n_feats]
+            # Find DOMs to change
+            seqlen = seq_lengths[i_seq]
+            if seqlen > 10:
+                continue
+            start = int(self._from_frac*seqlen + 0.5) # add half due to rounding
+            end = int(self._to_frac*seqlen + 0.5) # add half due to rounding
+            indices = np.arange(start, end)
+
+            # Find which sequence (N) to pick DOM (frac)
+            which_seq = np.random.randint(0, high=n_seqs, size=(len(indices),))
+            which_dom = np.random.uniform(size=len(which_seq))*seq_lengths[which_seq]
+            which_dom = which_dom.astype(int)
+
+            # Insert copy
+            before = seqs_permuted[i_seq].clone().detach()
+            for index, seq_id, dom_id in zip(indices, which_seq, which_dom):
+                seqs_permuted[i_seq][index, :] = seqs[seq_id][dom_id, :].clone().detach()
+
+        return seqs_permuted
 
 class SqliteFetcher:
 
@@ -605,9 +643,21 @@ class SqliteLoader(data.Dataset):
 
     Input: Directory to loop over, targetnames, scalar feature names, sequential feature names, type of set (train, val or test), train-, test- and validation-fractions and an optional datapoints_wanted.
     '''
-    def __init__(self, directory, seq_features, scalar_features, targets, 
-                masks=['all'], n_events_wanted=np.inf, weights='None', 
-                dom_mask='SplitInIcePulses', max_seq_len=np.inf, keyword=None, batch_size=None):
+    def __init__(
+        self, 
+        directory, 
+        seq_features, 
+        scalar_features, 
+        targets, 
+        masks=['all'], 
+        n_events_wanted=np.inf, 
+        weights='None', 
+        dom_mask='SplitInIcePulses', 
+        max_seq_len=np.inf, 
+        keyword=None, 
+        batch_size=None,
+        ensemble=[]
+        ):
         if batch_size == None:
             raise ValueError('A batchsize must be specified!')
 
@@ -832,14 +882,16 @@ def load_predictions(data_pars, meta_pars, keyword, file, use_whole_file=False):
     else:
         raise ValueError('An unknown prediction loader was requested!')
 
-def get_collate_fn(data_pars, mode='normal', permute_seq_features=[], permute_scalar_features=[]):
+def get_collate_fn(data_pars, mode='normal', permute_seq_features=[], permute_scalar_features=[], from_frac=0.0, to_frac=1.0):
     '''Returns requested collate-function, if the key 'collate_fn' is in the dictionary data_pars.
     '''
 
     if 'collate_fn' in data_pars:
         name = data_pars['collate_fn']
         if name == 'PadSequence':
-            func = PadSequence(mode=mode, permute_seq_features=permute_seq_features, permute_scalar_features=permute_scalar_features)
+            func = PadSequence(mode=mode, permute_seq_features=permute_seq_features, permute_scalar_features=permute_scalar_features,
+            from_frac=from_frac,
+            to_frac=to_frac)
         
         else:
             raise ValueError('Unknown collate-function requested!')
@@ -930,9 +982,9 @@ def load_sqlite_weights(dataset, weights):
 
     return weights
 
-#*======================================================================== 
-#* MODELS
-#*========================================================================
+# ======================================================================== 
+# MODELS
+# ========================================================================
 
 class Angle2Unitvector(nn.Module):
     
@@ -1392,6 +1444,9 @@ class MakeModel(nn.Module):
             elif layer_name == 'SoftPlusSigma':
                 x = entry(x, device=device)
 
+            elif layer_name == 'Tanh':
+                x = entry(x, device=device)
+
             else:
                 raise ValueError('An unknown Module (%s) could not be processed.'%(layer_name))
 
@@ -1685,6 +1740,18 @@ class SoftPlusSigma(nn.Module):
         out = torch.cat((mean, sigma), dim=-1)
         return out
 
+class Tanh(nn.Module):
+    
+    def __init__(self):
+                
+        super(Tanh, self).__init__()
+        self._tanh = torch.nn.Tanh()
+    
+    def forward(self, x, device=None):
+        output = self._tanh(x)
+        
+        return output
+
 #* ======================================================================== 
 #* MODEL FUNCTIONS
 #* ========================================================================
@@ -1906,6 +1973,8 @@ def make_model_architecture(arch_dict):
                 modules.append(Angle2Unitvector())
             elif key == 'SoftPlusSigma':
                 modules.append(SoftPlusSigma())
+            elif key == 'Tanh':
+                modules.append(Tanh())
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 

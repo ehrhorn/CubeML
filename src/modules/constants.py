@@ -17,6 +17,8 @@ def get_project_root():
 
 AVAILABLE_CORES = cpu_count()
 
+PATH_THESIS_PLOTS = get_project_root() + '/reports/thesis_plots/'
+
 PATH_MASKS = get_project_root() + '/data/masks/'
 
 PATH_DATA = get_project_root() + '/data/'

@@ -171,7 +171,6 @@ def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
     # Setup generators - make a generator for training, validation on trainset and validation on test set
     collate_fn = get_collate_fn(data_pars)
     train_generator = data.DataLoader(train_set, **dataloader_params_train, collate_fn=collate_fn)#, pin_memory=True)
-    
     # Use IGNITE to train
     pretrain_hyper_pars = hyper_pars['optimizer'].copy()
     pretrain_hyper_pars['lr'] = start_lr

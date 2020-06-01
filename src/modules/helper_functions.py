@@ -38,7 +38,7 @@ class lr_watcher:
             schedule {str} -- Keyword for factor calculation (default: {'exp'})
         """        
 
-        # * To ensure no nasty divisions by 0
+        # To ensure no nasty divisions by 0
         self._steps_up = max(n_rise//batch_size, 1)
         self._steps_down = max(n_fall//batch_size, 1)
         self.gamma_up = (max_lr/start_lr)**(1/self._steps_up)
@@ -50,7 +50,7 @@ class lr_watcher:
         self.step = iterations_completed
 
         if schedule == 'inverse':
-            # * 1/t decay
+            # 1/t decay
             frac = min_lr/max_lr
             self.s = self._steps_down*frac/(1-frac)
 
@@ -214,7 +214,7 @@ def calc_histogram(sorted_data, n_bins=10, mode='equal_amount'):
     '''
 
     if mode == 'equal_amount':
-        # * put equal amount in each bin
+        # put equal amount in each bin
         edges = [sorted_data[0]]
         entries = []
         
@@ -263,7 +263,7 @@ def calc_MAEs(sorted_data, entries, error_measure='median'):
     '''
     from_to = np.append(0, np.cumsum(entries))
 
-    # * calculate MAE
+    # calculate MAE
     maes = []
     for lower, upper in zip(from_to[:-1], from_to[1:]):
         
@@ -293,7 +293,7 @@ def calc_width_as_fn_of_data(energy, predictor_vals, bin_edges, multiprocess=Fal
     sigmas, e_sigmas, median, upper_perc, lower_perc = [], [], [], [], []
      
     if multiprocess:
-        # * Spread the job
+        # Spread the job
         available_cores = cpu_count()
         bootstrap_list = [bootstrap]*len(predictor_bins)
         packed = [entry for entry in zip(predictor_bins, bootstrap_list)]
@@ -305,7 +305,7 @@ def calc_width_as_fn_of_data(energy, predictor_vals, bin_edges, multiprocess=Fal
         for predictor_bin in predictor_bins:
             dicts.append(estimate_sigma_multiprocess((predictor_bin, bootstrap)))
 
-    # * Unpack the result
+    # Unpack the result
     for d in dicts:
         sigmas.append(d['sigma'])
         e_sigmas.append(d['e_sigma'])
@@ -338,7 +338,7 @@ def calc_percentiles_as_fn_of_data(energy, predictor_vals, bin_edges,
     #     d['savefig'] = get_project_root() + '/%s.png'%(str(i))
     #     _ = make_plot(d)
     if multiprocess:
-        # * Spread the job
+        # Spread the job
         available_cores = cpu_count()
         packed = make_multiprocess_pack(predictor_bins, bootstrap, percentiles)
         # bootstrap_list = [bootstrap]*len(predictor_bins)
@@ -352,20 +352,20 @@ def calc_percentiles_as_fn_of_data(energy, predictor_vals, bin_edges,
         for predictor_bin in predictor_bins:
             lists.append(estimate_percentiles_multiprocess((predictor_bin, bootstrap, percentiles)))
     
-    # * The result is a nested list. First level is which bin. Second has 2
-    # * entries: percentile estimate and its error. Third level is number of 
-    # * percentiles wanted
+    # The result is a nested list. First level is which bin. Second has 2
+    # entries: percentile estimate and its error. Third level is number of 
+    # percentiles wanted
     estimated_perc = [[] for i in range(len(percentiles))]
     perc_errs = [[] for i in range(len(percentiles))]
 
-    # * Bin level
+    # Bin level
     for l in lists:
 
-        # * Loop over percentiles
+        # Loop over percentiles
         for i_perc, perc in enumerate(l[0]):
             estimated_perc[i_perc].append(perc)
         
-        # * Loop over errors
+        # Loop over errors
         for i_percerr, percerr in enumerate(l[1]):
             perc_errs[i_percerr].append(percerr)
     
@@ -563,7 +563,7 @@ def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
         lists -- means, -sigma and +sigma, lists of same lengths as percentiles
     """    
      
-    # * Convert to np-array and sort (if it hasnt been already)
+    # Convert to np-array and sort (if it hasnt been already)
     data = np.array(data)
     n = data.shape[0]
     data.sort()
@@ -573,7 +573,7 @@ def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
 
 
     for percentile in percentiles:
-        # * THe order statistic is binomially distributed - we approximate it with a gaussian. 
+        # THe order statistic is binomially distributed - we approximate it with a gaussian. 
         sigma = np.sqrt((percentile/100)*n*(1-(percentile/100)))
         mean = n*percentile/100
         i_means.append(int(mean))
@@ -581,12 +581,12 @@ def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
         i_minussigmas.append(int(mean-sigma))
     
     if bootstrap:
-        # * bootstrap
+        # bootstrap
         bootstrap_indices = np.random.choice(np.arange(0, n), size=(n, n_bootstraps))
         bootstrap_indices.sort(axis=0)
         bootstrap_samples = data[bootstrap_indices]
 
-        # * An IndexError is due to too few events in a bin. Set these to NaN, we don't care about bins with very little data, so dont log the error.
+        # An IndexError is due to too few events in a bin. Set these to NaN, we don't care about bins with very little data, so dont log the error.
         for i in range(len(i_means)):
             
             try:    
@@ -630,7 +630,7 @@ def estimate_percentiles_multiprocess(pack):
         dict -- Dictionary with keys 'sigma', 'e_sigma', '16th' and '84th', corresponding to sigma, error on sigma, 16th percentile and 84th percentile.
     """    
 
-    # * unpack
+    # unpack
     data, bootstrap, percentiles = pack
     means, plussigmas, minussigmas = estimate_percentile(data, percentiles, bootstrap=bootstrap)
     e_percentiles = []
@@ -649,18 +649,18 @@ def estimate_sigma_multiprocess(pack):
         dict -- Dictionary with keys 'sigma', 'e_sigma', '16th' and '84th', corresponding to sigma, error on sigma, 16th percentile and 84th percentile.
     """    
 
-    # * unpack
+    # unpack
     data, bootstrap = pack
-    # * 0.15865, 0.84135 corresponds to actual +- 1 sigma
+    # 0.15865, 0.84135 corresponds to actual +- 1 sigma
     means, plussigmas, minussigmas = estimate_percentile(data, [25.0, 75.0, 50.0, 15.865, 84.135], bootstrap=bootstrap)
     e_quartiles = []
     e_quartiles.append((plussigmas[0]-minussigmas[0])/2)
     e_quartiles.append((plussigmas[1]-minussigmas[1])/2)
 
-    # * Assume errors are symmetric - which they look to be (quick inspection)
-    # * Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
+    # Assume errors are symmetric - which they look to be (quick inspection)
+    # Look at plussigma[0]-mean[0], mean[0]-minussigma[0] for instance
     sigma, e_sigma = convert_iqr_to_sigma(means, e_quartiles)
-    # * Ignore nans - it is due to too little statistics in a bin
+    # Ignore nans - it is due to too little statistics in a bin
     if e_sigma != e_sigma:
         sigma = np.nan
     
@@ -790,7 +790,7 @@ def get_dataset_name(file_path):
     from_root = get_path_from_root(file_path)
     from_root_splitted = from_root.split('/')
     
-    # * Expects the format chosen for the framework
+    # Expects the format chosen for the framework
     if from_root_splitted[1] == 'data' or from_root_splitted[1] == 'models':
         name = from_root_splitted[2]
     else:
@@ -854,7 +854,7 @@ def get_indices_from_fraction(n, from_frac, to_frac, shuffle=False, file_name='N
         np.array -- array of indices in ascending order
     """    
     
-    # * Calculate from and to indices
+    # Calculate from and to indices
     
     frac = to_frac-from_frac
     n_below = int(from_frac*n +0.5)
@@ -863,13 +863,13 @@ def get_indices_from_fraction(n, from_frac, to_frac, shuffle=False, file_name='N
 
     all_indices = np.arange(n)
     if shuffle:
-        # * Use filename if given to generate seed such that it is shuffled the same way every time.
+        # Use filename if given to generate seed such that it is shuffled the same way every time.
         if file_name != 'None':
             seed = convert_id_to_int(dataset_path, file_name)
             random.seed(seed)
         random.shuffle(all_indices)
 
-        # * Make RNG random again..
+        # Make RNG random again..
         random.seed()
         random.seed(time()*1e7)
 
@@ -892,7 +892,7 @@ def get_iterations_completed(meta_pars):
         checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
         iterations_completed = checkpoint['iterations_completed']
     
-    # * TypeError raised, if path doesn't exist - means we are training a new model
+    # TypeError raised, if path doesn't exist - means we are training a new model
     except TypeError:
         try:
             checkpoint_path = get_project_root() + get_path_from_root(meta_pars.get('pretrained_path', None)) + '/backup.pth'
@@ -932,7 +932,7 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
         torch.optim-object -- the desired lr-scheduler.
     """    
 
-    # * Simply multiplies lr by 1 on every iteration - equal to no lr-schedule
+    # Simply multiplies lr by 1 on every iteration - equal to no lr-schedule
     lr_dict = hyper_pars.get('lr_schedule', None)
     
     if lr_dict['lr_scheduler'] == None:
@@ -941,22 +941,22 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
     
     elif lr_dict['lr_scheduler'] == 'CyclicLR':
-        # * Some default values
-        # * {'lr_scheduler':   'CyclicLR',
-        # * 'base_lr':        0.00001,
-        # * 'max_lr':         0.001,
-        # * 'period':         12, # * in epochs
-        # * 'cycle_momentum': False}
+        # Some default values
+        # {'lr_scheduler':   'CyclicLR',
+        # 'base_lr':        0.00001,
+        # 'max_lr':         0.001,
+        # 'period':         12, # in epochs
+        # 'cycle_momentum': False}
 
         if 'cycle_momentum' in lr_dict: 
             cycle_momentum = lr_dict['cycle_momentum']
         else: 
-            cycle_momentum = True # * default value from Torch
+            cycle_momentum = True # default value from Torch
         
         if 'period' in lr_dict: 
             n_steps = 0.5*n_train*lr_dict['period']/batch_size
             step_size_up = int(n_steps)
-        else: step_size_up = 2000 # * default value from Torch
+        else: step_size_up = 2000 # default value from Torch
 
         scheduler = optim.lr_scheduler.CyclicLR(optimizer, 
                                                 base_lr=lr_dict['base_lr'], 
@@ -965,19 +965,19 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
                                                 cycle_momentum=cycle_momentum)
     
     elif lr_dict['lr_scheduler'] == 'ReduceLROnPlateau':
-        # * Some default values
-        # * {'lr_scheduler':   'ReduceLROnPlateau',
-        # * 'factor':         0.1,
-        # * 'patience':       2,
-        # * }
-        # * Pop the keys ReduceLROnPlateau doesn't take before passing
+        # Some default values
+        # {'lr_scheduler':   'ReduceLROnPlateau',
+        # 'factor':         0.1,
+        # 'patience':       2,
+        # }
+        # Pop the keys ReduceLROnPlateau doesn't take before passing
         _ = lr_dict.pop('lr_scheduler')
         _ = lr_dict.pop('train_set_size')
 
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, **lr_dict)
     
     elif lr_dict['lr_scheduler'] == 'OneCycleLR':
-        # * Some default values
+        # Some default values
         # {'lr_scheduler':   'OneCycleLR',
         # 'max_lr':          0.1,
         # 'min_lr':          1e-6,
@@ -999,7 +999,7 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
         scheduler = optim.lr_scheduler.OneCycleLR(optimizer, **pars)
     
     elif lr_dict['lr_scheduler'] == 'CustomOneCycleLR':
-        # * Some default values
+        # Some default values
         # {'lr_scheduler':   'ExpOneCycleLR',
         # 'max_lr':          1e-3,
         # 'min_lr':          1e-6,
@@ -1014,7 +1014,7 @@ def get_lr_scheduler(hyper_pars, optimizer, batch_size, n_train, iterations_comp
         n_fall = int(lr_dict['frac_down']*lr_dict['train_set_size']*hyper_pars['max_epochs'])
         batch_size = hyper_pars['batch_size']
         
-        # * A quick sanity check
+        # A quick sanity check
         if lr_dict['frac_up'] + lr_dict['frac_down'] != 1.0:
             raise ValueError('CustomOneCycleLR frac_up and frac_down does not add up to 1 (adds to %.2f)'%(lr_dict['frac_up'] + lr_dict['frac_down']))
 
@@ -1113,7 +1113,7 @@ def get_n_doms_multiprocess(pack):
         filename = str(index) + '.pickle'
         path = data_dir + '/pickles/' + str(index//events_per_dir) + '/' + str(index) + '.pickle'
         
-        # * Load event
+        # Load event
         with open(path, 'rb') as f:
             event = pickle.load(f)
             n_doms = len(event['masks'][mask])
@@ -1193,16 +1193,16 @@ def get_optimizer(model_pars, d_opt):
     '''
     if d_opt['optimizer'] == 'Adam':
         if 'lr' in d_opt: lr = d_opt['lr']
-        else: lr = 0.001 # * standard Adam lr
+        else: lr = 0.001 # standard Adam lr
 
         if 'betas' in d_opt: betas = d_opt['betas']
-        else: betas = (0.9, 0.999) # * standard Adam par
+        else: betas = (0.9, 0.999) # standard Adam par
 
         if 'eps' in d_opt: eps = d_opt['eps']
-        else: eps = 1e-08 # * default Adam par
+        else: eps = 1e-08 # default Adam par
 
         if 'weight_decay' in d_opt: weight_decay = d_opt['eps']
-        else: weight_decay = 0 # * default Adam par
+        else: weight_decay = 0 # default Adam par
         
         optimizer = optim.Adam(model_pars, lr = lr, betas = betas, eps = eps, weight_decay = weight_decay)
     
@@ -1398,14 +1398,14 @@ def inverse_transform(data, model_dir):
     
     for key in data:
 
-        # * If key is not in transformers, it shouldn't be transformed
+        # If key is not in transformers, it shouldn't be transformed
         if transformers.get(key, None) == None: 
             transformed[key] = data[key]
 
-        # * The reshape is required for scikit to function...
+        # The reshape is required for scikit to function...
         else: 
-            # * Input might be given as a dictionary of lists
-            # * The squeeze is to ensure a shape of (N,)
+            # Input might be given as a dictionary of lists
+            # The squeeze is to ensure a shape of (N,)
             try: 
                 transformed[key] = np.squeeze(transformers[key].inverse_transform(data[key].reshape(-1, 1)))
             except AttributeError: 
@@ -1424,21 +1424,21 @@ def load_mask(file_path, mask_name):
         array -- array for allowed indices
     """    
     
-    # * Treat 'all'-case in a special way, since no mask is needed.
+    # Treat 'all'-case in a special way, since no mask is needed.
     if mask_name == 'all':
         with h5.File(file_path, 'r') as f:
             n_events = f['meta/events'][()]
             indices = np.arange(n_events)
 
     else:
-        # * Create path to mask-file
+        # Create path to mask-file
         path = PATH_MASKS+get_dataset_name(file_path)+'/'+mask_name+'.h5'
         try:
             file_name = file_path.stem
         except AttributeError:
             file_name = Path(file_path).stem
 
-        # * Read mask
+        # Read mask
         with h5.File(path, 'r') as f:
             indices = f['indices/'+file_name][:]
     
@@ -1477,7 +1477,7 @@ def load_pickle_mask(data_dir, masknames):
         list -- intersection of masks
     """    
 
-    # * Load masks    
+    # Load masks    
     masks_path = data_dir + '/masks/'
     list_of_masks = []
     for maskname in masknames:
@@ -1485,12 +1485,12 @@ def load_pickle_mask(data_dir, masknames):
             mask = pickle.load(f)
             list_of_masks.append(mask)
     
-    # * Find intersection using sets
+    # Find intersection using sets
     mask = set(list_of_masks[0])
     for i in range(1, len(list_of_masks)):
         mask = mask & set(list_of_masks[i])
 
-    # * Set changes order - so sort again.
+    # Set changes order - so sort again.
     result = sorted(list(mask))
 
     return result
@@ -1507,21 +1507,23 @@ def load_sqlite_mask(data_dir, masknames, keyword):
         list -- intersection of masks
     """    
 
-    # * Load masks    
+    # Load masks    
     masks_path = data_dir + '/masks/'
     list_of_masks = []
     for maskname in masknames:
         with open(masks_path+maskname+'_'+keyword+'.pickle', 'rb') as f:
             mask = pickle.load(f)
             list_of_masks.append(mask)
-    
-    # * Find intersection using sets
+   
+    # Find intersection using sets
     mask = set(list_of_masks[0])
     for i in range(1, len(list_of_masks)):
         mask = mask & set(list_of_masks[i])
 
-    return sorted(list(mask))
-
+    sorted_mask = sorted(list(mask))
+    
+    return sorted_mask
+    
 def locate_model(model_name):
     """Finds the path to a certain model given its name.
     
@@ -1531,7 +1533,7 @@ def locate_model(model_name):
     Returns:
         str -- Path to model
     """    
-    # * Locate the model directory
+    # Locate the model directory
     paths = find_files(model_name)
     for path in paths:
         if path.split('/')[-1] == model_name:
@@ -1593,10 +1595,10 @@ def make_lr_dir(data_folder_address, project, batch_size):
     '''Makes a lr-finder folder at CubeML/models/<DATA_TRAINED_ON>/lr_finders/BS#_<WHEN_CREATED>.
     '''
 
-    # * Get CubeML/models/ directory
+    # Get CubeML/models/ directory
     models_dir = get_project_root()+'/models/'
 
-    # * See if model/dataset exists - if not, make it
+    # See if model/dataset exists - if not, make it
     data_name = data_folder_address.split('/')
     if data_name[-1] == '': 
         data_name = data_name[-2]
@@ -1607,12 +1609,12 @@ def make_lr_dir(data_folder_address, project, batch_size):
         Path(models_dir+data_name).mkdir()
     data_dir = models_dir+data_name+'/'
 
-    # * Make lr-finder directory if it doesnt exist
+    # Make lr-finder directory if it doesnt exist
     if not Path(data_dir+'lr_finders').is_dir(): 
         Path(data_dir+'lr_finders').mkdir()
     lr_finders_dir = data_dir+'lr_finders/'
 
-    # * Finally! lr-finder dir
+    # Finally! lr-finder dir
     if project.split('_')[-1] == 'test':
         base_name = 'test_BS'+str(batch_size)+'_'+strftime("%Y-%m-%d-%H.%M.%S", localtime())
     else:
@@ -1627,10 +1629,10 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle=
     '''Makes a model folder at CubeML/models/<DATA_TRAINED_ON>/regression/<REGRESSION_TYPE>/<WHEN_TRAINED>/ with subdirectories figures and data.
     '''
 
-    # * Get CubeML/models/ directory
+    # Get CubeML/models/ directory
     models_dir = get_project_root()+'/models/'
 
-    # * See if model/dataset exists - if not, make it
+    # See if model/dataset exists - if not, make it
     data_name = data_folder_address.split('/')
     if data_name[-1] == '': data_name = data_name[-2]
     else: data_name = data_name[-1]
@@ -1638,15 +1640,15 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle=
     if not Path(models_dir+data_name).is_dir(): Path(models_dir+data_name).mkdir()
     data_dir = models_dir+data_name+'/'
 
-    # * Make regression directory if it doesnt exist
+    # Make regression directory if it doesnt exist
     if not Path(data_dir+'regression').is_dir(): Path(data_dir+'regression').mkdir()
     regression_dir = data_dir+'regression/'
 
-    # * Make regression type directory if it doesnt exist
+    # Make regression type directory if it doesnt exist
     if not Path(regression_dir+reg_type).is_dir(): Path(regression_dir+reg_type).mkdir()
     reg_type_dir = regression_dir+reg_type
     
-    # * Finally! Make model directory
+    # Finally! Make model directory
     if project.split('_')[-1] == 'test':
         base_name = 'test_'+strftime("%Y.%m.%d-%H.%M.%S", localtime())
     else:
@@ -1655,11 +1657,11 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle=
     Path(reg_type_dir+'/'+base_name).mkdir()
     model_dir = reg_type_dir+'/'+base_name
     
-    # * Add subdirectories
+    # Add subdirectories
     Path(model_dir+'/figures').mkdir()
     Path(model_dir+'/data').mkdir()
 
-    # * Copy transform dicts
+    # Copy transform dicts
     particle_code = get_particle_code(particle)
     transformer_address = '/'.join([PATH_DATA_OSCNEXT, 'sqlite_transformers.pickle'])
     data_dir = shutil.copy(transformer_address, model_dir+'/transformers.pickle')
@@ -1735,7 +1737,7 @@ def read_h5_dataset(file_address, key, prefix='', from_frac=0, to_frac=1, indice
         if len(indices) == 0:
             indices = get_indices_from_fraction(n_events, from_frac, to_frac)
         
-        # * If not transformed, it is found under raw/
+        # If not transformed, it is found under raw/
         try:
             path = prefix+'/'+key
             data = f[path][indices]
@@ -1773,7 +1775,7 @@ def read_h5_directory(data_dir, keys, prefix=None, from_frac=0, to_frac=1, n_wan
 
         if file.suffix == '.h5' and confirm_particle_type(particle_code, file):
             
-            # * Do not readt more than wanted - takes up space aswell...
+            # Do not readt more than wanted - takes up space aswell...
             if n_loaded >= n_wanted:
                 break
 
@@ -1782,7 +1784,7 @@ def read_h5_directory(data_dir, keys, prefix=None, from_frac=0, to_frac=1, n_wan
             
             n_loaded += values[key][file.stem].shape[0]
 
-    # * Sort wrt file index
+    # Sort wrt file index
     values_sorted = sort_wrt_file_id(str(file), values)
 
     return values_sorted
@@ -1806,7 +1808,7 @@ def read_predicted_h5_data_old(file_address, keys):
             for key in keys:
                 preds[key][str(dfile)] = f[dfile+'/'+key][:]
 
-    # * Sort wrt file index
+    # Sort wrt file index
     values_sorted = sort_wrt_file_id(file_address, preds) 
 
     return values_sorted
@@ -1831,25 +1833,25 @@ def read_predicted_h5_data(file_address, keys, data_pars, true_keys):
     preds['indices'] = {}
     truths = {key: {} for key in true_keys}
 
-    # * Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
+    # Read the predictions. Each group in the h5-file corresponds to a raw data-file. Each group has same datasets.
     with h5.File(file_address, 'r') as f:
         for dfile in f:
             preds['indices'][str(dfile)] = f[dfile+'/index'][:]
             for key in keys:
                 preds[key][str(dfile)] = f[dfile+'/'+key][:]
 
-    # * Now read the matching true values. The group-name from the predictions-file matches the raw data filename
+    # Now read the matching true values. The group-name from the predictions-file matches the raw data filename
     dummy_key = next(iter(preds))
     filenames = preds[dummy_key].keys()
     for file in filenames:
-        # * Fetch the file in question and load the indices of the predictions for the raw file
+        # Fetch the file in question and load the indices of the predictions for the raw file
         path = get_project_root()+data_dir
         file_path = next(iter(Path(path).glob('*'+file+'.h5')))
         indices = preds['indices'][file]
         for key in true_keys:
             truths[key][file] = read_h5_dataset(file_path, key, prefix=prefix, indices=indices)
     
-    # * Sort wrt file index
+    # Sort wrt file index
     preds_sorted = sort_wrt_file_id(file_address, preds) 
     truths_sorted = sort_wrt_file_id(file_address, truths) 
     
@@ -1874,8 +1876,8 @@ def read_pickle_predicted_h5_data_v2(file_address, keys):
     preds = {key: [] for key in keys}
     preds['indices'] = []
 
-    # * Read the predictions. Each group in the h5-file corresponds to a
-    # * raw data-file. Each group has same datasets.
+    # Read the predictions. Each group in the h5-file corresponds to a
+    # raw data-file. Each group has same datasets.
     with h5.File(file_address, 'r') as f:
         preds['indices'] = np.squeeze(f['index'][:])
         
@@ -1928,7 +1930,7 @@ def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
         # for pack in packed:
         #     dicts_list.append(read_pickle_data_multiprocess(pack))
 
-        # * Gather results
+        # Gather results
         final_dict = {key: [] for key in keys}
         for d in dicts_list:
             for key, items in d.items():
@@ -1979,7 +1981,7 @@ def remove_tests_modeldir(directory=get_project_root() + '/models/'):
                         shutil.rmtree(file)
                         print('Deleted', str(file))
                         
-                        # * Attempt to remove its .dvc-file aswell
+                        # Attempt to remove its .dvc-file aswell
                         try:
                             dvc_file = str(file)+'.dvc'
                             Path(dvc_file).unlink()
@@ -1991,7 +1993,7 @@ def remove_tests_modeldir(directory=get_project_root() + '/models/'):
                     shutil.rmtree(file)
                     print('Deleted', str(file))
 
-                    # * Attempt to remove its .dvc-file aswell
+                    # Attempt to remove its .dvc-file aswell
                     try:
                         dvc_file = str(file)+'.dvc'
                         Path(dvc_file).unlink()
@@ -2010,7 +2012,7 @@ def remove_tests_modeldir(directory=get_project_root() + '/models/'):
                 except FileNotFoundError:
                     pass
                 
-                # * Attempt to remove its .dvc-file aswell
+                # Attempt to remove its .dvc-file aswell
                 try:
                     dvc_file = str(file)+'.dvc'
                     Path(dvc_file).unlink()
@@ -2024,7 +2026,7 @@ def remove_tests_modeldir(directory=get_project_root() + '/models/'):
 def remove_tests_wandbdir(directory=get_project_root()+'/models/wandb/', rm_all=False):
     '''Deletes all wandb-folder which failed during training or was a test-run.
     '''
-    # * Check each run - if test, delete it.
+    # Check each run - if test, delete it.
     for run in Path(directory).iterdir():
         
         remove = False
@@ -2048,7 +2050,7 @@ def remove_tests_wandbdir(directory=get_project_root()+'/models/wandb/', rm_all=
             shutil.rmtree(run)
             print('Deleted', str(run))
 
-            # * Attempt to remove its .dvc-file aswell
+            # Attempt to remove its .dvc-file aswell
             try:
                 dvc_file = str(run)+'.dvc'
                 Path(dvc_file).unlink()
@@ -2090,7 +2092,7 @@ def sort_wrt_file_id(file_path, values):
 
 def show_train_val_error(x_address, train_address, val_address, save_address=None):
     
-    # * Load pickle-files
+    # Load pickle-files
     x = pickle.load(open(x_address, "rb"))
     train = pickle.load(open(train_address, "rb"))
     val = pickle.load(open(val_address, "rb"))
@@ -2135,16 +2137,16 @@ def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1
         [list] -- relative paths to test files    
     """    
     return -1
-    # * First, get total size of dataset
+    # First, get total size of dataset
     n_files, mean, std = get_dataset_size(data_dir, particle=particle)
 
-    # * Calculate amounts wanted
+    # Calculate amounts wanted
     n_data = n_files*mean
     n_train =n_data*train_frac
     n_val =n_data*val_frac
     n_test =n_data*test_frac
 
-    # * Split files 
+    # Split files 
     train_files = []
     val_files = []
     test_files = []   
@@ -2155,7 +2157,7 @@ def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1
     particle_code = get_particle_code(particle)
     path = get_project_root() + get_path_from_root(data_dir)
     
-    # * Shuffle the file-list!
+    # Shuffle the file-list!
     random.seed(seed)
     files = [file for file in Path(path).iterdir()]
     random.shuffle(files)    
@@ -2163,7 +2165,7 @@ def split_files_in_dataset(data_dir, train_frac=0.8, val_frac=0.1, test_frac=0.1
     
     for file in files:
 
-        # * If file is not of interest, continue to next file
+        # If file is not of interest, continue to next file
         if not (file.suffix == '.h5' and confirm_particle_type(particle_code, file)):
             continue
         
@@ -2197,8 +2199,8 @@ def strip_nans(*data):
         Number of NaNs found and datasets in a tuple
     """    
 
-    # * Strip potential NaNs: subtract arrays --> find indices, 
-    # * since a number - nan is also nan.
+    # Strip potential NaNs: subtract arrays --> find indices, 
+    # since a number - nan is also nan.
     for i_dataset, dataset in enumerate(data):
         if i_dataset == 0:
             checker = dataset.copy()
@@ -2226,7 +2228,7 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
     Output:
     Updated hyperparameter-, dataparameter and metaparameter-dictionaries.
     '''
-    # * Load hyperparameters of experiment - metapars has to be path from project root
+    # Load hyperparameters of experiment - metapars has to be path from project root
     model_dir = get_project_root() + meta_pars['pretrained_path']    
     hyper_pars, data_pars, arch_pars, _ = load_model_pars(model_dir)
     
@@ -2235,23 +2237,23 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
 
     checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
 
-    # * Get last epoch number
+    # Get last epoch number
     hyper_pars['epochs_completed'] = checkpoint['epochs_completed']
     hyper_pars['lr_scheduler'] = checkpoint['lr_scheduler']
 
-    # * Update the old pars - do not update arch-pars: 
+    # Update the old pars - do not update arch-pars: 
     for key, item in new_hyper_pars.items():
         
-        # * Let optimizer be fixed
+        # Let optimizer be fixed
         if key == 'optimizer':
             continue
 
         hyper_pars[key] = item
 
-    # * LR should be updated though
+    # LR should be updated though
     hyper_pars['optimizer']['lr'] = new_hyper_pars['optimizer']['lr']    
 
-    # * Update the old pars
+    # Update the old pars
     for key, item in new_data_pars.items():
         data_pars[key] = item
 

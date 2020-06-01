@@ -6,7 +6,6 @@ channels:
 dependencies:
   - tqdm
   - h5py
-  - pytables
   - jupyter
   - pydocstyle
   - pylint
@@ -20,7 +19,6 @@ dependencies:
   - cpuonly
   - ignite
   - numpy
-  - dvc[azure]
   - pillow
   - pip:
     - wandb

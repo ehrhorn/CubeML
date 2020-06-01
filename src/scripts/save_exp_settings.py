@@ -121,7 +121,7 @@ if __name__ == '__main__':
     dataset = data_dir.split('/')[-1]
 
     # Set weights to use by loss-func
-    loss_func_weights = [1, 1, 1, 1, 1, 1, 1, 1]
+    loss_func_weights = [1, 1, 1]
 
     if args.optimizer == 'Adam':
 
@@ -293,6 +293,7 @@ if __name__ == '__main__':
                              'type':               'x'}},
         {'Linear':          {'input_sizes':        [n2, n_target],
                             'norm_before_nonlin':  True}},
+        # {'Tanh':           []},
         ]
     if regression_type == 'angle_reg':
         layers.append({'Angle2Unitvector': []})
