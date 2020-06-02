@@ -834,6 +834,40 @@ def get_device(ID=0):
 
     return device
 
+def get_ensemble_predictions(data_pars, meta_pars):
+    """Finds the names of the predictions of the models in the ensemble
+
+    Parameters
+    ----------
+    data_pars : dict
+        Data parameters of the model. See /src/scripts/save_exp_settings.py
+    meta_pars : str
+        Meta parameters of the model. See /src/scripts/save_exp_settings.py
+    
+    Returns
+    -------
+    list
+        Scalar names of ensemble models predictions
+    """    
+    # Get models
+    try:
+        models = ENSEMBLE[meta_pars['group']]
+    except KeyError:
+        raise ValueError('No ensemble for %s has been setup'%(meta_pars['group']))
+
+    # Get targets - needed to find names of predictions
+    targets = get_target_keys(data_pars, meta_pars)
+
+    # Create scalar var names.
+    models_nosymbols = [remove_dots_and_lines(model) for model in models]
+    
+    scalar_vars = []
+    for model in models_nosymbols:
+        for target in targets:
+            scalar_vars.append(target + '_' + model)
+    
+    return scalar_vars
+
 def get_indices_from_fraction(n, from_frac, to_frac, shuffle=False, file_name='None', dataset_path='None', seed=2912):
     """Converts the interval induced by n, from_frac, to_frac to a list of indices in ascending order. The option is given to get the indices of a SHUFFLED list instead.
 
@@ -1965,6 +1999,13 @@ def read_pickle_data_multiprocess(pack):
                 data[key][i_event] = event['raw'][key]
 
     return data
+
+def remove_dots_and_lines(string):
+    remove = ['.', '-']
+    for char in remove:
+        string = string.replace(char, '')
+    
+    return string
 
 def remove_tests_modeldir(directory=get_project_root() + '/models/'):
     '''Deletes all cubeml_test-models and all models that failed during training.

@@ -10,12 +10,21 @@ from src.modules.main_funcs import *
 
 description = 'Saves settings for an experiment to be run.'
 parser = argparse.ArgumentParser(description=description)
-parser.add_argument('-r', '--run', action='store_true', 
-        help='Runs experiment immediately.')
-parser.add_argument('-t', '--test', action='store_true', 
-        help='Initiates testmode - logging is turned off.')
-parser.add_argument('-d', '--dev', action='store_true', 
-        help='Initiates developermode - Logging is done at CubeML_test.')
+parser.add_argument(
+        '-r', '--run', action='store_true', help='Runs experiment immediately.'
+        )
+parser.add_argument(
+        '-t', 
+        '--test', 
+        action='store_true', 
+        help='Initiates testmode - logging is turned off.'
+        )
+parser.add_argument(
+        '-d', 
+        '--dev', 
+        action='store_true', 
+        help='Initiates developermode - Logging is done at CubeML_test.'
+        )
 parser.add_argument('-e', '--explore_lr', action='store_true', 
         help='Performs a learning rate exploration.')
 parser.add_argument('-s', '--scan_lr', action='store_true', 
@@ -76,7 +85,11 @@ parser.add_argument(
         type=str,
         help='Sets which nonlinearity to use.'
 )
-
+parser.add_argument(
+        '--ensemble', 
+        action='store_true', 
+        help='Initiates ensemble learning - predictions of other models are loaded.'
+        )
 
 args = parser.parse_args()
 
@@ -241,6 +254,13 @@ if __name__ == '__main__':
             and 'electron_neutrino' in mask_names
     ):
         raise NameError('Keep in mind that some features are not transformed yet!')
+    
+    # Load ensemble (if wanted)
+    ensemble_preds = (
+            [] if not args.ensemble 
+            else get_ensemble_predictions(data_pars, meta_pars)
+            )
+    data_pars['scalar_feat'].extend(ensemble_preds)
 
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])

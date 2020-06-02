@@ -15,7 +15,7 @@
 import src.modules.helper_functions as hf
 # from src.modules.eval_funcs import *
 import src.modules.reporting as rpt
-# from src.modules.classes import *
+from src.modules.classes import *
 # from src.modules.preprocessing import *
 # # import src.modules.preprocessing as pp
 # from src.modules.main_funcs import *
@@ -24,7 +24,10 @@ import src.modules.reporting as rpt
 # from time import sleep
 import numpy as np
 
-pars = 3000000
-mib = 1024*1024
-memory = pars*32/mib
-print(memory)
+db = SqliteFetcher(PATH_TRAIN_DB)
+
+events = [str(e) for e in range(1000)]
+scalars = ['true_primary_direction_x_20200530121048']
+fetched = db.fetch_features(all_events=events, scalar_features=scalars)
+for e, data in fetched.items():
+    print(e, data)

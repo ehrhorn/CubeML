@@ -42,3 +42,23 @@ PATH_TEST_DB = '/'.join([
 PATH_TRANSFORMERS = PATH_DATA_OSCNEXT+'/sqlite_transformers.pickle'
 N_BINS_PERF_PLOTS = 18
 
+# Set ensemble
+ENSEMBLE = {
+    'direction_reg': [
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-05-29-16.57.10/overview?workspace=user-bjoernmoelvig
+        '2020-05-29-16.57.10',
+
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-05-30-12.10.48/overview?workspace=user-bjoernmoelvig
+        '2020-05-30-12.10.48', 
+
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-04-23-13.25.26?workspace=user-bjoernmoelvig
+        '2020-04-23-13.25.26',
+
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-04-23-00.02.48/overview?workspace=user-bjoernmoelvig
+        '2020-04-23-00.02.48',
+
+        # Needs pred 
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-05-30-11.12.08/overview?workspace=user-bjoernmoelvig
+        '2020-05-30-11.12.08'
+    ]
+}

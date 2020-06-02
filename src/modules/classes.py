@@ -656,16 +656,20 @@ class SqliteLoader(data.Dataset):
         max_seq_len=np.inf, 
         keyword=None, 
         batch_size=None,
-        ensemble=[]
+        ensemble=[],
+        db_path=None
         ):
         if batch_size == None:
             raise ValueError('A batchsize must be specified!')
+        if db_path == None:
+            raise ValueError('A DB must be supplied!')
 
         self.directory = get_project_root() + directory
 
         self.scalar_features = scalar_features
         self.seq_features = seq_features
         self.targets = targets
+        self.keyword = keyword
 
         self.n_scalar_features = len(scalar_features)
         self.n_seq_features = len(seq_features)
@@ -675,17 +679,11 @@ class SqliteLoader(data.Dataset):
         self.n_events_wanted = n_events_wanted
         self.max_seq_len = max_seq_len
         self.batch_size = batch_size
+        self.db_path = db_path
+        self.db = SqliteFetcher(db_path)
 
-        if keyword == 'train':
-            self.db = SqliteFetcher(PATH_TRAIN_DB)
-        elif keyword == 'val':
-            self.db = SqliteFetcher(PATH_VAL_DB)
-        elif keyword == 'test':
-            self.db = SqliteFetcher(PATH_TEST_DB)
-        elif keyword == 'predict':
-            self.db = SqliteFetcher(PATH_VAL_DB)
-        else:
-            raise KeyError('Unknown keyword given (%s) to SqliteLoader'%(keyword))
+        # ! Another method used: right now predictions saved in DB.
+        # self.ensemble, self.ensemble_inputs = self._load_ensemble(ensemble)
 
         # 'SplitInIcePulses' corresponds to all DOMs
         # 'SRTInIcePulses' corresponds to Icecubes cleaned doms
@@ -701,13 +699,8 @@ class SqliteLoader(data.Dataset):
             self.shuffle_indices()
 
     def __getitem__(self, index):
-        # import time
-        # start = time.time()
         from_, to_ = index*self.batch_size, (index+1)*self.batch_size
         ids = [str(entry) for entry in self.indices[from_:to_]]
-        # weights = [self.weights[str(idx)] for idx in ids]
-        # events_per_sec = int(self.batch_size/(time.time()-start))
-        # print('Weights loaded per second: %d'%(events_per_sec) )
         
         # Load batch - gets list back with tuples 
         # (seq_arr, scalar_arr, target_arr). Add weights afterwards.
@@ -720,7 +713,6 @@ class SqliteLoader(data.Dataset):
             mask=self.dom_mask
         )
         
-        # repack_start = time.time()
         # Tuple is now passed to collate_fn - handle training and predicting
         # differently. We need the name of the event for prediction to log
         # which belongs to which
@@ -733,11 +725,6 @@ class SqliteLoader(data.Dataset):
             pack = [
                 e+(self.keyword, ) for i_event, e in enumerate(batch)
             ]
-        # events_per_sec = int(self.batch_size/(time.time()-repack_start))
-        # print('Repacked per second: %d'%(events_per_sec) )
-        # events_per_sec = int(self.batch_size/(time.time()-start))
-        # print('Events loaded per second: %d'%(events_per_sec) )
-        # print('')
         
         return pack
 
@@ -752,25 +739,46 @@ class SqliteLoader(data.Dataset):
         '''
 
         # Get mask
-        if self.keyword == 'predict':
+        if self.db_path == PATH_TRAIN_DB:
+            _keyword = 'train'
+        elif self.db_path == PATH_VAL_DB:
             _keyword = 'val'
-        else:
-            _keyword = self.keyword
         
         self.indices = np.array(
             load_sqlite_mask(
                 self.directory, self.masks, _keyword
             )
         )
-        # print('Mask load time: %.2f'%(time.time()-indices_time) )
         
-        # Get weights
-        # weights_t = time.time()
-        # self.weights = load_sqlite_weights(self.directory, self.weights)
-        # print('Weights load time: %.2f'%(time.time()-weights_t) )
-
-        self.len = min(self.n_events_wanted, len(self.indices))//self.batch_size
+        # If training, only use full batches.
+        if self.keyword == 'train':
+            self.len = min(
+                self.n_events_wanted, len(self.indices)
+                )//self.batch_size
+        # If not, predict on everything 
+        else:
+            self.len = int(
+                np.ceil(
+                    min(
+                        self.n_events_wanted, len(self.indices)
+                    )/self.batch_size
+                )
+            ) 
+                    
+    def _load_ensemble(self, ensemble):
+        # Load ensemble (if given)
+        models = []
     
+        for entry in ensemble:
+            member = {}
+            path = locate_model(entry)
+            member['model'] = load_best_model(path)
+            member['seq_feat'], member['scalar_feat'] = find_model_input_vars(path)
+            models.append(member)
+            print(member)
+        
+        return models
+
     def shuffle_indices(self):
         random.shuffle(self.indices)
 
@@ -778,7 +786,10 @@ class SqliteLoader(data.Dataset):
 #* DATALOADER FUNCTIONS
 #* ========================================================================
 
-def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None, drop_last=False, debug_mode=False):
+def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None, drop_last=False, debug_mode=False, db_path=None):
+
+    if db_path == None:
+        raise ValueError('A DB path must be supplied!')
 
     data_dir = data_pars['data_dir'] # WHere to load data from
     seq_features = data_pars['seq_feat'] # feature names in sequences (if using LSTM-like network)
@@ -798,6 +809,8 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     dom_mask = data_pars.get('dom_mask', 'SplitInIcePulses')
     max_seq_len = data_pars.get('max_seq_len', np.inf)
     batch_size = hyper_pars.get('batch_size', None)
+    # TODO: Ensure robust loading of ensemble
+    ensemble = data_pars.get('ensemble', [])
     
     if keyword == 'train':
         drop_last = True
@@ -839,8 +852,20 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
                                 dom_mask=dom_mask, max_seq_len=max_seq_len
         )
     elif 'SqliteLoader' == data_pars['dataloader']:
-        dataloader = SqliteLoader(data_dir, seq_features, scalar_features, targets, masks=mask_names, n_events_wanted=n_events_wanted, weights=weights, dom_mask=dom_mask, max_seq_len=max_seq_len, keyword=keyword,
-        batch_size=batch_size
+        dataloader = SqliteLoader(
+            data_dir, 
+            seq_features, 
+            scalar_features, 
+            targets, 
+            masks=mask_names, 
+            n_events_wanted=n_events_wanted, 
+            weights=weights, 
+            dom_mask=dom_mask, 
+            max_seq_len=max_seq_len, 
+            keyword=keyword,
+            batch_size=batch_size,
+            ensemble=ensemble, 
+            db_path=db_path
         )
     else:
         raise ValueError('Unknown data loader requested!')
@@ -1912,7 +1937,6 @@ def load_best_model(save_dir):
     """     
     save_dir = get_project_root() + get_path_from_root(save_dir)
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
-    particle_code = get_particle_code(data_pars['particle'])
     device = get_device(meta_pars['gpu'][0])
     model_dir = save_dir+'/checkpoints'
     best_pars = find_best_model_pars(model_dir)
@@ -1927,6 +1951,22 @@ def load_best_model(save_dir):
     model = model.float()
 
     return model
+
+def find_model_input_vars(save_dir):
+    """Finds the scalar and sequential features a model requires
+    
+    Arguments:
+        save_dir {str} -- Absolute or relative path to the trained model
+    
+    Returns:
+        list1, list2 -- sequential feature names and scalar feature names.
+    """     
+    save_dir = get_project_root() + get_path_from_root(save_dir)
+    hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
+    seq_feat = data_pars['seq_feat']
+    scalar_feat = data_pars['scalar_feat']
+
+    return seq_feat, scalar_feat
     
 def make_model_architecture(arch_dict):
 

@@ -392,7 +392,13 @@ def calc_predictions_old(save_dir, wandb_ID=None):
                 
         print(get_time(), 'Predictions finished!')
 
-def calc_predictions_pickle(save_dir, wandb_ID=None):
+def calc_predictions_pickle(
+    save_dir, 
+    wandb_ID=None, 
+    ensemble_creation=False, 
+    n_predictions_wanted=-1,
+    db_path=PATH_VAL_DB
+    ):
     '''Predicts target-variables from a trained model and calculates desired functions of the target-variables. Predicts one file at a time.
     '''
 
@@ -400,14 +406,18 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(save_dir)
     model = load_best_model(save_dir)
 
-    # Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
-    n_predictions_wanted = data_pars.get('n_predictions_wanted', np.inf)
+    # Allow for possibility of setting number of wanted predictions
+    if n_predictions_wanted != -1:
+        data_pars['n_predictions_wanted'] = n_predictions_wanted
     LOG_EVERY = int(meta_pars.get('log_every', 200000)/4) 
     VAL_BATCH_SIZE = data_pars.get('val_batch_size', 256) # ! Predefined size !
     gpus = meta_pars['gpu']
     device = get_device(gpus[0])
+
+    # Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
-    val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'predict')
+    val_set = load_data(
+        hyper_pars, data_pars, arch_pars, meta_pars, 'predict', db_path=db_path)
     collate_fn = get_collate_fn(data_pars)
     loss = get_loss_func(
         arch_pars['loss_func'], 
@@ -418,8 +428,19 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
     N_VAL = get_set_length(val_set)
     
     # Run evaluator!
-    predictions, truths, indices, loss_vals = run_pickle_evaluator(model, val_generator, val_set.targets, gpus, 
-        LOG_EVERY=LOG_EVERY, VAL_BATCH_SIZE=VAL_BATCH_SIZE, N_VAL=N_VAL, loss_func=loss)
+    predictions, truths, indices, loss_vals = run_pickle_evaluator(
+        model, 
+        val_generator, 
+        val_set.targets, 
+        gpus, 
+        LOG_EVERY=LOG_EVERY, 
+        VAL_BATCH_SIZE=VAL_BATCH_SIZE, 
+        N_VAL=N_VAL, 
+        loss_func=loss)
+    
+    # Little hack - if we are predicting for ensemble, just return now
+    if ensemble_creation:
+        return predictions, indices
     
     # Run predictions through desired functions - transform back to 'true' values, if transformed
     predictions_transformed = inverse_transform(predictions, save_dir)
@@ -446,6 +467,22 @@ def calc_predictions_pickle(save_dir, wandb_ID=None):
 
     save_for_mads(predictions_transformed, indices, save_dir)
 
+def calc_raw_predictions(model_dir, n_predictions_wanted=np.inf, db_path=None):
+
+    if db_path == None:
+        raise ValueError('A DB must be supplied!')
+
+    # ======================================================================== 
+    # PREDICT USING BEST MODEL
+    # ========================================================================
+    predictions, indices = calc_predictions_pickle(
+        model_dir, 
+        ensemble_creation=True, 
+        n_predictions_wanted=n_predictions_wanted,
+        db_path=db_path
+        )
+    return predictions, indices 
+
 def save_for_mads(d, indices, save_dir):
     # Create DB for Mads
     print('')
@@ -461,7 +498,6 @@ def save_for_mads(d, indices, save_dir):
         df.to_sql('truth', con=con, if_exists='replace')
     print(get_time(), 'Creation finished!')
     
-
 def pickle_evaluator(model, device, non_blocking=False):
     """Custom evaluator. Prepares an Ignite Engine for inference specifically for evaluation with the PickleLoader as dataloader
     
@@ -688,9 +724,9 @@ def train(
     print(get_time(), 'Loading data...')
     # We split in each file (after its been shuffled..)
     # Now load data
-    train_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'train', debug_mode=debug_mode)
-    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, arch_pars, meta_pars, 'train', debug_mode=debug_mode)
-    val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'val', debug_mode=debug_mode)
+    train_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'train', debug_mode=debug_mode, db_path=PATH_TRAIN_DB)
+    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, arch_pars, meta_pars, 'train', debug_mode=debug_mode, db_path=PATH_TRAIN_DB)
+    val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'val', debug_mode=debug_mode, db_path=PATH_VAL_DB)
 
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)
