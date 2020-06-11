@@ -2395,7 +2395,13 @@ def log_performance_plots(model_dir, wandb_ID=None):
     performance.save()
     print(get_time(), 'Evaluation of performance finished!')
 
-def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 0.775, 0.77]):
+def make_plot(
+    plot_dict, 
+    h_figure=None, 
+    axes_index=None, 
+    position=[0.125, 0.11, 0.775, 0.77],
+    for_thesis=False
+    ):
     """A custom plot function using PyPlot. If 'x' AND 'y' are in plot_dict, a xy-graph is returned, if 'data' is given, a histogram is returned.
     
     Arguments:
@@ -2412,8 +2418,9 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
     Returns:
         [plt.figure_handle] -- handle to figure.
     """    
-    
-    plt.style.use('default')
+    if not for_thesis:
+        plt.style.use('default')
+
     alpha = 0.3
     if 'grid' in plot_dict:
         grid_on = plot_dict['grid']
@@ -2425,7 +2432,10 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         h_figure = plt.figure()
         h_axis = h_figure.add_axes(position)
     else:
-        h_axis = h_figure.gca()
+        if isinstance(axes_index, int):
+            h_axis = h_figure.get_axes()[axes_index]
+        else:
+            h_axis = h_figure.gca()
 
     if 'twinx' in plot_dict and h_figure != None:
         if plot_dict['twinx']:
@@ -2465,7 +2475,7 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
 
         for i_set, data in enumerate(plot_dict['data']):
             
-            plot_keys = ['label', 'alpha', 'density', 'bins', 'weights', 'histtype', 'log', 'color']
+            plot_keys = ['label', 'alpha', 'density', 'bins', 'weights', 'histtype', 'log', 'color', 'stacked']
             
             #* Set baseline
             if len(plot_dict['data']) > 1:
@@ -2475,7 +2485,8 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
 
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
-            
+            if 'range' in plot_dict:
+                data = np.clip(data, plot_dict['range'][0], plot_dict['range'][1])
             h_axis.hist(data, **d)
 
             if 'label' in plot_dict: h_axis.legend()
@@ -2491,15 +2502,19 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
 
         if type(set1) == torch.Tensor: set1 = set1.cpu().numpy()
         if type(set2) == torch.Tensor: set2 = set2.cpu().numpy()
-
+        binrange = plot_dict.get('range', None)
         #* Get bin-widths
-        _, widths1 = np.histogram(set1, bins='fd')
-        _, widths2 = np.histogram(set2, bins='fd')
+        if not 'n_bins' in plot_dict:
+            _, widths1 = np.histogram(set1, bins='fd')
+            _, widths2 = np.histogram(set2, bins='fd')
 
-        #* Rescale 
-        widths1 = np.linspace(min(widths1), max(widths1), int(0.5 + widths1.shape[0]/4.0))
-        widths2 = np.linspace(min(widths2), max(widths2), int(0.5 + widths2.shape[0]/4.0))
-        plt.hist2d(set1, set2, bins=[widths1, widths2], zorder=plot_dict.get('zorder', 0), cmap='Oranges')
+            #* Rescale 
+            widths1 = np.linspace(min(widths1), max(widths1), int(0.5 + widths1.shape[0]/4.0))
+            widths2 = np.linspace(min(widths2), max(widths2), int(0.5 + widths2.shape[0]/4.0))
+            plt.hist2d(set1, set2, bins=[widths1, widths2], range=binrange, zorder=plot_dict.get('zorder', 0), cmap='Oranges')
+        else:
+            bins = plot_dict['n_bins']
+            plt.hist2d(set1, set2, bins=bins, range=binrange, zorder=plot_dict.get('zorder', 0), cmap='Oranges')
         plt.colorbar()
 
     elif 'hexbin' in plot_dict:
@@ -2611,12 +2626,22 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         plt.text(*plot_dict['text'], transform=h_axis.transAxes)
     
     if 'title' in plot_dict:
-        plt.title(plot_dict['title'])
+        h_axis.set_title(plot_dict['title'], loc='left')
 
     if 'yrange' in plot_dict:
-        h_axis.set_ylim(**plot_dict['yrange'])
+        if isinstance(plot_dict['yrange'], dict):
+            h_axis.set_ylim(**plot_dict['yrange'])
+        elif isinstance(plot_dict['yrange'], list):
+            h_axis.set_ylim(
+                bottom=plot_dict['yrange'][0], top=plot_dict['yrange'][1]
+                )
     if 'xrange' in plot_dict:
-        h_axis.set_xlim(**plot_dict['xrange'])
+        if isinstance(plot_dict['xrange'], dict):
+            h_axis.set_xlim(**plot_dict['xrange'])
+        elif isinstance(plot_dict['xrange'], list):
+            h_axis.set_xlim(
+                left=plot_dict['xrange'][0],right=plot_dict['xrange'][1]
+                )
 
     if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
     if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
@@ -2630,45 +2655,6 @@ def make_plot(plot_dict, h_figure=None, axes_index=None, position=[0.125, 0.11, 
         plt.close(fig=h_figure)
 
     return h_figure
-
-def save_thesis_pgf(path, f):
-    all_figs_path = str(path.parent.parent) + '/all_pgf/' + str(path.parent.stem) + '.pgf'
-    f.savefig(str(path.parent) + '/fig.png', bbox_inches='tight')
-    f.savefig(all_figs_path, bbox_inches='tight')
-    print(get_time(), str(path.parent.stem) + ' saved.')
-
-def setup_pgf_plotting():
-    # Setup saving of pgf-plots for thesis
-    mpl.use("pgf")
-    mpl.rcParams.update({
-        "pgf.texsystem": "pdflatex",
-        'font.family': 'serif',
-        'font.size': 32,
-        'text.usetex': True,
-        'pgf.rcfonts': False,
-        'text.latex.preamble': [
-            r'\usepackage{amsmath}'
-        ],
-    })
-
-def get_figure_width(frac_of_textwidth=1.0):
-    textwidth = 4.65015 # inches
-    return textwidth*frac_of_textwidth
-
-def get_figure_height(width=None):
-    ratio = 4.8/6.4
-    return width * ratio
-
-def get_frac_of_textwidth(keyword='single_fig'):
-    
-    if keyword == 'single_fig':
-        frac = 1.0
-    elif keyword == '2subfigs':
-        frac = 0.65
-    else:
-        raise KeyError('Unknown keyword (%s) given to get_frac_of_textwidth!'%(keyword))
-    return frac
-        
 
 def summarize_model_performance(model_dir, wandb_ID=None):
     """Summarizes a model's performance with a single number by updating the meta_pars-dictionary of the experiment.

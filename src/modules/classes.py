@@ -1408,7 +1408,12 @@ class MakeModel(nn.Module):
                 # But make sure to only do it once.
                 if 'scalars' in locals(): 
                     if add_scalars: 
-                        x, add_scalars = self.concat_scalars(x, scalars)
+                        try:
+                            x, add_scalars = self.concat_scalars(x, scalars)
+                        # If x undefined, it means no sequential layers are in the model
+                        except UnboundLocalError:
+                            x = scalars
+                            add_scalars = False
                 
                 # Send through layers!
                 x = entry(x)
@@ -1453,7 +1458,12 @@ class MakeModel(nn.Module):
                 # But make sure to only do it once.
                 if 'scalars' in locals(): 
                     if add_scalars: 
-                        x, add_scalars = self.concat_scalars(x, scalars)
+                        try:
+                            x, add_scalars = self.concat_scalars(x, scalars)
+                        # If x undefined, it means no sequential layers are in the model
+                        except UnboundLocalError:
+                            x = scalars
+                            add_scalars = False
 
                 x = entry(x)
             

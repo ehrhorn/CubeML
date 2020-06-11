@@ -8,19 +8,24 @@
 # from multiprocessing import Pool, cpu_count
 
 # from src.modules.classes import *
-# from pathlib import Path
+from pathlib import Path
 # from src.modules.reporting import *
 # from src.modules.constants import *
 # import src.modules.loss_funcs as lf
 import src.modules.helper_functions as hf
+import subprocess
 # from src.modules.eval_funcs import *
-import src.modules.reporting as rpt
-from src.modules.classes import *
 # from src.modules.preprocessing import *
 # # import src.modules.preprocessing as pp
 # from src.modules.main_funcs import *
 # import shelve
 # import sys
 # from time import sleep
-import numpy as np
-import pickle
+for path in Path(hf.get_project_root() + '/reports/thesis_plots').iterdir():
+    if path.is_dir():
+        if path.name == 'all_pgf':
+            continue
+        print(hf.get_time(), 'Running', path.name)
+        runpath = str(path) + '/script.py'
+        subprocess.call(['python', runpath])
+        print('')

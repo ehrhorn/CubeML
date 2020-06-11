@@ -144,7 +144,14 @@ def explore_lr(hyper_pars, data_pars, arch_pars, meta_pars, save=True):
     print(get_time(), 'LEARNING RATE FINDER INITIATED')
     BATCH_SIZE = hyper_pars['batch_size']
     print('Loading data...')
-    train_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'train')
+    train_set = load_data(
+        hyper_pars, 
+        data_pars, 
+        arch_pars, 
+        meta_pars, 
+        'train', 
+        db_path=PATH_TRAIN_DB
+        )
     N_TRAIN = get_set_length(train_set)
     n_epochs = hyper_pars['lr_finder']['n_epochs'] 
     start_lr = hyper_pars['lr_finder']['start_lr']
@@ -417,7 +424,8 @@ def calc_predictions_pickle(
     # Setup dataloader and generator - num_workers choice based on gut feeling - has to be high enough to not be a bottleneck
     dataloader_params_eval = get_dataloader_params(VAL_BATCH_SIZE, num_workers=8, shuffle=False, dataloader=data_pars['dataloader'])
     val_set = load_data(
-        hyper_pars, data_pars, arch_pars, meta_pars, 'predict', db_path=db_path)
+        hyper_pars, data_pars, arch_pars, meta_pars, 'predict', db_path=db_path
+        )
     collate_fn = get_collate_fn(data_pars)
     loss = get_loss_func(
         arch_pars['loss_func'], 
@@ -465,7 +473,7 @@ def calc_predictions_pickle(
             f.create_dataset(key, data=pred)#np.array([x.cpu().numpy() for x in pred]))
     print(get_time(), 'Predictions saved!')
 
-    save_for_mads(predictions_transformed, indices, save_dir)
+    # save_for_mads(predictions_transformed, indices, save_dir)
 
 def calc_raw_predictions(model_dir, n_predictions_wanted=np.inf, db_path=None):
 
@@ -724,9 +732,33 @@ def train(
     print(get_time(), 'Loading data...')
     # We split in each file (after its been shuffled..)
     # Now load data
-    train_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'train', debug_mode=debug_mode, db_path=PATH_TRAIN_DB)
-    trainerr_set = load_data(hyper_pars_copy, data_pars_copy, arch_pars, meta_pars, 'train', debug_mode=debug_mode, db_path=PATH_TRAIN_DB)
-    val_set = load_data(hyper_pars, data_pars, arch_pars, meta_pars, 'val', debug_mode=debug_mode, db_path=PATH_VAL_DB)
+    train_set = load_data(
+        hyper_pars, 
+        data_pars, 
+        arch_pars, 
+        meta_pars, 
+        'train', 
+        debug_mode=debug_mode, 
+        db_path=PATH_TRAIN_DB
+        )
+    trainerr_set = load_data(
+        hyper_pars_copy, 
+        data_pars_copy, 
+        arch_pars, 
+        meta_pars, 
+        'train', 
+        debug_mode=debug_mode, 
+        db_path=PATH_TRAIN_DB
+        )
+    val_set = load_data(
+        hyper_pars, 
+        data_pars, 
+        arch_pars, 
+        meta_pars, 
+        'val', 
+        debug_mode=debug_mode, 
+        db_path=PATH_VAL_DB
+        )
 
     N_TRAIN = get_set_length(train_set)
     N_VAL = get_set_length(val_set)

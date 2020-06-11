@@ -35,7 +35,7 @@ def make_mask(db, mask_name='all', min_doms=0, max_doms=np.inf, min_energy=-np.i
     if mask_name == 'dom_interval':
         mask, mask_name= make_dom_interval_mask(db, ids, min_doms, max_doms)
     
-    if mask_name == 'dom_interval_SRTInIcePulses':
+    elif mask_name == 'dom_interval_SRTInIcePulses':
         mask, mask_name= make_dom_interval_mask(db, ids, min_doms, max_doms, dom_mask='SRTInIcePulses')
 
     elif mask_name == 'all':
@@ -258,8 +258,8 @@ if __name__ == '__main__':
 
     # * Loop over different DBs
     for path, ext in zip(
-        [PATH_TRAIN_DB, PATH_VAL_DB], 
-        ['_train.pickle', '_val.pickle']
+        [PATH_TRAIN_DB, PATH_VAL_DB, PATH_TEST_DB], 
+        ['_train.pickle', '_val.pickle', '_test.pickle']
     ):
         
         db = SqliteFetcher(path)

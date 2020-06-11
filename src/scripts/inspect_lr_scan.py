@@ -11,6 +11,8 @@ parser = argparse.ArgumentParser(description=description)
 parser.add_argument('-p', '--path', metavar='', type=str, help='Path to model directory')
 parser.add_argument('--max_lr', default=1e0, type=float, help='Sets the maximum learning rate for scan inspection.')
 parser.add_argument('--min_lr', default=1e-6, type=float, help='Sets the minimum learning rate for scan inspection.')
+parser.add_argument('--max_yrange', default=np.inf, type=float, help='Sets the minimum learning rate for scan inspection.')
+parser.add_argument('--min_yrange', default=np.inf, type=float, help='Sets the minimum learning rate for scan inspection.')
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -33,6 +35,25 @@ if __name__ == '__main__':
 
     chosen_lrs = np.array(lrs)[indices]
     chosen_losses = np.array(losses)[indices]
-    d = {'x': [chosen_lrs], 'y': [chosen_losses], 'xscale': 'log', 'savefig': model+'/lr_vs_loss.png', 'xlabel': 'Learning Rate', 'ylabel': 'Loss'}
+    if args.max_yrange != np.inf:
+        maxy = args.max_yrange
+    else:
+        # maxy = np.max(chosen_losses)
+        maxy = None
+    
+    if args.min_yrange != np.inf:
+        miny = args.min_yrange
+    else:
+        # miny = np.min(chosen_losses)
+        miny = None
+
+    d = {
+        'x': [chosen_lrs], 
+        'y': [chosen_losses], 
+        'xscale': 'log', 
+        'savefig': model+'/lr_vs_loss.png', 
+        'xlabel': 'Learning Rate', 
+        'ylabel': 'Loss',
+        'yrange': {'bottom': miny, 'top': maxy}}
     fig = make_plot(d)
 

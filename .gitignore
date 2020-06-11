@@ -95,8 +95,12 @@ target/
 temp/
 
 *.h5
+*.png
+*.pgf
+*.pdf
+*.out
+*.pickle
 nohup.out
-/reports
 /data
 /models
 /experiments

@@ -57,7 +57,6 @@ ENSEMBLE = {
         # https://app.wandb.ai/cubeml/cubeml/runs/2020-04-23-00.02.48/overview?workspace=user-bjoernmoelvig
         '2020-04-23-00.02.48',
 
-        # Needs pred 
         # https://app.wandb.ai/cubeml/cubeml/runs/2020-05-30-11.12.08/overview?workspace=user-bjoernmoelvig
         '2020-05-30-11.12.08'
     ]
