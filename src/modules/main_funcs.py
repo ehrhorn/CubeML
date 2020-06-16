@@ -21,7 +21,7 @@ from src.modules.loss_funcs import *
 from src.modules.helper_functions import *
 from src.modules.eval_funcs import *
 from src.modules.reporting import *
-from src.modules.preprocessing import DomChargeScaler, EnergyNoLogTransformer
+# from src.modules.preprocessing import DomChargeScaler, EnergyNoLogTransformer
 
 def calc_lr_vs_loss(model, optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, gpus, n_epochs=1, start_lr=0.000001, end_lr=0.1):
     '''Performs a scan over a learning rate-interval of interest with an exponentially increasing learning rate.
@@ -585,7 +585,7 @@ def run_experiments(log=True, newest_first=False):
     n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
     
     # ! Someone online set to add next line to ensure CUDA works...
-    multiprocessing.set_start_method('spawn')
+    # multiprocessing.set_start_method('spawn')
     while n_exps>0:
         
         for exp in exps:
@@ -622,6 +622,7 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
     # standard deviations aswell 
     loss_name = type(loss_func).__name__
     PROBABILISTIC_REGRESSION = is_probabilistic(loss_name)
+    CLASSIFICATION = is_classification(loss_name)
 
     if PROBABILISTIC_REGRESSION:
         sigma_keys = ['sigma_'+key for key in targets]
@@ -642,11 +643,15 @@ def run_pickle_evaluator(model, val_generator, targets, gpus, LOG_EVERY=50000, V
         pred, target, indices = engine.state.output
         truth = target[0]
         weights = target[1]
-        
+
         # Save loss values aswell - we call .item() to detach it from gradient graph
         loss = loss_func(pred, target, predict=True)
         loss_vals.extend([loss_val.item() for loss_val in loss])
         indices_PadSequence_sorted.extend(indices)
+
+        # send through softmax to convert to probabilities - softmax is done in loss function, not by model.
+        if CLASSIFICATION:
+            pred = torch.nn.Softmax(dim=-1)(pred)
         for i_batch in range(pred.shape[0]):
             for i_key, key in enumerate(targets):
                 predictions[key].append(pred[i_batch, i_key].item())
@@ -842,34 +847,34 @@ def train(
         evaluator_val.add_event_handler(Events.EPOCH_COMPLETED, early_stop_handler)
 
 
-    # ====================================================================== #
-    # DO LEARNING RATE SCAN
-    # ====================================================================== #
+    # # ====================================================================== #
+    # # DO LEARNING RATE SCAN
+    # # ====================================================================== #
 
-    if scan_lr_before_train:
-        pretrain_hyper_pars = hyper_pars['optimizer'].copy()
-        pretrain_hyper_pars['lr'] = 0.000001
+    # if scan_lr_before_train:
+    #     pretrain_hyper_pars = hyper_pars['optimizer'].copy()
+    #     pretrain_hyper_pars['lr'] = 0.000001
 
-        lr_model = MakeModel(arch_pars, device)
-        lr_model = lr_model.float()
-        lr_model = lr_model.to(device)
+    #     lr_model = MakeModel(arch_pars, device)
+    #     lr_model = lr_model.float()
+    #     lr_model = lr_model.to(device)
 
-        pretrain_optimizer = get_optimizer(lr_model.parameters(), pretrain_hyper_pars)
-        pretrain_lr, pretrain_losses = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, gpus, start_lr=pretrain_hyper_pars['lr'])
+    #     pretrain_optimizer = get_optimizer(lr_model.parameters(), pretrain_hyper_pars)
+    #     pretrain_lr, pretrain_losses = calc_lr_vs_loss(lr_model, pretrain_optimizer, loss, train_generator, BATCH_SIZE, N_TRAIN, gpus, start_lr=pretrain_hyper_pars['lr'])
 
-        vlines = []
-        if 'base_lr' in hyper_pars['lr_schedule']:
-            vlines.append(hyper_pars['lr_schedule']['base_lr'])
-        if 'max_lr' in hyper_pars['lr_schedule']:
-            vlines.append(hyper_pars['lr_schedule']['max_lr'])
+    #     vlines = []
+    #     if 'base_lr' in hyper_pars['lr_schedule']:
+    #         vlines.append(hyper_pars['lr_schedule']['base_lr'])
+    #     if 'max_lr' in hyper_pars['lr_schedule']:
+    #         vlines.append(hyper_pars['lr_schedule']['max_lr'])
         
-        if log:
-            img_address = save_dir+'/figures/pretrain_lr_vs_loss.png'
-            _ = make_plot({'x': [pretrain_lr], 'y': [pretrain_losses], 'xscale': 'log', 'savefig': img_address, 'xlabel': 'Learning Rate', 'ylabel': 'Loss', 'axvline': vlines})
-            pickle.dump(pretrain_lr, open(save_dir+'/pretrain_lr.pickle', 'wb'))
-            pickle.dump(pretrain_losses, open(save_dir+'/pretrain_loss_vals.pickle', 'wb'))
-            im = PIL.Image.open(img_address)
-            wandb.log({'Pretrain LR-scan': wandb.Image(im, caption='Pretrain LR-scan')}, commit=False)
+    #     if log:
+    #         img_address = save_dir+'/figures/pretrain_lr_vs_loss.png'
+    #         _ = make_plot({'x': [pretrain_lr], 'y': [pretrain_losses], 'xscale': 'log', 'savefig': img_address, 'xlabel': 'Learning Rate', 'ylabel': 'Loss', 'axvline': vlines})
+    #         pickle.dump(pretrain_lr, open(save_dir+'/pretrain_lr.pickle', 'wb'))
+    #         pickle.dump(pretrain_losses, open(save_dir+'/pretrain_loss_vals.pickle', 'wb'))
+    #         im = PIL.Image.open(img_address)
+    #         wandb.log({'Pretrain LR-scan': wandb.Image(im, caption='Pretrain LR-scan')}, commit=False)
 
     # ====================================================================== #
     # SETUP LOGGING

@@ -14,9 +14,13 @@ POINTLIKE_LOSS_FUNCS = [
     'cosine_similarity_UnitVectorPenalty'
 ]
 
-#* ======================================================================== 
-#* LOSS FUNCTIONS
-#* ======================================================================== 
+CLASSIFICATION_LOSS_FUNCS = [
+    'CrossEntropyLoss'
+]
+
+# ======================================================================== 
+# LOSS FUNCTIONS
+# ======================================================================== 
 
 class cosine_loss(torch.nn.Module):
     '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds and multiplies denominator with 1e-7 and 1+1e-7 to avoid division with zero.
@@ -127,6 +131,41 @@ class cosine_similarity_UnitVectorPenalty(torch.nn.Module):
             loss_weighted = weights * (cos + pen)
 
         return loss_weighted
+
+class CrossEntropyLoss(torch.nn.Module):
+ 
+    def __init__(self):
+        super(CrossEntropyLoss, self).__init__()
+        self._logsoftmax = torch.nn.LogSoftmax(dim=-1)
+
+    def forward(self, x, y, predict=False):
+        """Computes the weighted cross entropy loss. does NOT take softmax'ed input - it is done during loss calculation. 
+        
+        Arguments:
+            x {torch.Tensor} -- Predictions of shape (B, F), where F is number of targets
+            y {tuple} -- (targets, weights), where targets is of shape (B, F) and weights of shape (F)
+        
+        Returns:
+            [torch.Tensor] -- Averaged, weighted loss over batch.
+        """      
+        
+        # Unpack into targets and weights
+        targets, weights = y
+
+        # Calculate loss
+        logprobs = self._logsoftmax(x)
+        raw_loss = -torch.sum(targets*logprobs, dim=-1)   
+
+        # Weight it        
+        loss_weighted = raw_loss * weights
+
+        # Mean over the batch
+        if not predict:
+            loss = torch.mean(loss_weighted)
+        else:
+            loss = loss_weighted
+        
+        return loss
 
 class angle_loss_old(torch.nn.Module):
     '''takes two tensors with shapes (B, 3) as input and calculates the angular error. Adds and multiplies denominator with 1e-7 and 1+1e-7 to avoid division with zero.
@@ -468,16 +507,36 @@ def get_loss_func(name, weights=None, device=None):
         return cosine_similarity()
     elif name == 'cosine_similarity_UnitVectorPenalty':
         return cosine_similarity_UnitVectorPenalty()
+    elif name == 'CrossEntropyLoss':
+        return CrossEntropyLoss()
     else:
         raise ValueError('Unknown loss function requested!')
 
 def is_probabilistic(loss_name):
+
     if loss_name in PROBABILISTIC_LOSS_FUNCS:
         PROBABILISTIC_REGRESSION = True
-    elif loss_name in POINTLIKE_LOSS_FUNCS:
+    elif (
+        loss_name in POINTLIKE_LOSS_FUNCS or
+        loss_name in CLASSIFICATION_LOSS_FUNCS
+        ):
         PROBABILISTIC_REGRESSION = False
     else:
         raise ValueError(
         'Unknown loss function-kind encountered(%s)'%(loss_name))
     
     return PROBABILISTIC_REGRESSION
+
+def is_classification(loss_name):
+    if loss_name in CLASSIFICATION_LOSS_FUNCS:
+        CLASSIFICATION = True
+    elif (
+        loss_name in POINTLIKE_LOSS_FUNCS or
+        loss_name in PROBABILISTIC_LOSS_FUNCS
+        ):
+        CLASSIFICATION = False
+    else:
+        raise ValueError(
+        'Unknown loss function-kind encountered(%s)'%(loss_name))
+    
+    return CLASSIFICATION

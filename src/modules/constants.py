@@ -59,5 +59,24 @@ ENSEMBLE = {
 
         # https://app.wandb.ai/cubeml/cubeml/runs/2020-05-30-11.12.08/overview?workspace=user-bjoernmoelvig
         '2020-05-30-11.12.08'
+    ],
+
+    'energy_reg': [
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-04-20-08.19.33?workspace=user-bjoernmoelvig
+        '2020-04-20-08.19.33',
+
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-04-16-11.34.16?workspace=user-bjoernmoelvig
+        '2020-04-16-11.34.16',
+
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-03-20-11.43.00?workspace=user-bjoernmoelvig
+        '2020-03-20-11.43.00',
+
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-03-08-07.39.49?workspace=user-bjoernmoelvig
+        '2020-03-08-07.39.49',
+
+        # https://app.wandb.ai/cubeml/cubeml/runs/2020-03-05-21.09.41?workspace=user-bjoernmoelvig
+        '2020-03-05-21.09.41'
     ]
 }
+
+CLASSIFICATION = ['nue_numu']

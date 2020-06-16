@@ -19,6 +19,13 @@ parser.add_argument(
     help='Paths to model directories'
     )
 parser.add_argument(
+    '--prediction_keys', 
+    nargs='+', 
+    metavar='', 
+    type=str, 
+    help='Paths to model directories'
+    )
+parser.add_argument(
     '-n', 
     '--n_predictions_wanted', 
     type=int,
@@ -33,7 +40,9 @@ if __name__ == '__main__':
     
     if len(model_dirs) == 0:
         raise ValueError('No models supplied!')
-    
+    if args.prediction_keys is None:
+        raise ValueError('Wanted prediction keys must be supplied!')
+
     for model_dir in model_dirs:
         
         # Locate the model directory
@@ -45,12 +54,16 @@ if __name__ == '__main__':
 
         
         for path in [PATH_TRAIN_DB, PATH_VAL_DB]:
-            predictions, indices = calc_raw_predictions(
+            preds, indices = calc_raw_predictions(
                 model, 
                 n_predictions_wanted=args.n_predictions_wanted, 
                 db_path=path
                 )
             
+            predictions = {}
+            for key in args.prediction_keys:
+                predictions[key] = preds[key]
+
             indices = [str(entry) for entry in indices]
             db = SqliteFetcher(path)
             keys = [key for key in predictions]

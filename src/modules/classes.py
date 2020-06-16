@@ -288,6 +288,7 @@ class SqliteFetcher:
         scalar_features=[],
         seq_features=[],
         meta_features=[],
+        reg_type=None
         ):
         
         # Connect to DB and set cursor
@@ -305,13 +306,6 @@ class SqliteFetcher:
             if 'event_no' in scalar_features or 'event_no' in meta_features:
                 raise KeyError('event_no cannot be requested!')
 
-            # if 'event' in seq_features or 'event_no':
-            #     raise KeyError('event in seq_features cannot be requested!')
-
-            # # Ensure all_events are sorted
-            # all_events.sort()
-
-            # If > self._max_events_per_query are wanted, 
             # load over several rounds
             n_chunks = n_events//self._max_events_per_query
             chunks = np.array_split(all_events, max(1, n_chunks))
@@ -384,7 +378,8 @@ class SqliteFetcher:
         seqs=[],
         targets=[],
         weights=[],
-        mask=[]
+        mask=[],
+        reg_type=None
         ):
         
         n_events = len(ids)
@@ -397,12 +392,13 @@ class SqliteFetcher:
         if not isinstance(ids[0], str):
             raise ValueError('Events must be IDs as strings')
 
-        # Make sure IDs are sorted
-        # ids.sort()
-
         # Prepare single-number queries
         scalar_cols = ['scalar.'+e for e in scalars]
-        target_cols = ['scalar.'+e for e in targets]
+        if reg_type is None:
+            target_cols = ['scalar.'+e for e in targets]  
+        elif reg_type in CLASSIFICATION:
+            target_cols = ['meta.particle_code']
+
         lengths_key = ['meta.split_in_ice_pulses_event_length']
         weights_col = ['scalar.'+e for e in weights]
 
@@ -436,14 +432,28 @@ class SqliteFetcher:
         all_to = cumsum[1:]
         
         n_scalars = len(scalars)
-        n_targets = len(targets)
+        n_targets = len(target_cols)
         n_seqs = len(seqs)
         for i_event in range(n_events):
             
             # Make scalar, weights and target arrays. Weights is always 
             # second 
             scalar_arr = np.array(singles[i_event][:n_scalars])
-            target_arr = np.array(singles[i_event][n_scalars:n_scalars+n_targets])
+
+            # Handle classification differently 
+            # - we manually convert particle code to a one-hot encoding
+            if reg_type in CLASSIFICATION:
+                particle_code = singles[i_event][n_scalars:n_scalars+n_targets][0]
+                if particle_code == 120000:
+                    target_arr = np.array([1.0, 0.0])
+                elif particle_code == 140000:
+                    target_arr = np.array([0.0, 1.0])
+                else:
+                    raise ValueError('Unknown classificatione encountered')
+            else:
+                target_arr = np.array(
+                    singles[i_event][n_scalars:n_scalars+n_targets]
+                    )
             weight = singles[i_event][-2]
             
             # Make sequential array
@@ -465,7 +475,7 @@ class SqliteFetcher:
 
             # Add to list of events
             batch[i_event] = (seq_arr, scalar_arr, target_arr, weight)
-        
+
         return batch
 
     def write(self, table, name, ids, values, astype='REAL'):
@@ -657,7 +667,8 @@ class SqliteLoader(data.Dataset):
         keyword=None, 
         batch_size=None,
         ensemble=[],
-        db_path=None
+        db_path=None,
+        reg_type=None
         ):
         if batch_size == None:
             raise ValueError('A batchsize must be specified!')
@@ -670,6 +681,7 @@ class SqliteLoader(data.Dataset):
         self.seq_features = seq_features
         self.targets = targets
         self.keyword = keyword
+        self.reg_type = reg_type
 
         self.n_scalar_features = len(scalar_features)
         self.n_seq_features = len(seq_features)
@@ -710,7 +722,8 @@ class SqliteLoader(data.Dataset):
             seqs=self.seq_features, 
             targets=self.targets,
             weights=self.weights, 
-            mask=self.dom_mask
+            mask=self.dom_mask,
+            reg_type=self.reg_type
         )
         
         # Tuple is now passed to collate_fn - handle training and predicting
@@ -786,7 +799,17 @@ class SqliteLoader(data.Dataset):
 #* DATALOADER FUNCTIONS
 #* ========================================================================
 
-def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file_list=None, drop_last=False, debug_mode=False, db_path=None):
+def load_data(
+    hyper_pars, 
+    data_pars, 
+    architecture_pars, 
+    meta_pars, 
+    keyword, 
+    file_list=None, 
+    drop_last=False, 
+    debug_mode=False, 
+    db_path=None
+    ):
 
     if db_path == None:
         raise ValueError('A DB path must be supplied!')
@@ -811,6 +834,7 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
     batch_size = hyper_pars.get('batch_size', None)
     # TODO: Ensure robust loading of ensemble
     ensemble = data_pars.get('ensemble', [])
+    regression = meta_pars['group']
     
     if keyword == 'train':
         drop_last = True
@@ -865,7 +889,8 @@ def load_data(hyper_pars, data_pars, architecture_pars, meta_pars, keyword, file
             keyword=keyword,
             batch_size=batch_size,
             ensemble=ensemble, 
-            db_path=db_path
+            db_path=db_path,
+            reg_type=regression
         )
     else:
         raise ValueError('Unknown data loader requested!')
@@ -1777,13 +1802,14 @@ class SoftPlusSigma(nn.Module):
 
 class Tanh(nn.Module):
     
-    def __init__(self):
+    def __init__(self, layer_dict=None):
                 
         super(Tanh, self).__init__()
         self._tanh = torch.nn.Tanh()
+        self._scale = 1.0 if layer_dict is None else layer_dict['scale']
     
     def forward(self, x, device=None):
-        output = self._tanh(x)
+        output = self._scale * self._tanh(x/self._scale)
         
         return output
 
@@ -2024,7 +2050,7 @@ def make_model_architecture(arch_dict):
             elif key == 'SoftPlusSigma':
                 modules.append(SoftPlusSigma())
             elif key == 'Tanh':
-                modules.append(Tanh())
+                modules.append(Tanh(layer_dict))
             else: 
                 raise ValueError('An unknown module (%s) could not be added in model generation.'%(key))
 

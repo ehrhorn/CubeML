@@ -51,17 +51,18 @@ parser.add_argument('--max_seq_len', default=np.inf, type=int,
         'sequence is chosen')
 parser.add_argument('--regression', default='None', type=str, 
         help='Sets the regression type to run. Options: full_reg,' \
-        'direction_reg, vertex_reg, vertex_reg_no_time, energy_reg')
+        'direction_reg, vertex_reg, vertex_reg_no_time, energy_reg, ' \
+        'nue_numu')
 parser.add_argument('--loss', default='None', type=str, 
         help='Sets the loss function to use. Options: L2, logcosh')
 parser.add_argument('--masks', nargs='+', default='None', type=str, 
         help='Sets the masks to choose data. Options:'\
         'dom_interval_SplitInIcePulses_min0_max200,'\
         'dom_interval_SRTInIcePulses_min0_max200, muon_neutrino,'\
-        'energy_interval_min0.0_max3.0')
+        'energy_interval_min0.0_max3.0, nue_numu')
 parser.add_argument('--weights', default='None', type=str, 
         help='Sets the weights to use. Options: geomean_energy_entry,'\
-        'inverse_performance_muon_energy, None')
+        'inverse_performance_muon_energy, None, nue_numu_balanced')
 parser.add_argument('--dom_mask', default='SplitInIcePulses', type=str, 
         help='Sets the DOM mask to use. Options: SplitInIcePulses,'\
         'dom_interval_SRTInIcePulses')
@@ -77,7 +78,7 @@ parser.add_argument('--max_epochs', default=17, type=int,
         help='Sets the max amount of train epochs.')
 parser.add_argument('--optimizer', default='Adam', type=str,
         help='Sets which optimizer to use. Options: Adam, SGD')
-parser.add_argument('--n_workers', default=5, type=int,
+parser.add_argument('--n_workers', default=8, type=int,
         help='Sets number of workers to use during loading.')
 parser.add_argument(
         '--nonlin', 
@@ -214,18 +215,18 @@ if __name__ == '__main__':
                                 # 'dom_d_closest',
                                 # 'dom_d_minkowski_closest',
                                 
-                                # 'dom_atwd',
-                                # 'dom_pulse_width',
-                                # 'dom_closest1_x',
-                                # 'dom_closest1_y',
-                                # 'dom_closest1_z',
-                                # 'dom_closest1_time',
-                                # 'dom_closest1_charge',
-                                # 'dom_closest2_x',
-                                # 'dom_closest2_y',
-                                # 'dom_closest2_z',
-                                # 'dom_closest2_time',
-                                # 'dom_closest2_charge'
+                                'dom_atwd',
+                                'dom_pulse_width',
+                                'dom_closest1_x',
+                                'dom_closest1_y',
+                                'dom_closest1_z',
+                                'dom_closest1_time',
+                                'dom_closest1_charge',
+                                'dom_closest2_x',
+                                'dom_closest2_y',
+                                'dom_closest2_z',
+                                'dom_closest2_time',
+                                'dom_closest2_charge'
                                 ],
                                 # 'dom_d_vertex',
                                 # 'dom_d_minkowski_vertex',
@@ -320,6 +321,8 @@ if __name__ == '__main__':
         ]
     if regression_type == 'angle_reg':
         layers.append({'Angle2Unitvector': []})
+    elif regression_type == 'nue_numu':
+        layers.append({'Tanh': {'scale': 10}})
     elif args.loss == 'logscore':
         layers.append({'SoftPlusSigma': []})
 

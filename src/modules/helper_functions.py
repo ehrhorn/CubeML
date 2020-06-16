@@ -1377,7 +1377,10 @@ def get_target_keys(data_pars, meta_pars):
         
         elif meta_pars['group'] == 'angle_reg':
             target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
-        
+
+        elif meta_pars['group'] == 'nue_numu':
+            target_keys = ['p_nue', 'p_numu']
+
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
     
@@ -1722,6 +1725,21 @@ def make_multiprocess_pack(discriminator, *stuff):
     for entry in stuff:
         lists.append([entry]*n_copies)
     return zip(*lists)
+
+def mask_union(data_dir, masks):
+
+    # Load masks    
+    masks_path = data_dir + '/masks/'
+    list_of_masks = []
+    union = set()
+    for maskname in masks:
+        with open(masks_path+maskname+'.pickle', 'rb') as f:
+            mask = pickle.load(f)
+            union = union.union(set(mask))
+
+    combined_list = list(union)
+
+    return combined_list
 
 def nonnormed_gauss(x, N, mu, sigma):
     const = N/(np.sqrt(2*np.pi)*sigma)

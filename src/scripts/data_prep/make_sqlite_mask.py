@@ -28,10 +28,10 @@ args = parser.parse_args()
 
 def make_mask(db, mask_name='all', min_doms=0, max_doms=np.inf, min_energy=-np.inf, max_energy=np.inf):
 
-    # * Retrieve event IDs
+    # Retrieve event IDs
     ids = db.ids
 
-    # * Create mask
+    # Create mask
     if mask_name == 'dom_interval':
         mask, mask_name= make_dom_interval_mask(db, ids, min_doms, max_doms)
     
@@ -39,7 +39,7 @@ def make_mask(db, mask_name='all', min_doms=0, max_doms=np.inf, min_energy=-np.i
         mask, mask_name= make_dom_interval_mask(db, ids, min_doms, max_doms, dom_mask='SRTInIcePulses')
 
     elif mask_name == 'all':
-        mask, mask_name= make_all_mask(db, ids)
+        mask, mask_name = make_all_mask(db, ids)
     
     elif (
         mask_name == 'muon_neutrino' or
@@ -55,7 +55,7 @@ def make_mask(db, mask_name='all', min_doms=0, max_doms=np.inf, min_energy=-np.i
 
 def make_dom_interval_mask(db, ids, min_doms, max_doms, multiprocess=True, dom_mask='SplitInIcePulses'):
     
-    # * Split the candidates into chunks for multiprocessing
+    # Split the candidates into chunks for multiprocessing
     if multiprocess:
         ids_chunked = np.array_split(ids, AVAILABLE_CORES)
         packed = make_multiprocess_pack(ids_chunked, db, min_doms, max_doms, dom_mask)
@@ -63,20 +63,20 @@ def make_dom_interval_mask(db, ids, min_doms, max_doms, multiprocess=True, dom_m
         with Pool(AVAILABLE_CORES) as p:
             accepted_lists = p.map(find_dom_interval_passed_cands, packed)
         
-        # * Combine again
+        # Combine again
         mask = sorted(flatten_list_of_lists(accepted_lists))
 
     else:
         raise ValueError('make_dom_interval_mask: Only multiprocessing solution implemented')
     
-    # * save it
+    # save it
     mask_name = 'dom_interval_%s_min%d_max%d'%(dom_mask, min_doms, max_doms)
     
     return mask, mask_name
 
 def make_energy_interval_mask(db, ids, min_energy, max_energy, multiprocess=True):
 
-    # * Split the candidates into chunks for multiprocessing
+    # Split the candidates into chunks for multiprocessing
     if multiprocess:
         ids_chunked = np.array_split(ids, AVAILABLE_CORES)
         packed = make_multiprocess_pack(ids_chunked, db, min_energy, max_energy)
@@ -84,31 +84,31 @@ def make_energy_interval_mask(db, ids, min_energy, max_energy, multiprocess=True
         with Pool(AVAILABLE_CORES) as p:
             accepted_lists = p.map(find_energy_interval_passed_cands, packed)
         
-        # * Combine again
+        # Combine again
         mask = sorted(flatten_list_of_lists(accepted_lists))
 
     else:
         raise ValueError('make_energy_interval_mask: Only multiprocessing solution implemented')
     print(len(mask)/len(ids))
     
-    # * save it
+    # save it
     mask_name = 'energy_interval_min%.1f_max%.1f'%(min_energy, max_energy)
     
     return mask, mask_name
 
 def make_particle_mask(db, ids, particle, multiprocess=True):
     
-    # * find the particle code to make mask for
+    # find the particle code to make mask for
     particle_code = get_particle_code(particle)
     
-    # * Split the candidates into chunks for multiprocessing
+    # Split the candidates into chunks for multiprocessing
     if multiprocess:
         ids_chunked = np.array_split(ids, AVAILABLE_CORES)
         packed = make_multiprocess_pack(ids_chunked, db, particle_code)
         with Pool(AVAILABLE_CORES) as p:
             accepted_lists = p.map(find_particles, packed)
         
-        # * Combine again
+        # Combine again
         mask = sorted(flatten_list_of_lists(accepted_lists))
         # x = np.arange(len(mask))
         # d = {'x': [x], 'y': [mask]}
@@ -122,20 +122,20 @@ def make_particle_mask(db, ids, particle, multiprocess=True):
     return mask, mask_name
 
 def find_dom_interval_passed_cands(pack):
-    # * Unpack
+    # Unpack
     ids, db, min_doms, max_doms, dom_mask = pack
 
     accepted = []
     
-    # * Split into chunks
+    # Split into chunks
     n_chunks = len(ids)//CHUNK_SIZE
     chunks = np.array_split(ids, n_chunks)
 
-    # * Loop over chunks
+    # Loop over chunks
     for i_chunk, chunk in enumerate(chunks):
 
-        # * Retrieve the '<MASK_NAME>_event_length' - 
-        # * this value is the number of DOMs in an event
+        # Retrieve the '<MASK_NAME>_event_length' - 
+        # this value is the number of DOMs in an event
         if dom_mask == 'SplitInIcePulses':
             len_key = 'split_in_ice_pulses_event_length'
         elif dom_mask == 'SRTInIcePulses':
@@ -148,70 +148,70 @@ def find_dom_interval_passed_cands(pack):
             if min_doms <= n_doms <= max_doms:
                 accepted.append(int(event_id))
 
-        # * Print for sanity
+        # Print for sanity
         print(get_time(), 'Processed chunk %d of %d'%(i_chunk+1, n_chunks))
         sys.stdout.flush()
 
     return accepted
 
 def find_energy_interval_passed_cands(pack):
-    # * Unpack
+    # Unpack
     ids, db, min_energy, max_energy = pack
     
     accepted = []
     energy_key = 'true_primary_energy'
 
-    # * Split into chunks
+    # Split into chunks
     n_chunks = len(ids)//CHUNK_SIZE
     chunks = np.array_split(ids, n_chunks)
 
-    # * Load transformer
+    # Load transformer
     transformer_path = '/'.join([PATH_DATA_OSCNEXT, 'sqlite_transformers.pickle'])
     transformers = pickle.load(open(transformer_path, 'rb'))
     transformer = transformers[energy_key]
 
-    # * Loop over chunks
+    # Loop over chunks
     for i_chunk, chunk in enumerate(chunks):
         
-        # * Fetch energy
+        # Fetch energy
         data_dict = db.fetch_features(all_events=chunk, scalar_features=[energy_key])
         energies_transformed = np.array(
             [data_d[energy_key] for event_id, data_d in data_dict.items()]
         )
 
-        # * inverse transform
+        # inverse transform
         energies = np.squeeze(
             transformer.inverse_transform(
                 energies_transformed.reshape(-1, 1)
                 )
             )
 
-        # * add or discard
+        # add or discard
         for event_id, energy in zip(data_dict.keys(), energies):
             if min_energy <= energy <= max_energy:
                 accepted.append(int(event_id))
 
-        # * Print for sanity
+        # Print for sanity
         print(get_time(), 'Processed chunk %d of %d'%(i_chunk+1, n_chunks))
         sys.stdout.flush()
 
     return accepted
 
 def find_particles(pack):
-    # * Unpack
+    # Unpack
     ids, db, particle_code = pack
     
     accepted = []
 
-    # * Split into chunks
+    # Split into chunks
     n_chunks = len(ids)//CHUNK_SIZE
     chunks = np.array_split(ids, n_chunks)
 
-    # * Loop over chunks
+    # Loop over chunks
     for i_chunk, chunk in enumerate(chunks):
 
-        # * Retrieve the 'particle_code' from meta -
-        # * this value determines the particle
+        # Retrieve the 'particle_code' from meta -
+        # this value determines the particle
         code_name = 'particle_code'
         data_dict = db.fetch_features(all_events=chunk, meta_features=[code_name])
         for event_id, event_dict in data_dict.items():
@@ -219,14 +219,14 @@ def find_particles(pack):
             if str(code) == particle_code:
                 accepted.append(int(event_id))
 
-        # * Print for sanity
+        # Print for sanity
         print(get_time(), 'Processed chunk %d of %d'%(i_chunk+1, n_chunks))
         sys.stdout.flush()
 
     return accepted
 
 def make_all_mask(db, ids):
-    # * Make mask - a list of indices
+    # Make mask - a list of indices
     mask = [int(e) for e in ids]
     mask_name = 'all'
     
@@ -236,9 +236,9 @@ if __name__ == '__main__':
     
     print(get_time(), 'Mask creation initiated.')
     
-    # * Extract all parsed information
+    # Extract all parsed information
 
-    # * Options: particle_name (e.g. muon_neutrino), dom_interval, energy_interval
+    # Options: particle_name (e.g. muon_neutrino), dom_interval, energy_interval
     mask_name = args.name
     if mask_name == 'None':
         raise KeyError('Must parse a name!')
@@ -251,12 +251,12 @@ if __name__ == '__main__':
     mask_dict = {'mask_name': mask_name, 'min_doms':
         min_doms, 'max_doms': max_doms, 'min_energy': min_energy, 'max_energy': max_energy}
 
-    # * If maskdirectory doesn't exist, make it
+    # If maskdirectory doesn't exist, make it
     mask_dir = '/'.join([PATH_DATA_OSCNEXT, 'masks'])
     if not Path(mask_dir).exists(): 
         Path(mask_dir).mkdir()
 
-    # * Loop over different DBs
+    # Loop over different DBs
     for path, ext in zip(
         [PATH_TRAIN_DB, PATH_VAL_DB, PATH_TEST_DB], 
         ['_train.pickle', '_val.pickle', '_test.pickle']

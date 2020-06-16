@@ -13,9 +13,9 @@ from scipy.stats import wilcoxon
 from src.modules.main_funcs import *
 from src.modules.helper_functions import strip_nans
 
-#* ======================================================================== 
-#* PERFORMANCE CLASSES
-#* ========================================================================
+# ======================================================================== 
+# PERFORMANCE CLASSES
+# ========================================================================
 
 
 class AziPolarHists:
@@ -139,10 +139,14 @@ class Performance:
 
         self.wandb_ID = wandb_ID
         energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss, raw_pred_dict, raw_target_dict = self._get_data_dicts()
-        self._make_predictions_histograms(raw_pred_dict, raw_target_dict)
-        self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict, n_doms)
-        self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
-        self.loss_error_correlations = self._calculate_loss_error_corrs(pred_dict, loss)
+
+        if self.meta_pars['group'] in CLASSIFICATION:
+            self._make_PIDhist_ROC_ConfMatrix(raw_pred_dict, raw_target_dict)
+        else:
+            self._make_predictions_histograms(raw_pred_dict, raw_target_dict)
+            self._calculate_performance(energy_dict, pred_dict, crs_dict, true_dict, n_doms)
+            self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
+            self.loss_error_correlations = self._calculate_loss_error_corrs(pred_dict, loss)
 
     def _calculate_loss_error_corrs(self, pred_d, loss):
 
@@ -237,19 +241,25 @@ class Performance:
     def _calculate_performance(self, energy_dict, pred_dict, crs_dict, true_dict, n_doms):
         
         # Transform back and extract values into list
-        true_transformed = inverse_transform(true_dict, 
-                                get_project_root()+self.model_dir)
-        energy_transformed = inverse_transform(energy_dict, 
-                                get_project_root()+self.model_dir)
+        true_transformed = inverse_transform(
+            true_dict, get_project_root()+self.model_dir
+            )
+        energy_transformed = inverse_transform(
+            energy_dict, get_project_root()+self.model_dir
+            )
         # We want energy as array
-        energy = np.array(convert_to_proper_list(energy_transformed[self._energy_key[0]]))
+        energy = np.array(
+            convert_to_proper_list(energy_transformed[self._energy_key[0]])
+            )
 
-        self.counts, self.bin_edges = np.histogram(energy, 
-                                                bins=N_BINS_PERF_PLOTS)
+        self.counts, self.bin_edges = np.histogram(
+            energy, bins=N_BINS_PERF_PLOTS
+            )
         self.bin_centers = calc_bin_centers(self.bin_edges)
         
-        self.dom_counts, self.dom_bin_edges = np.histogram(n_doms, 
-                                                bins=N_BINS_PERF_PLOTS)
+        self.dom_counts, self.dom_bin_edges = np.histogram(
+            n_doms, bins=N_BINS_PERF_PLOTS
+            )
         self.dom_bin_centers = calc_bin_centers(self.dom_bin_edges)
         self.wilcoxon = {}
         
@@ -408,6 +418,8 @@ class Performance:
             keys = []
         elif self.meta_pars['group'] == 'full_reg':
             keys = ['len_error', 'directional_error', 'retro_len_error', 'retro_directional_error']
+        elif self.meta_pars['group'] == 'nue_numu':
+            keys = []
         else:
             raise ValueError('Performance: Unknown regression encountered!')
 
@@ -475,11 +487,21 @@ class Performance:
         scalar_feats = (
             self._energy_key+self._reco_keys+self._true_keys+self._target_keys
         )
-        fetched = self.db.fetch_features(
-            all_events=event_ids, 
-            scalar_features=scalar_feats
-            )
 
+        # Classification handles differently 
+        # - we save target in meta as a particle code
+        if self.meta_pars['group'] in CLASSIFICATION:
+            fetched = self.db.fetch_features(
+                all_events=event_ids, 
+                scalar_features=self._energy_key,
+                meta_features=['particle_code'],
+            )
+        else:
+            fetched = self.db.fetch_features(
+                all_events=event_ids, 
+                scalar_features=scalar_feats,
+            )
+        
         energy_dict = {
             key: np.zeros(len(event_ids)) for key in self._energy_key
         }
@@ -495,12 +517,29 @@ class Performance:
         for i_event, idx in enumerate(event_ids):
             for key in self._energy_key:
                 energy_dict[key][i_event] = fetched[idx][key]
-            for key in self._reco_keys:
-                crs_dict[key][i_event] = fetched[idx][key]
             for key in self._true_keys:
-                true_dict[key][i_event] = fetched[idx][key]
-            for key in self._target_keys:
-                raw_targets_dict[key][i_event] = fetched[idx][key]
+                # Again - handle classification differently
+                if self.meta_pars['group'] in CLASSIFICATION:
+                    code = fetched[idx]['particle_code']
+                    if (
+                        (key == 'p_nue' and code == 120000) or
+                        (key == 'p_numu' and code == 140000)
+                    ):
+                        true_dict[key][i_event] = 1.0
+                    else:
+                        true_dict[key][i_event] = 0.0
+
+                else:
+                    true_dict[key][i_event] = fetched[idx][key]
+            if self.meta_pars['group'] not in CLASSIFICATION:
+                for key in self._reco_keys:
+                    crs_dict[key][i_event] = fetched[idx][key]
+                for key in self._target_keys:
+                    raw_targets_dict[key][i_event] = fetched[idx][key]
+
+        if self.meta_pars['group'] in CLASSIFICATION:
+            raw_targets_dict = true_dict
+        
         print(get_time(), 'Predictions loaded!')
 
         # Pop loss from dict
@@ -544,28 +583,49 @@ class Performance:
     def _get_error_funcs(self):
 
         if self.meta_pars['group'] == 'vertex_reg':
-            funcs = [retro_x_error, retro_y_error, retro_z_error,
-                    retro_t_error, retro_len_error]
+            funcs = [
+                retro_x_error, 
+                retro_y_error, 
+                retro_z_error,
+                retro_t_error, 
+                retro_len_error
+                ]
         
         elif self.meta_pars['group'] == 'vertex_reg_no_time':
-            funcs = [retro_x_error, retro_y_error, retro_z_error,
-                    retro_len_error]
+            funcs = [
+                retro_x_error, 
+                retro_y_error, 
+                retro_z_error,
+                retro_len_error
+                ]
         
         elif (
             self.meta_pars['group'] == 'direction_reg' or
             self.meta_pars['group'] == 'angle_reg'
         ):
-            funcs = [retro_azi_error, retro_polar_error, 
-                    retro_directional_error]
+            funcs = [
+                retro_azi_error, retro_polar_error, retro_directional_error
+                ]
         
         elif self.meta_pars['group'] == 'energy_reg':
             funcs = [retro_relE_error, retro_log_frac_E_error]
 
         elif self.meta_pars['group'] == 'full_reg':
-            funcs = [retro_relE_error, retro_log_frac_E_error, retro_x_error, 
-                    retro_y_error, retro_z_error, retro_t_error,
-                    retro_len_error, retro_azi_error, retro_polar_error,
-                    retro_directional_error]
+            funcs = [
+                retro_relE_error, 
+                retro_log_frac_E_error, 
+                retro_x_error, 
+                retro_y_error, 
+                retro_z_error, 
+                retro_t_error,
+                retro_len_error, 
+                retro_azi_error, 
+                retro_polar_error,
+                retro_directional_error
+                ]
+
+        elif self.meta_pars['group'] == 'nue_numu':
+            funcs = []
         
         else:
             raise KeyError('PerformanceClass: Unknown regression type encountered!')
@@ -755,22 +815,16 @@ class Performance:
 
     def _get_performance_keys(self):
         
-        if self.meta_pars['group'] == 'vertex_reg':
-            keys = self._get_prediction_keys()
-        
-        elif self.meta_pars['group'] == 'vertex_reg_no_time':
-            keys = self._get_prediction_keys()
-        
-        elif (
-            self.meta_pars['group'] == 'direction_reg' or
-            self.meta_pars['group'] == 'angle_reg'
-        ):
-            keys = self._get_prediction_keys()
-        
-        elif self.meta_pars['group'] == 'energy_reg':
-            keys = self._get_prediction_keys()
-        
-        elif self.meta_pars['group'] == 'full_reg':
+        reg_types = [
+            'vertex_reg',
+            'vertex_reg_no_time',
+            'angle_reg',
+            'direction_reg',
+            'energy_reg',
+            'full_reg',
+            'nue_numu'
+        ]
+        if self.meta_pars['group'] in reg_types:
             keys = self._get_prediction_keys()
 
         else:
@@ -809,25 +863,41 @@ class Performance:
         
         elif dataset_name == 'oscnext-genie-level5-v01-01-pass2':
             if self.meta_pars['group'] == 'vertex_reg':
-                reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 
-                'retro_crs_prefit_z', 'retro_crs_prefit_time']
+                reco_keys = [
+                    'retro_crs_prefit_x', 
+                    'retro_crs_prefit_y', 
+                    'retro_crs_prefit_z', 
+                    'retro_crs_prefit_time'
+                    ]
             
             elif self.meta_pars['group'] == 'vertex_reg_no_time':
-                reco_keys = ['retro_crs_prefit_x', 'retro_crs_prefit_y', 
-                'retro_crs_prefit_z']
+                reco_keys = [
+                    'retro_crs_prefit_x', 
+                    'retro_crs_prefit_y', 
+                    'retro_crs_prefit_z'
+                    ]
             
             elif (self.meta_pars['group'] == 'direction_reg' or
                 self.meta_pars['group'] == 'angle_reg'):
-                reco_keys = ['retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith']
+                reco_keys = [
+                    'retro_crs_prefit_azimuth', 'retro_crs_prefit_zenith'
+                    ]
             
             elif self.meta_pars['group'] == 'energy_reg':
                 reco_keys = ['retro_crs_prefit_energy']
             
             elif self.meta_pars['group'] == 'full_reg':
-                reco_keys = ['retro_crs_prefit_energy', 'retro_crs_prefit_x', 
-                'retro_crs_prefit_y', 'retro_crs_prefit_z', 
-                'retro_crs_prefit_time', 'retro_crs_prefit_azimuth', 
-                'retro_crs_prefit_zenith']
+                reco_keys = [
+                    'retro_crs_prefit_energy', 
+                    'retro_crs_prefit_x', 
+                    'retro_crs_prefit_y', 
+                    'retro_crs_prefit_z', 
+                    'retro_crs_prefit_time', 
+                    'retro_crs_prefit_azimuth', 
+                    'retro_crs_prefit_zenith'
+                    ]
+            elif self.meta_pars['group'] == 'nue_numu':
+                reco_keys = []
 
             else:
                 raise KeyError('Unknown reco_keys requested in Performance!')
@@ -921,6 +991,79 @@ class Performance:
             wandb.log({key+'_2Dperformance': wandb.Image(im, caption=key+'_2Dperformance')}, commit=False)
             im.close()
 
+    def _make_PIDhist_ROC_ConfMatrix(self, pred_dict, target_dict):
+        
+        from sklearn.metrics import confusion_matrix, auc, roc_curve
+        # PID HISTOGRAMS
+        # Extract PID scores for numu and nue
+        nue_indices = np.nonzero(target_dict['p_nue'])[0]
+        numu_indices = np.nonzero(target_dict['p_numu'])[0]
+        n_nue = nue_indices.shape[0]
+        n_numu = numu_indices.shape[0]
+        nue_scores = pred_dict['p_numu'][nue_indices]
+        numu_scores = pred_dict['p_numu'][numu_indices]
+
+        # Make histogram
+        base_path = '/'.join([
+            get_project_root(), self.model_dir, 'figures', 'distributions'
+        ])
+
+        # If the distributions-directory does not exist, make it.
+        if not Path(base_path).exists():
+            Path(base_path).mkdir()
+        
+        d = {'data': [
+            nue_scores,
+            numu_scores
+        ]}
+        d['title'] = r'PID Scores'
+        d['label'] = [r'$\nu_e$', r'$\nu_{\mu}$']
+        d['ylabel'] = 'Density'
+        d['xlabel'] = 'PID Score'
+        d['density'] = [True, True]
+        d['savefig'] = '/'.join([
+            base_path, 'PID_'+self.meta_pars['group']+'_dist.png'
+        ])
+        _ = make_plot(d)
+
+        # ROC CURVE
+        numu_fpr, numu_tpr, _ = roc_curve(
+            target_dict['p_numu'], pred_dict['p_numu']
+            )
+        numu_auc = auc(numu_fpr, numu_tpr)
+        d = {
+            'x': [numu_fpr],
+            'y': [numu_tpr],
+            'title': r'$\nu_{\mu}$ ROC curve',
+            'xlabel': 'False Positive Rate',
+            'ylabel': 'True Positive Rate',
+            'label': [r'AUC = %.3f'%(numu_auc)],
+            'savefig': '/'.join([
+            base_path, 'ROC_'+self.meta_pars['group'] + '.png'
+            ])
+        }
+        _ = make_plot(d)
+        self.onenumber_performance = numu_auc
+
+        # CONFUSION MATRIX
+        probs = np.stack((pred_dict['p_nue'], pred_dict['p_numu']), axis=1)
+        probs_true = np.stack((target_dict['p_nue'], target_dict['p_numu']), axis=1)
+
+        preds = np.argmax(probs, axis=1)
+        true = np.argmax(probs_true, axis=1)
+        labels = [r'$\nu_{e}$', r'$\nu_{\mu}$']
+
+        cm = confusion_matrix(true, preds, labels=[0.0, 1.0])
+        d = {
+            'confusion_matrix': cm,
+            'labels': labels,
+            'savefig': '/'.join([
+            base_path, 'CM_'+self.meta_pars['group']+'.png'
+        ])
+        }
+        _ = make_plot(d)
+
+        
     def _make_predictions_histograms(self, raw_pred, raw_target):
         
         base_path = '/'.join([
@@ -930,8 +1073,9 @@ class Performance:
         # If the distributions-directory does not exist, make it.
         if not Path(base_path).exists():
             Path(base_path).mkdir()
-
+        print('whatup')
         for pred, target in zip(raw_pred, raw_target):
+            print(pred, target)
             if pred != target:
                 # Ensure right match for histograms
                 raise KeyError(
@@ -941,6 +1085,7 @@ class Performance:
                 )
             clip_min = np.min(raw_target[target]), 
             clip_max = np.max(raw_target[target])
+            print(clip_min, clip_max)
             d = {'data': [
                 np.clip(raw_pred[pred], clip_min, clip_max), 
                 raw_target[target]
@@ -2248,9 +2393,9 @@ class FeaturePermutationImportance:
             d['savefig'] = get_project_root()+self.save_dir+'/figures/PFI_%s.png'%(func)
             fig = make_plot(d)                
 
-#* ======================================================================== 
-#* PERFORMANCE FUNCTIONS
-#* ========================================================================
+# ======================================================================== 
+# PERFORMANCE FUNCTIONS
+# ========================================================================
 
 def get_performance_plot_dicts(model_dir, plot_dicts):
     """Loads the performance classes associated with a certain regression and returns their plot dictionaries to plot and compare their performances.
@@ -2457,7 +2602,7 @@ def make_plot(
             plot_keys = [
                 'label', 'drawstyle', 'color', 'zorder', 'linestyle', 'yerr'
                 ]
-            #* Set baseline
+            # Set baseline
             d = {'linewidth': 1.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
@@ -2477,7 +2622,7 @@ def make_plot(
             
             plot_keys = ['label', 'alpha', 'density', 'bins', 'weights', 'histtype', 'log', 'color', 'stacked']
             
-            #* Set baseline
+            # Set baseline
             if len(plot_dict['data']) > 1:
                 d = {'alpha': 0.6, 'density': False, 'bins': 'fd'}
             else:
@@ -2503,12 +2648,12 @@ def make_plot(
         if type(set1) == torch.Tensor: set1 = set1.cpu().numpy()
         if type(set2) == torch.Tensor: set2 = set2.cpu().numpy()
         binrange = plot_dict.get('range', None)
-        #* Get bin-widths
+        # Get bin-widths
         if not 'n_bins' in plot_dict:
             _, widths1 = np.histogram(set1, bins='fd')
             _, widths2 = np.histogram(set2, bins='fd')
 
-            #* Rescale 
+            # Rescale 
             widths1 = np.linspace(min(widths1), max(widths1), int(0.5 + widths1.shape[0]/4.0))
             widths2 = np.linspace(min(widths2), max(widths2), int(0.5 + widths2.shape[0]/4.0))
             plt.hist2d(set1, set2, bins=[widths1, widths2], range=binrange, zorder=plot_dict.get('zorder', 0), cmap='Oranges')
@@ -2528,7 +2673,7 @@ def make_plot(
         if type(set1) == torch.Tensor: set1 = set1.cpu().numpy()
         if type(set2) == torch.Tensor: set2 = set2.cpu().numpy()
 
-        #* Get bin-widths - my attempt to modularize generation of 2d-histograms
+        # Get bin-widths - my attempt to modularize generation of 2d-histograms
         _, widths1 = np.histogram(set1, bins='fd')
         _, widths2 = np.histogram(set2, bins='fd')
 
@@ -2555,7 +2700,7 @@ def make_plot(
                 ymin = min(set2)
                 ymax = max(set2)
             
-        #* Rescale. Factor of 4 comes form trial and error
+        # Rescale. Factor of 4 comes form trial and error
         n1 = int(0.5 + widths1.shape[0]/4.0)
         n2 = int(0.5 + widths2.shape[0]/4.0)
         plt.hexbin(set1, set2, gridsize = (n1, n2))
@@ -2567,7 +2712,7 @@ def make_plot(
 
         if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
 
-        #* Calculate bin centers and 'x-error'
+        # Calculate bin centers and 'x-error'
         centers = []
         xerrs = []
         for edges in plot_dict['edges']:
@@ -2582,7 +2727,7 @@ def make_plot(
             edges = plot_dict['edges'][i_set]
 
             plot_keys = ['label']
-            #* Set baseline
+            # Set baseline
             d = {'linewidth': 1.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
@@ -2597,6 +2742,48 @@ def make_plot(
         h_axis.set_yticks(plot_dict['y'])
         h_axis.set_ylim((0, len(plot_dict['y'])))
         # plt.tight_layout()
+    
+    elif 'confusion_matrix' in plot_dict:
+        # expects confusion matrix whose i-th row and j-th column entry
+        # indicates the number of samples with true label being i-th
+        # class and prediced label being j-th class
+        grid_on = False
+        cm = plot_dict['confusion_matrix']
+        if plot_dict.get('norm', True):
+            cm_normed = np.empty(cm.shape)
+            cm_normed_errs = np.empty(cm.shape)
+            for i_true in range(cm.shape[0]):
+                i_entries = np.sum(cm[i_true, :])
+                for j_pred in range(cm.shape[1]):
+                    cm_normed[i_true, j_pred] = float(cm[i_true, j_pred])/i_entries
+                    cm_normed_errs[i_true, j_pred] = np.sqrt(cm[i_true, j_pred])/i_entries
+        im = h_axis.imshow(
+            cm_normed, 
+            cmap=plot_dict.get('cmap', 'Oranges'), 
+            vmin=0.0, 
+            vmax=1.0
+        )
+        plt.colorbar(mappable=im)
+
+        # Write fractions on matrix
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                h_axis.annotate(
+                    r'%.3f $\pm$ %.4f'%(cm_normed[i, j], cm_normed_errs[i, j]), 
+                    xy=(i, j), 
+                    horizontalalignment='center',
+                    verticalalignment='center'
+                    )
+        # Set Actual ticks
+        if 'labels' in plot_dict:
+            plt.xticks(range(cm.shape[0]), plot_dict['labels'])
+            plt.yticks(range(cm.shape[0]), plot_dict['labels'])
+
+        h_axis.set_ylabel('Truth')
+        h_axis.set_xlabel('Predicted')
+        h_axis.set_title('Confusion Matrix', loc='left')
+
+        
     else:
         raise ValueError('Unknown plot wanted!')
     

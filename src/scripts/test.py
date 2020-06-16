@@ -1,7 +1,7 @@
 # import torch
 # from matplotlib import pyplot as plt
 # from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
-# import h5py as h5
+import h5py as h5
 # from time import time
 # from scipy.stats import norm
 # import subprocess
@@ -24,3 +24,18 @@ from src.modules.classes import *
 # from time import sleep
 import numpy as np
 import pickle
+
+def tanh(x):
+    y = 10.0*np.tanh(x/10.0)
+    return y
+
+path = get_project_root() + '/models/oscnext-genie-level5-v01-01-pass2/regression/nue_numu/test_2020.06.15-21.38.20/data/predictions.h5'
+
+with h5.File(path, 'r') as f:
+    for key in f:
+        print(key)
+
+# x = np.linspace(-50, 50, 200)
+# y = tanh(x)
+# d = {'x': [x], 'y': [y], 'savefig': get_project_root()+'/lol.png'}
+# _ = rpt.make_plot(d)
