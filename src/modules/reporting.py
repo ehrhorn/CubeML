@@ -992,17 +992,17 @@ class Performance:
             im.close()
 
     def _make_PIDhist_ROC_ConfMatrix(self, pred_dict, target_dict):
-        
         from sklearn.metrics import confusion_matrix, auc, roc_curve
         # PID HISTOGRAMS
         # Extract PID scores for numu and nue
         nue_indices = np.nonzero(target_dict['p_nue'])[0]
         numu_indices = np.nonzero(target_dict['p_numu'])[0]
+
         n_nue = nue_indices.shape[0]
         n_numu = numu_indices.shape[0]
         nue_scores = pred_dict['p_numu'][nue_indices]
         numu_scores = pred_dict['p_numu'][numu_indices]
-
+        
         # Make histogram
         base_path = '/'.join([
             get_project_root(), self.model_dir, 'figures', 'distributions'
@@ -1011,19 +1011,26 @@ class Performance:
         # If the distributions-directory does not exist, make it.
         if not Path(base_path).exists():
             Path(base_path).mkdir()
-        
+        labels = [
+            r'$\nu_e$, N = %.0f $\cdot 10^3$'%(n_nue/1000.0), 
+            r'$\nu_{\mu}$, N = %.0f $\cdot 10^3$'%(n_numu/1000.0), 
+            ]
         d = {'data': [
-            nue_scores,
-            numu_scores
-        ]}
-        d['title'] = r'PID Scores'
-        d['label'] = [r'$\nu_e$', r'$\nu_{\mu}$']
-        d['ylabel'] = 'Density'
-        d['xlabel'] = 'PID Score'
-        d['density'] = [True, True]
-        d['savefig'] = '/'.join([
-            base_path, 'PID_'+self.meta_pars['group']+'_dist.png'
-        ])
+                nue_scores,
+                numu_scores
+            ],
+            'title': r'PID Scores',
+            'label': labels,
+            'ylabel': 'Density',
+            'xlabel': 'PID Score',
+            'bins': [200, 200],
+            'range': (0.0, 1.0),
+            'density': [True, True],
+            'yscale': 'log',
+            'savefig': '/'.join([
+                base_path, 'PID_'+self.meta_pars['group']+'_dist.png'
+            ])
+        }
         _ = make_plot(d)
 
         # ROC CURVE
@@ -2617,7 +2624,26 @@ def make_plot(
     elif 'data' in plot_dict:
         if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
         if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
+        
+        if plot_dict.get('calc_bin_width', False):
+            lower_bound = np.inf
+            upper_bound = -np.inf
+            bin_width = -np.inf
+            for dset in plot_dict['data']:
+                width = calc_bin_width(dset)
+                lowerb = np.min(dset)
+                upperb = np.max(dset)
 
+                if width > bin_width:
+                    bin_width = width + 0.0
+                if lowerb < lower_bound:
+                    lower_bound = lowerb + 0.0
+                if upperb > upper_bound:
+                    upper_bound = upperb + 0.0
+            if 'range' in plot_dict:
+                upper_bound = plot_dict['range'][1]
+                lower_bound = plot_dict['range'][0]
+            n_bins = int((upper_bound - lower_bound) / bin_width) 
         for i_set, data in enumerate(plot_dict['data']):
             
             plot_keys = ['label', 'alpha', 'density', 'bins', 'weights', 'histtype', 'log', 'color', 'stacked']
@@ -2630,8 +2656,13 @@ def make_plot(
 
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
+            
+            if plot_dict.get('calc_bin_width', False):
+                d['range'] = (lower_bound, upper_bound)
+                d['bins'] = n_bins
             if 'range' in plot_dict:
                 data = np.clip(data, plot_dict['range'][0], plot_dict['range'][1])
+                d['range'] = plot_dict['range']
             h_axis.hist(data, **d)
 
             if 'label' in plot_dict: h_axis.legend()

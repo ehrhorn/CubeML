@@ -69,8 +69,51 @@ class PadSequence:
         else:
             pack = (sequences_padded.float(), lengths, scalar_vars.float())
 
-        # events_per_sec = int(len(batch)/(time.time()-start))
-        # print('PadSequence processed per second: %d'%(events_per_sec) )
+        # DEBUGGING
+        # from src.modules.reporting import make_plot
+        # i1 = torch.where(targets[:, 0]>0.5)[0]
+        # i2 = torch.where(targets[:, 0]<0.5)[0]
+        # scalars1 = scalar_vars[i1].numpy()
+        # scalars2 = scalar_vars[i2].numpy()
+        # # plot it
+        # d = {
+        #     'data': [scalars1, scalars2],
+        #     'density': [True, True],
+        #     'calc_bin_width': True,
+        #     'savefig': get_project_root() + '/scalars.png'
+        # }
+        # _ = make_plot(d)
+        # # print(i1, i2)
+        # l1 = lengths[i1]
+        # l2 = lengths[i2]
+        # # print('l1', l1)
+        # # print('l2', l2)
+        # s1 = sequences_padded[i1, :, :]
+        # s2 = sequences_padded[i2, :, :]
+        # # print(s1.shape[-1])
+        # for i_seq in range(s1.shape[-1]):
+        #     f1 = np.array([])
+        #     for i_batch in range(s1.shape[0]):
+        #         length = l1[i_batch]
+        #         # feat = s1[i_batch, l1[:length], i_seq].numpy()
+        #         f1 = np.append(f1, s1[i_batch, :length, i_seq].numpy())
+            
+        #     f2 = np.array([])
+        #     for i_batch in range(s2.shape[0]):
+        #         length = l2[i_batch]
+        #         # feat = s1[i_batch, l1[:length], i_seq].numpy()
+        #         f2 = np.append(f2, s2[i_batch, :length, i_seq].numpy())
+
+        #     # plot it
+        #     d = {
+        #         'data': [f1, f2],
+        #         'density': [True, True],
+        #         'calc_bin_width': True,
+        #         'savefig': get_project_root() + '/' + str(i_seq) + '.png'
+        #     }
+        #     _ = make_plot(d)
+        # a+=1
+        # DEBUGGING FINISHED    
         return pack, (targets.float(), weights.float())
 
     def _permute(self, seqs, scalars, lengths):
@@ -449,7 +492,7 @@ class SqliteFetcher:
                 elif particle_code == 140000:
                     target_arr = np.array([0.0, 1.0])
                 else:
-                    raise ValueError('Unknown classificatione encountered')
+                    raise ValueError('Unknown classification encountered')
             else:
                 target_arr = np.array(
                     singles[i_event][n_scalars:n_scalars+n_targets]

@@ -174,6 +174,10 @@ def calc_bin_centers(edges):
 
     return centers
 
+def calc_bin_width(data, method='fd'):
+    bw = 2 * calc_iqr(data)/np.cbrt(data.shape[0])
+    return bw
+
 def calc_geometric_mean(data):
     """Calculates the geometric mean of a data series
     

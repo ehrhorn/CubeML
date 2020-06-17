@@ -249,7 +249,7 @@ if __name__ == '__main__':
                 'collate_fn': 'PadSequence',
                 'val_batch_size':      256 if not args.dev else 21
                 }
-
+    
     if (
             'dom_charge_significance' in data_pars['seq_feat'] 
             and 'electron_neutrino' in mask_names
@@ -266,7 +266,7 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = get_n_targets(data_pars, meta_pars, args.loss)
-    n1 = 256
+    n1 = 32
     n2 = 2*n1+n_scalar_feat
 
     layers = [ 
@@ -283,7 +283,7 @@ if __name__ == '__main__':
                             'n_out':             n1,
                             'rnn_type':          'GRU',
                             'n_parallel':        1,
-                            'num_layers':        2,
+                            'num_layers':        1,
                             'residual':          False,
                             'bidir':             True,
                             'dropout':           0.0,
@@ -309,9 +309,9 @@ if __name__ == '__main__':
         #                    'bidirectional':       False}},
         # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
         # {'AveragePool': []},
-        {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
-                             'norm':               'BatchNorm1D',
-                             'type':               'x'}},
+        # {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
+        #                      'norm':               'BatchNorm1D',
+        #                      'type':               'x'}},
         {'Linear':          {'input_sizes':        [n2, n_target],
                             'norm_before_nonlin':  True}},
         # {'Linear':          {'input_sizes':        [n_scalar_feat, n1, n_target],
