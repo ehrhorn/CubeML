@@ -36,7 +36,7 @@ def get_eval_functions(meta_pars):
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error, len_error]
     elif regression_type == 'energy_reg':
         eval_funcs = [relative_E_error, log_frac_E_error]
-    elif regression_type == 'nue_numu':
+    elif regression_type in ['nue_numu', 'nue_numu_nutau']:
         eval_funcs = []
     else:
         raise ValueError('eval_funcs: Unknown regression type (%s) encountered!'%(regression_type))

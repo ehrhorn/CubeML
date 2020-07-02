@@ -12,9 +12,9 @@ import h5py as h5
 # from src.modules.reporting import *
 # from src.modules.constants import *
 # import src.modules.loss_funcs as lf
-import src.modules.helper_functions as hf
+from src.modules.helper_functions import *
 # from src.modules.eval_funcs import *
-import src.modules.reporting as rpt
+from src.modules.reporting import *
 from src.modules.classes import *
 # from src.modules.preprocessing import *
 # # import src.modules.preprocessing as pp
@@ -25,23 +25,16 @@ from src.modules.classes import *
 import numpy as np
 import pickle
 
-def tanh(x):
-    y = 10.0*np.tanh(x/10.0)
-    return y
+x = np.arange(10)
+y = np.arange(10)
+path = get_project_root() + '/LOL.png'
+pathpickle = get_project_root() + '/pickle_LOL.pickle'
 
-path = get_project_root() + '/models/oscnext-genie-level5-v01-01-pass2/regression/nue_numu/test_2020.06.15-21.38.20/data/predictions.h5'
+d = {'x': [x], 'y': [y], 'savefig': path}
+fig = make_plot(d)
 
-
-d1 = np.random.normal(size=1000)
-d2 = np.random.normal(size=5000, loc=1.0, scale=0.5)
-d = {
-    'data': [d1, d2],
-    'density': [True, True],
-    'calc_bin_width': True,
-    'savefig': get_project_root() + '/LOL.png'
-}
-
-# x = np.linspace(-50, 50, 200)
-# y = tanh(x)
-# d = {'x': [x], 'y': [y], 'savefig': get_project_root()+'/lol.png'}
-_ = rpt.make_plot(d)
+h_fig = pickle.load(open(pathpickle, 'rb'))
+ax = h_fig.gca()
+ax.set_title('WHAT IS UP')
+h_fig.savefig(path)
+print(type(h_fig))

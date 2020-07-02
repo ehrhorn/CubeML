@@ -16,6 +16,7 @@ from ignite.engine import Events
 from multiprocessing import cpu_count, Pool
 from scipy.optimize import curve_fit
 from scipy.stats import chi2
+from sklearn.metrics import confusion_matrix, auc, roc_curve
 
 import src.modules.loss_funcs
 from src.modules.constants import *
@@ -156,6 +157,28 @@ def delete_nohup_file(path='/src/scripts/nohup.out'):
         print('Deleted', get_project_root()+path)
     except FileNotFoundError:
         pass
+
+def calc_auc_err(targets):
+    """Calculates error on Area Under Curve (AUC) using Mann-Whitney (https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test)
+
+    Parameters
+    ----------
+    fpr : [type]
+        [description]
+    tpr : [type]
+        [description]
+    d_fpr : [type]
+        [description]
+    d_tpr : [type]
+        [description]
+    """
+    n1 = np.where(targets==1)[0].shape[0]
+    n2 = targets.shape[0] - n1
+    auc_err = np.sqrt(
+        (1)/(4*np.min([n1, n2]))
+    )
+
+    return auc_err
 
 def calc_bin_centers(edges):
     """Calculates the bin centers of a histogram given a list of bin widths.
@@ -574,7 +597,6 @@ def estimate_percentile(data, percentiles, bootstrap=True, n_bootstraps=1000):
     i_means, means = [], []
     i_plussigmas, plussigmas = [], []
     i_minussigmas, minussigmas = [], []
-
 
     for percentile in percentiles:
         # THe order statistic is binomially distributed - we approximate it with a gaussian. 
@@ -1384,6 +1406,9 @@ def get_target_keys(data_pars, meta_pars):
 
         elif meta_pars['group'] == 'nue_numu':
             target_keys = ['p_nue', 'p_numu']
+            
+        elif meta_pars['group'] == 'nue_numu_nutau':
+            target_keys = ['p_nue', 'p_numu', 'p_nutau']
 
         else:
             raise ValueError('Unknown regression type (%s) encountered for dataset %s!'%(meta_pars['group'], dataset_name))
@@ -2120,6 +2145,9 @@ def remove_tests_wandbdir(directory=get_project_root()+'/models/wandb/', rm_all=
                 print('Deleted', dvc_file)
             except FileNotFoundError:
                 pass
+
+def sqr(x):
+    return x*x
 
 def save_shared_exp_folder_command(command=None, nohup_dest=None):
     path = str(Path(get_project_root()).parent)+'/experiments/'+strftime("%Y-%m-%d-%H.%M.%S", localtime())+'.pickle'

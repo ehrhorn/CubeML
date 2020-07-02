@@ -35,12 +35,13 @@ PATH_VAL_DB = '/'.join([
     PATH_DATA, '/oscnext-genie-level5-v01-01-pass2/val_transformed.db']
 )
 
-PATH_TEST_DB = '/'.join([
-    PATH_DATA, '/oscnext-genie-level5-v01-01-pass2/test_transformed.db']
-)
+# PATH_TEST_DB = '/'.join([
+#     PATH_DATA, '/oscnext-genie-level5-v01-01-pass2/test_transformed.db']
+# )
 
 PATH_TRANSFORMERS = PATH_DATA_OSCNEXT+'/sqlite_transformers.pickle'
 N_BINS_PERF_PLOTS = 18
+N_BINS_CLASS_PLOTS = 6
 
 # Set ensemble
 ENSEMBLE = {
@@ -79,4 +80,4 @@ ENSEMBLE = {
     ]
 }
 
-CLASSIFICATION = ['nue_numu']
+CLASSIFICATION = ['nue_numu', 'nue_numu_nutau']

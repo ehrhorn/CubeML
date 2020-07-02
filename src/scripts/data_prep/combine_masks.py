@@ -12,7 +12,7 @@ parser.add_argument(
     '--masks', 
     nargs='+', 
     type=str, 
-    help='Sets which masks to combine geomean_muon_energy_entry'
+    help='Sets which masks to combine'
     ) 
 
 parser.add_argument(

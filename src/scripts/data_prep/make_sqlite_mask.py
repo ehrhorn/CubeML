@@ -2,6 +2,7 @@ import numpy as np
 from pathlib import Path
 import subprocess
 import pickle
+import joblib
 import sys
 import argparse
 from multiprocessing import cpu_count, Pool
@@ -167,7 +168,7 @@ def find_energy_interval_passed_cands(pack):
 
     # Load transformer
     transformer_path = '/'.join([PATH_DATA_OSCNEXT, 'sqlite_transformers.pickle'])
-    transformers = pickle.load(open(transformer_path, 'rb'))
+    transformers = joblib.load(open(transformer_path, 'rb'))
     transformer = transformers[energy_key]
 
     # Loop over chunks
@@ -258,8 +259,8 @@ if __name__ == '__main__':
 
     # Loop over different DBs
     for path, ext in zip(
-        [PATH_TRAIN_DB, PATH_VAL_DB, PATH_TEST_DB], 
-        ['_train.pickle', '_val.pickle', '_test.pickle']
+        [PATH_TRAIN_DB, PATH_VAL_DB], 
+        ['_train.pickle', '_val.pickle']
     ):
         
         db = SqliteFetcher(path)

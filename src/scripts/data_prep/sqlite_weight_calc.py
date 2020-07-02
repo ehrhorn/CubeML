@@ -111,6 +111,70 @@ def assign_uniform_direction_weights_multiprocess(
     
     return weights_combined
 
+def assign_energy_balanced_weights_multiprocess(
+    ids, 
+    db, 
+    interpolator_quadratic, 
+    true_key=['true_primary_energy'], 
+    debug=False
+    ):
+    
+    # Create packs - loop over all events
+    # n_chunks = len(ids)//AVAILABLE_CORES
+    chunks = np.array_split(ids, AVAILABLE_CORES)
+    packed = make_multiprocess_pack(
+        chunks, interpolator_quadratic, true_key, db
+    )
+
+    # Multiprocess and recombine
+    with Pool(AVAILABLE_CORES) as p:
+        weights = p.map(calc_weights_multiprocess, packed)
+    weights_combined = flatten_list_of_lists(weights)
+    
+    # # Make a dictionary with weights - put nan where mask didn't apply
+    # event_ids = db.ids
+    # all_weights_dict = {str(event_id): np.nan for event_id in event_ids}
+    # weights_dict = {
+    #     str(event_id): weight for event_id, weight in zip(ids, weights_combined)
+    # }
+    # all_weights_dict.update(weights_dict)
+    
+    return weights_combined
+
+def energy_balanced(
+    name, 
+    ids, 
+    db, 
+    multiprocess=True, 
+    debug=False,
+    interpolator=None
+    ):
+
+    # Get indices used for interpolator-calculation
+    if not interpolator:
+        n_events = min(len(ids), USE_N_EVENTS)
+        event_ids = ids[:n_events]
+        print(get_time(), 'Calculating direction bins..')
+        x, counts = calc_energy_balanced_weights(event_ids, db)
+        weights_unscaled = 1.0/np.array(counts)
+        print(get_time(), 'Bins calculated!')
+        
+        print(get_time(), 'Fitting interpolator')
+        # In this case, MAX 10 for better gradients
+        weights_unscaled = np.sqrt(weights_unscaled)
+        interpolator = make_scaled_interpolator(weights_unscaled, counts, x)
+        print(get_time(), 'Interprolator fitted!')
+
+    # Loop over all events using multiprocessing
+    print(get_time(), 'Assigning energy weights...')
+    if multiprocess:
+        weights = assign_uniform_direction_weights_multiprocess(
+            ids, db, interpolator, true_key=['true_primary_direction_z'], debug=debug
+        )
+    print(get_time(), 'Energy weights assigned!')
+
+    return weights, interpolator
+
 def calc_weights_multiprocess(pack):
    
     # Unpack
@@ -145,6 +209,38 @@ def calc_weights_multiprocess(pack):
 
     # Calculate interpolated value
     return weights
+
+def calc_energy_balanced_weights(ids, db):
+
+    # Load data
+    keys = ['true_primary_energy']
+    true_key = keys[0]
+    all_data = db.fetch_features(ids, keys)
+
+    logE_transformed =np.array([
+            data[true_key] for index, data in all_data.items()
+            ])
+    
+    # Transform true logE. Load first
+    transformer_path = '/'.join([PATH_DATA_OSCNEXT, 'sqlite_transformers.pickle'])
+    transformers = joblib.load(open(transformer_path, 'rb'))
+    transformer = transformers[true_key]
+    
+    # inverse transform
+    logE = np.squeeze(
+        transformer.inverse_transform(
+            logE_transformed.reshape(-1, 1)
+        )
+    )
+
+    logE_sorted = np.sort(logE)
+    # Sort w.r.t. true energy and bin
+    bin_edges = np.linspace(0.0, 3.0, N_BINS_WEIGHTS+1)
+    counts, bin_edges = np.histogram(logE_sorted, bins=bin_edges)
+
+    bin_centers = calc_bin_centers(bin_edges)
+    
+    return bin_centers, counts
 
 def calc_energy_performance_weights(ids, db):
 
@@ -298,6 +394,8 @@ def make_scaled_interpolator(weights, counts, bin_centers):
     # Therefore: Calculate the mean weight in a batch and normalize by it
     ave_weight = np.sum(weights*counts/np.sum(counts))
     weights_scaled = weights/ave_weight
+    # print(weights_scaled)
+    # print(counts)
 
     # Calculate spline
     interpolator = interpolate.interp1d(bin_centers, weights_scaled, fill_value="extrapolate", kind='quadratic')
@@ -314,6 +412,10 @@ def make_weights(name, masked_ids, db, debug=False, interpolator=None):
         weights, interpolator = inverse_performance_muon_energy(
             name, masked_ids, db, debug=debug, interpolator=interpolator
             )
+    elif name == 'energy_balanced':
+        weights, interpolator = energy_balanced(
+            name, masked_ids, db, debug=debug, interpolator=interpolator
+            )
     elif name == 'uniform_direction_weights':
         weights, interpolator = uniform_direction(
             name, masked_ids, db, debug=debug, interpolator=interpolator
@@ -322,6 +424,12 @@ def make_weights(name, masked_ids, db, debug=False, interpolator=None):
         weights, interpolator = nue_numu_balanced(
             name, masked_ids, db, debug=debug
         )
+    elif name == 'nue_numu_nutau_balanced':
+        weights, interpolator = nue_numu_nutau_balanced(
+            name, masked_ids, db, debug=debug
+        )
+    else:
+        raise NameError('Unknown mask calc requested (%s)'%(name))
 
     return weights, interpolator 
 
@@ -351,13 +459,48 @@ def nue_numu_balanced(name, masked_ids, db, debug=False, interpolator=None):
             str(140000): tot/(2*n_numu)
         }
     
-    # weights = np.empty(len(masked_ids))
     weights = [
         interpolator[str(all_data[entry][meta_key])] for entry in masked_ids
     ]
 
     return weights, interpolator
 
+def nue_numu_nutau_balanced(name, masked_ids, db, debug=False, interpolator=None):
+    # Load data
+    meta_key = 'particle_code'
+    all_data = db.fetch_features(
+        all_events=masked_ids,
+        meta_features=[meta_key]
+    )
+    
+    if not interpolator:
+        # Count number of nue and numu
+        particle_codes = np.array(
+            [data[meta_key] for ev_id, data in all_data.items()]
+        )
+        n_nue = np.sum(
+            np.where(particle_codes == 120000)
+        )
+        n_numu = np.sum(
+            np.where(particle_codes == 140000)
+        )
+        n_nutau = np.sum(
+            np.where(particle_codes == 160000)
+        )
+
+        tot = n_nue + n_numu + n_nutau
+        interpolator = {
+            str(120000): tot/(3*n_nue),
+            str(140000): tot/(3*n_numu),
+            str(160000): tot/(3*n_nutau)
+        }
+    
+    weights = [
+        interpolator[str(all_data[entry][meta_key])] for entry in masked_ids
+    ]
+
+    return weights, interpolator
+    
 def uniform_direction(
     name, 
     ids, 
@@ -436,7 +579,6 @@ if __name__ == '__main__':
                 weights, interpolator = make_weights(
                 name, ids, db, debug=args.dev, interpolator=interpolator
             )
-
             # Save in DB
             ids_strings = [str(idx) for idx in ids]
             print(get_time(), 'Writing %s to database'%(name))
@@ -449,7 +591,7 @@ if __name__ == '__main__':
             if name == 'uniform_direction_weights':
                 x = np.linspace(-1.0, 1.0)
             else:
-                x = np.linspace(0.0, 4.0)
+                x = np.linspace(0.0, 3.0)
             y = interpolator(x)
             d = {'x': [x], 'y': [y]}
             d['savefig'] = '/'.join([get_project_root(), 'reports/plots', name+'.png'])

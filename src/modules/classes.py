@@ -177,10 +177,15 @@ class SqliteFetcher:
         self._rows = None
         self._event_lengths_key = 'split_in_ice_pulses_event_length' 
         self._max_events_per_query = 50000
-        self._fetch_query_seq = 'SELECT {features} FROM {table} WHERE event '\
+        # self._fetch_query_seq = 'SELECT {features} FROM {table} WHERE event '\
+
+        self._fetch_query_seq = 'SELECT {features} FROM {table} WHERE event_no '\
                 'IN ({events})'
         self._fetch_query = 'SELECT {features} FROM {table} WHERE event_no '\
                 'IN ({events})'
+        self._read_query = (
+            'SELECT {feature} FROM {table} WHERE {primary_key} IN ({nums})'
+        )
 
     def __len__(self):
         return self._len
@@ -453,7 +458,7 @@ class SqliteFetcher:
         
         # Prepare sequences-query
         all_seq_cols_feats = seqs+mask
-        seq_query = 'SELECT {features} FROM sequential WHERE event IN ({events})'.format(
+        seq_query = 'SELECT {features} FROM sequential WHERE event_no IN ({events})'.format(
             features=', '.join(all_seq_cols_feats),
             events=', '.join(['?'] * n_events)
         )
@@ -487,10 +492,18 @@ class SqliteFetcher:
             # - we manually convert particle code to a one-hot encoding
             if reg_type in CLASSIFICATION:
                 particle_code = singles[i_event][n_scalars:n_scalars+n_targets][0]
-                if particle_code == 120000:
-                    target_arr = np.array([1.0, 0.0])
-                elif particle_code == 140000:
-                    target_arr = np.array([0.0, 1.0])
+                if reg_type == 'nue_numu':
+                    if particle_code == 120000:
+                        target_arr = np.array([1.0, 0.0])
+                    elif particle_code == 140000:
+                        target_arr = np.array([0.0, 1.0])
+                elif reg_type == 'nue_numu_nutau':
+                    if particle_code == 120000:
+                        target_arr = np.array([1.0, 0.0, 0.0])
+                    elif particle_code == 140000:
+                        target_arr = np.array([0.0, 1.0, 0.0])
+                    else:
+                        target_arr = np.array([0.0, 0.0, 1.0])
                 else:
                     raise ValueError('Unknown classification encountered')
             else:
@@ -521,7 +534,33 @@ class SqliteFetcher:
 
         return batch
 
-    def write(self, table, name, ids, values, astype='REAL'):
+    def read(self, table, feature, primary_key, nums):
+        # If events are not strings, convert them
+        if not isinstance(nums[0], str):
+            raise ValueError('Events must be IDs as strings')
+        with sqlite3.connect(self._path) as db:
+            cursor = db.cursor()
+            query = self._read_query.format(
+                # feature=', '.join([feature, primary_key]),
+                feature=feature,
+                table=table,
+                primary_key=primary_key,
+                nums=', '.join(['?'] * len(nums))
+                )
+            
+            cursor.execute(query, nums)
+            fetched = cursor.fetchall()
+            converted = np.array([
+                e[0] for e in fetched
+            ])
+            # ids = np.array([
+            #     e[1] for e in fetched
+            # ])
+        return converted#, ids
+        
+    def write(
+        self, table, name, ids, values, primary_key='event_no', astype='REAL'
+        ):
 
         n_events = len(ids)
         n_values = len(values)
@@ -543,7 +582,7 @@ class SqliteFetcher:
             cursor = db.cursor()
 
             # Check if column exists - if not, create it.
-            if not name in self.tables['scalar']:
+            if not name in self.tables[table]:
                 query = 'ALTER TABLE {table} ADD COLUMN {name} {astype}'.format(
                     table=table,
                     name=name,
@@ -552,9 +591,10 @@ class SqliteFetcher:
                 cursor.execute(query)
             
             # Write data to column
-            query = 'UPDATE {table} SET {name}=? WHERE event_no=?'.format(
+            query = 'UPDATE {table} SET {name}=? WHERE {primary_key}=?'.format(
                 table=table,
                 name=name,
+                primary_key=primary_key
             )
             cursor.executemany(query, [[e[0], e[1]] for e in zip(values, ids)])
             db.commit()
