@@ -78,7 +78,7 @@ class AziPolarHists:
         # Save standard histograms first
         for key, pred in self.pred_dict.items():
             img_address = get_project_root() + self.model_dir+'/figures/'+str(key)+'.png'
-            figure = make_plot({'data': [pred], 'xlabel': str(key), 'savefig': img_address})
+            figure = make_plot({'data': [pred], 'xlabel': str(key), 'savefig': img_address}, for_thesis=True)
 
             # Load img with PIL - png format can be logged
             if self.wandb_ID is not None:
@@ -204,14 +204,14 @@ class Performance:
         d['savefig'] = get_project_root()+self.model_dir+'/figures/CorrCoeff.png'
         fig = make_plot(d)
 
-        # Save a histogram of loss values aswell
-        d = {'data': [loss]}
-        d['xlabel'] = 'Loss value (%s)'%(self.loss_func)
-        d['ylabel'] = 'Count'
-        d['log'] = [True]
-        d['savefig'] = get_project_root()+self.model_dir+'/figures/loss_vals.png'
-        _ = make_plot(d)
-        plt.close('all')
+        # # Save a histogram of loss values aswell
+        # d = {'data': [loss]}
+        # d['xlabel'] = 'Loss value (%s)'%(self.loss_func)
+        # d['ylabel'] = 'Count'
+        # d['log'] = [True]
+        # d['savefig'] = get_project_root()+self.model_dir+'/figures/loss_vals.png'
+        # _ = make_plot(d)
+        # plt.close('all')
 
         return corrs
 
@@ -643,54 +643,54 @@ class Performance:
         if key == 'relative_E_error':
             clip_vals = [-4.0, 4.0]
             d2['ylabel'] = r'$(\mathrm{E}_{reco}-\mathrm{E}_{true})/\mathrm{E}_{true}$ [%]'
-            d2['title'] = 'Model Energy reco. results'
+            d2['title'] = r'Energy reconstruction performance'
 
         elif key == 'log_frac_E_error':
             clip_vals = [-1.0, 1.0]
             d2['ylabel'] = r'$\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$'
             # d2['ylabel'] = r'$\text{Width}\left( \log_{10} E_{pred} - \log_{10} E_{true} \right)$'
 
-            d2['title'] = 'Model Energy reco. results'
+            d2['title'] = r'Energy reconstruction performance'
 
         elif key == 'vertex_x_error':
             clip_vals = [-80.0, 80.0]
-            d2['ylabel'] = 'Error [m]'
-            d2['title'] = 'Model vertex x reco. results'
+            d2['ylabel'] = r'$\Delta x$ [m]'
+            d2['title'] = r'Vertex $x$ reconstruction performance'
 
         elif key == 'vertex_y_error':
             clip_vals = [-80.0, 80.0]
-            d2['ylabel'] = 'Error [m]'
-            d2['title'] = 'Model vertex y reco. results'
+            d2['ylabel'] = r'$\Delta y$ [m]'
+            d2['title'] = r'Vertex $y$ reconstruction performance'
 
         elif key == 'vertex_z_error':
             clip_vals = [-80.0, 80.0]
-            d2['ylabel'] = 'Error [m]'
-            d2['title'] = 'Model vertex z reco. results'
+            d2['ylabel'] = r'$\Delta z$ [m]'
+            d2['title'] = r'Vertex $z$ reconstruction performance'
         
         elif key == 'vertex_t_error':
             clip_vals = [-200.0, 200.0]
-            d2['ylabel'] = 'Error [ns]'
-            d2['title'] = 'Model interaction time reco. results'
+            d2['ylabel'] = r'$\Delta t$[ns]'
+            d2['title'] = r'Interaction time reconstruction performance'
         
         elif key == 'polar_error':
             clip_vals = [-80.0, 80.0]
-            d2['ylabel'] = 'Error [deg]'
-            d2['title'] = 'Model polar angle reco. results'
+            d2['ylabel'] = r'$\Delta \theta$ [deg]'
+            d2['title'] = r'Polar reconstruction performance'
         
         elif key == 'azi_error':
             clip_vals = [-150.0, 150.0]
-            d2['ylabel'] = 'Error [deg]'
-            d2['title'] = 'Model azimuthal angle reco. results'
+            d2['ylabel'] = r'$\Delta \phi$ [deg]'
+            d2['title'] = r'Azimuthal reconstruction performance'
         
         elif key == 'directional_error':
             clip_vals = [-150.0, 150.0]
-            d2['ylabel'] = 'Directional error'
-            d2['title'] = 'Model directional error reco. results'
+            d2['ylabel'] = r'$\Delta \Psi$ [deg]'
+            d2['title'] = r'Directional reconstruction performance'
         
         elif key == 'len_error':
             clip_vals = [0.0, 100.0]
-            d2['ylabel'] = 'Distance to vertex error [m]'
-            d2['title'] = 'Model distance to vertex reco. results'
+            d2['ylabel'] = r'$|\vec{x}_{reco}-\vec{x}_{true}|$ [m]'
+            d2['title'] = r'Vertex reconstruction performance'
         
         return d2, clip_vals
     
@@ -755,7 +755,7 @@ class Performance:
 
         d = {'edges': [self.bin_edges, self.bin_edges], 'y': [metric, reco_metric], 
         'yerr': [metricerr, reco_metricerr], 'xlabel': r'log(E) [E/GeV]', 
-        'ylabel': label, 'grid': False, 'label': ['Model', 'Icecube'], 
+        'ylabel': label, 'grid': False, 'label': [r'$RNN$', 'Retro'], 
         'yrange': {'bottom': 0.001}, 'title': title}
 
         return d
@@ -779,7 +779,7 @@ class Performance:
         d = {'edges': [self.dom_bin_edges, self.dom_bin_edges], 
         'y': [metric, reco_metric], 'yerr': [metricerr, reco_metricerr], 
         'xlabel': r'$N_{DOMs}$', 'ylabel': label, 'grid': False, 
-        'label': ['Model', 'Icecube'], 
+        'label': [r'$RNN$', 'Retro'], 
         'yrange': {'bottom': 0.001}, 'title': title}
 
         return d
@@ -787,34 +787,34 @@ class Performance:
     def _get_perf_plot_title(self, key):
 
         if key == 'relative_E_error':
-            title = 'Model energy reco. performance'
+            title = r'Energy reconstruction performance'
 
         elif key == 'vertex_x_error':
-            title = 'Model x-vertex reco. performance'
+            title = r'Vertex $x$ reconstruction performance'
 
         elif key == 'vertex_y_error':
-            title = 'Model y-vertex reco. performance'
+            title = r'Vertex $y$ reconstruction performance'
 
         elif key == 'vertex_z_error':
-            title = 'Model z-vertex reco. performance'
+            title = r'Vertex $z$ reconstruction performance'
         
         elif key == 'vertex_t_error':
-            title = 'Model interaction time reco. performance'
+            title = r'Interaction time reconstruction performance'
 
         elif key == 'polar_error':
-            title = 'Model polar angle reco. performance'
-        
+            title = r'Polar reconstruction performance'
+
         elif key == 'azi_error':
-            title = 'Model azimuthal angle reco. performance'
+            title = r'Azimuthal reconstruction performance'
         
         elif key == 'log_frac_E_error':
-            title = 'Model energy reco. width'
-        
+            title = r'Energy reconstruction performance'
+
         elif key == 'len_error':
-            title = 'Model distance to vertex 68th percentile'
-        
+            title = r'Vertex reconstruction performance'
+
         elif key == 'directional_error':
-            title = 'Model directional error 68th percentile'
+            title = r'Directional reconstruction performance'
 
         return title
 
@@ -917,7 +917,7 @@ class Performance:
         rel_imp_err = getattr(self, key+'_RIerr')
 
         d = {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 
-            'xlabel': r'log(E) [E/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 
+            'xlabel': r'$\log_{10}(E)$ [$E$/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 
             'y_minor_ticks_multiple': 0.2}
         
         yrange_d = {}
@@ -931,19 +931,28 @@ class Performance:
     def _get_ylabel(self, key):
         
         if key == 'vertex_t_error':
-            label = 'Resolution [ns]'
-        elif key == 'vertex_x_error' or key == 'vertex_y_error' or key == 'vertex_z_error':
-            label = 'Resolution [m]'
-        elif key == 'azi_error' or key == 'polar_error':
-            label = 'Resolution [deg]'
+            label = r'$W(\Delta t)$ [ns]'
+        elif key == 'vertex_x_error':
+            label = r'$W(\Delta x)$ [m]'
+        elif key == 'vertex_y_error':
+            label = r'$W(\Delta y)$ [m]'
+        elif key == 'vertex_z_error':
+            label = r'$W(\Delta z)$ [m]'
+        elif key == 'azi_error':
+            label = r'$W(\Delta \phi)$ [deg]'
+        elif key == 'polar_error':
+            label = r'$W(\Delta \theta)$ [deg]'
         elif key == 'relative_E_error':
-            label = 'Resolution [%]'
+            label = r'$W\left( \frac{E_{pred}-E_{true}}{E_{true}} \right)$ [%]'
         elif key == 'log_frac_E_error':
-            label = r'$\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$'
+            label = r'$W\left(\log_{10} \left[ \frac{E_{pred}}{E_{true}} \right]\right)$'
         elif key == 'len_error':
             label = 'Distance to vertex [m]'
+            label = r'$U(|\vec{x}_{reco}-\vec{x}_{true}|)$ [m]'
         elif key == 'directional_error':
             label = 'Angle error [deg]'
+            label = r'$U\left(\Delta\Psi\right)$ [deg]'
+
         else:
             raise KeyError('PerformanceClass._get_ylabel: Unknown key (%s)given!'%(key))
 
@@ -961,7 +970,7 @@ class Performance:
         
         d2['hist2d'] = [energy, np.clip(data, clip_vals[0], clip_vals[1])]
         d2['zorder'] = 0
-        d2['xlabel'] = r'log(E) [E/GeV]' 
+        d2['xlabel'] = r'$\log_{10}(E)$ [$E$/GeV]'
         f2 = make_plot(d2)
         
         d = {}
@@ -981,8 +990,8 @@ class Performance:
             d['drawstyle'] = ['steps-mid', 'steps-mid', 'steps-mid', 
                               'steps-mid', 'steps-mid', 'steps-mid']
             d['linestyle'] = [':', '-', '--', ':', '-', '--']
-            d['label'] = ['Model 84th perc.', 'Model 50th perc.', 'Model 16th perc.',
-                          'I3 84th perc.', 'I3 50th perc.', 'I3 16th perc.']
+            d['label'] = [r'$RNN$ 84th perc.', r'$RNN$ 50th perc.', r'$RNN$ 16th perc.',
+                          'Retro 84th perc.', 'Retro 50th perc.', 'Retro 16th perc.']
             d['color'] = ['red','red', 'red', 'forestgreen', 'forestgreen', 
                           'forestgreen']
             d['zorder'] = [1, 1, 1, 1, 1, 1]
@@ -1157,7 +1166,6 @@ class Performance:
         if not Path(base_path).exists():
             Path(base_path).mkdir()
         for pred, target in zip(raw_pred, raw_target):
-            print(pred, target)
             if pred != target:
                 # Ensure right match for histograms
                 raise KeyError(
@@ -1167,7 +1175,6 @@ class Performance:
                 )
             clip_min = np.min(raw_target[target]), 
             clip_max = np.max(raw_target[target])
-            print(clip_min, clip_max)
             d = {'data': [
                 np.clip(raw_pred[pred], clip_min, clip_max), 
                 raw_target[target]
@@ -1475,9 +1482,6 @@ class FeaturePermutationImportance:
 
             # Calculate feature importance = (permuted_metric-baseline_metric)/baseline_metric
             feature_importance, feature_importance_err = self._calc_feature_importance_from_errors(baseline[name], error_from_preds[name])
-            print(feature_importance)
-            print('')
-
 
             # Save dictionary as an attribute. Should contain permuted feature-names and FI. Each new permutation importance is saved as an entry in a list.
             features = seq_features.copy()
@@ -1808,7 +1812,7 @@ def make_plot(
     h_figure=None, 
     axes_index=None, 
     position=[0.125, 0.11, 0.775, 0.77],
-    for_thesis=False,
+    for_thesis=True,
     save_pickle=True
     ):
     """A custom plot function using PyPlot. If 'x' AND 'y' are in plot_dict, a xy-graph is returned, if 'data' is given, a histogram is returned.
@@ -1842,6 +1846,7 @@ def make_plot(
 
         h_figure = plt.figure()
         h_axis = h_figure.add_axes(position)
+        print()
     else:
         if isinstance(axes_index, int):
             h_axis = h_figure.get_axes()[axes_index]
@@ -1866,7 +1871,7 @@ def make_plot(
         for i_set, dataset in enumerate(plot_dict['y']):
             # Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
             plot_keys = [
-                'label', 'drawstyle', 'color', 'zorder', 'linestyle', 'yerr'
+                'label', 'drawstyle', 'color', 'zorder', 'linestyle', 'yerr', 'fmt'
                 ]
             # Set baseline
             d = {'linewidth': 1.5}
@@ -2075,7 +2080,157 @@ def make_plot(
         h_axis.xaxis.set_ticks_position('top')
         h_axis.set_title('Confusion Matrix', loc='left')
 
+    # elif 'parallel_coords' in plot_dict:
+    #     data = plot_dict['parallel_coords'] + 0.0
+    #     n_pars = data.shape[1]
+    #     n_models = data.shape[0]
+    #     names = plot_dict['names']
+    #     color_index = plot_dict['color_index']
+
+    #     # Sort wrt correlation with loss
+    #     d_max = np.max(data, axis=0)
+    #     d_min = np.min(data, axis=0)
+    #     d_interval = d_max - d_min
+    #     data_scaled = (data-d_min)/(d_interval + 1e-6)
+    #     # corr = np.corrcoef(data_scaled, rowvar=False)
+    #     # print(corr)
+    #     # print(data_scaled)
+    #     x = np.arange(n_pars)
+    #     for i_model in range(n_models):
+    #         c = (1-data_scaled[i_model, color_index])*0.8
+    #         color = mpl.cm.plasma(
+    #             c
+    #         )
+    #         h_axis.plot(x, data_scaled[i_model, :], color=color, alpha=0.8)
+    #     h_axis.set_xticks(x)
+    #     for i_name in range(len(names)):
+    #         names[i_name] = '%.3f \n'%(d_min[i_name]) + r'\textbf{'+names[i_name] + r'}'
+    #     h_axis.set_xticklabels(names)
+    #     h_axis.set_yticks([])
+
+    #     # Set upper ticks
+    #     h_upper = h_axis.twiny()
+    #     h_upper.plot(x, np.zeros(len(x)), alpha=0.0)
+    #     h_upper.set_xticks(x)
+    #     upper_ticks = []
+    #     for i_val in range(len(d_max)):
+    #         upper_ticks.append('%.3f'%(d_max[i_val]))
+    #     h_upper.set_xticklabels(upper_ticks)
+
+    #     # # Make vertical lines
+    #     for vline in x:
+    #         h_axis.axvline(x=vline, color='k', linewidth=0.5, alpha=0.1)
+
+    elif 'parallel_plot' in plot_dict:
+        data = plot_dict['parallel_plot'] + 0.0
+        n_pars = data.shape[1]
+        n_models = data.shape[0]
+        names = plot_dict['names']
+        color_index = plot_dict['color_index']
+        labels = plot_dict.get('labels', [None for name in names])
+
+        # # Sort wrt highest correlation
+        # corr = np.corrcoef(data_unsorted, rowvar=False)[color_index_unsorted, :]
+        # _, ids = sort_pairs(corr, np.arange(n_pars))
+        # data = data_unsorted + 0.0
+        # names = []
+        # labels = []
+        # for new, old in zip(np.arange(n_pars), ids):
+        #     data[:, new] = data_unsorted[:, old] + 0.0
+        #     names.append(names_unsorted[old])
+        #     labels.append(labels_old[old])
         
+        # Make the lines
+        d_max = np.max(data, axis=0)
+        d_min = np.min(data, axis=0)
+        d_interval = d_max - d_min
+        data_scaled = (data-d_min)/(d_interval + 1e-6)
+
+        # logdata = np.log(data[:, -1])
+        # d_log_max = np.max(logdata)
+        # d_log_min = np.min(logdata)
+        # logdata_scaled = (logdata - d_log_min)/(d_log_max-d_log_min + 1e-6)
+        x = np.arange(n_pars)
+        # plt.style.use('seaborn-darkgrid')
+        for i_model in range(n_models):
+            c = (1-data_scaled[i_model, -1])*0.8 + 0.1
+            c = (1-min(data_scaled[i_model, -1]*5, 1))*0.35
+            color = mpl.cm.hot(
+                c
+            )
+            
+            if plot_dict.get('mark_min', True):
+                if data_scaled[i_model, -1] == min(data_scaled[:, -1]):
+                    # color = 'green'
+                    linewidth = 1.0
+                else:
+                    linewidth = 0.8
+
+            if plot_dict.get('separate', True):
+                separation = np.ones(n_pars-1) * (i_model - n_models/2) * 0.001
+            else:
+                separation = np.zeros(n_pars-1)
+            y = data_scaled[i_model, :] + np.append(separation, 0)
+
+            h_axis.plot(
+                x, 
+                y,#data_scaled[i_model, :],# + (i_model-n_models/2)*0.002, 
+                color=color, 
+                alpha=0.8, 
+                linewidth=linewidth
+                )
+
+        def hide_axes(ax):
+            ax.spines['right'].set_color('none')
+            ax.spines['bottom'].set_color('none')
+            ax.spines['left'].set_color('none')
+            ax.spines['top'].set_color('none')
+
+        # Set upper ticks
+        h_upper = h_axis.twiny()
+        h_upper.plot(x, np.zeros(len(x)), alpha=0.0)
+        h_upper.set_xticks(x)
+        bf_names = [r'$\textbf{'+r'%s'%(name) + r'}$' for name in names]
+        h_upper.set_xticklabels(bf_names)
+        hide_axes(h_upper)
+
+        
+        for x_val in x:
+            # Make each axis
+            h_y = h_axis.twinx()
+            h_y.plot(x, x, alpha=0.0)
+            h_y.spines['right'].set_position(('data', x_val))
+            h_y.spines['bottom'].set_color('none')
+            h_y.spines['left'].set_color('none')
+            h_y.spines['top'].set_color('none')
+
+            # Sort out how many ticks
+            n_unique = np.unique(data[:, x_val])
+            n_ticks = min(6, len(n_unique))
+            h_y.set_yticks(np.linspace(0, x[-1], num=n_ticks))
+
+            # Set proper names
+            tickvals = np.linspace(d_min[x_val], d_max[x_val], n_ticks)
+            if isinstance(labels[x_val], list):
+                tickvals = labels[x_val]
+            else:
+                if tickvals[0] > 10:
+                    tickvals = [int(tickval) for tickval in tickvals]
+                elif tickvals[0] > 1.0:
+                    tickvals = ['%.2f'%(tickval) for tickval in tickvals]
+                elif tickvals[0] in np.arange(100):
+                    tickvals = ['%d'%(tickval) for tickval in tickvals]
+                else:
+                    tickvals = ['%.2e'%(tickval) for tickval in tickvals]
+            h_y.set_yticklabels(tickvals)
+
+
+        # Remove the 'box' around the figure
+        h_axis.axis('off')
+        
+        # h_y.plot(x, np.zeros(len(x)), alpha=0.0)
+        # h_y.set_xticks(x)
+
     else:
         raise ValueError('Unknown plot wanted!')
     
@@ -2130,9 +2285,9 @@ def make_plot(
     if 'savefig' in plot_dict: 
         path_obj = Path(plot_dict['savefig'])
         fig_name = path_obj.name
-        pickle_name = str(path_obj.parent) + '/pickle_' + path_obj.stem + '.pickle'
 
         if save_pickle:
+            pickle_name = get_fig_pickle_name(plot_dict['savefig'])
             with open(pickle_name, 'wb') as f:
                 pickle.dump(h_figure, f)
         h_figure.savefig(plot_dict['savefig'], bbox_inches='tight')

@@ -37,12 +37,21 @@ parser.add_argument(
         type=float, 
         help='Sets the min learning rate for the OneCycle learning rate schedule.'
 )
-parser.add_argument('--lr', default=1e-3, type=float, 
-        help='Sets the learning rate.')
-parser.add_argument('--start_lr', default=1e-6, type=float, 
-        help='Sets the start learning rate for the learning rate finder.')
-parser.add_argument('--end_lr', default=0.1, type=float, 
-        help='Sets the end learning rate for the learning rate finder.')
+parser.add_argument(
+        '--lr', default=1e-3, type=float, help='Sets the learning rate.'
+        )
+parser.add_argument(
+        '--start_lr', 
+        default=1e-6, 
+        type=float, 
+        help='Sets the start learning rate for the learning rate finder.'
+        )
+parser.add_argument(
+        '--end_lr', 
+        default=0.1, 
+        type=float, 
+        help='Sets the end learning rate for the learning rate finder.'
+        )
 parser.add_argument('--lr_finder_epochs', default=1, type=int, 
         help='Sets the number of epochs the learning rate finder should run.')
 parser.add_argument('--max_seq_len', default=np.inf, type=int, 
@@ -266,24 +275,24 @@ if __name__ == '__main__':
     n_seq_feat = len(data_pars['seq_feat'])
     n_scalar_feat = len(data_pars['scalar_feat'])
     n_target = get_n_targets(data_pars, meta_pars, args.loss)
-    n1 = 128
+    n1 = 256
     n2 = 2*n1+n_scalar_feat
 
     layers = [ 
-        #{'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
+        # {'Linear_embedder': {'input_sizes':        [n_seq_feat, 64],
         #                     'LayerNorm':          True},},
         # {'BiLSTM':          {'n_in':               n_seq_feat,
         #                      'n_hidden':           128,
         #                      'residual':           False,
         #                      'learn_init':         False}},
-        # {'ResBlock':        {'input_sizes':       [n_seq_feat, n1//2, n1//2],
-        #                      'norm':              'LayerNorm',
-        #                      'type':              'seq'}},
-        {'RnnBlock':        {'n_in':             n_seq_feat,
+        {'ResBlock':        {'input_sizes':       [n_seq_feat, 64],
+                             'norm':              'LayerNorm',
+                             'type':              'seq'}},
+        {'RnnBlock':        {'n_in':             64,
                             'n_out':             n1,
                             'rnn_type':          'GRU',
                             'n_parallel':        1,
-                            'num_layers':        2,
+                            'num_layers':        3,
                             'residual':          False,
                             'bidir':             True,
                             'dropout':           0.0,
@@ -307,9 +316,10 @@ if __name__ == '__main__':
         #{'LSTM':            {'input_sizes':        [64, 512],
         #                    'dropout':             0.5,
         #                    'bidirectional':       False}},
-        # {'ManyToOneAttention':{'n_in':             n_seq_feat}},
+        # {'ManyToOneAttention':{'n_in':             2*n1}},
         # {'MaxPool': []},
-        {'ResBlock':        {'input_sizes':        [n2, n2, n2, n2],
+        # {''}
+        {'ResBlock':        {'input_sizes':        [n2, n2],
                              'norm':               'BatchNorm1D',
                              'type':               'x'}},
         {'Linear':          {'input_sizes':        [n2, n_target],
@@ -342,19 +352,19 @@ if __name__ == '__main__':
 
     json_dict = {'hyper_pars': hyper_pars, 'data_pars': data_pars, 
                 'arch_pars': arch_pars, 'meta_pars': meta_pars}
-    exp_dir = get_project_root() + '/experiments/'
+    exp_dir = get_project_root() + '/experiments_gpu' + args.gpu[0]
 
     # Finally! Make model directory 
-    base_name = strftime("%Y-%m-%d-%H.%M.%S", localtime())
+    base_name = strftime("/%Y-%m-%d-%H.%M.%S", localtime())
     exp_name = exp_dir+base_name+'.json'
     with open(exp_name, 'w') as name:
         json.dump(json_dict, name)
     
-    if args.shared:
-        command = 'python -u ../CubeML/src/script/run_exp_from_shared.py'
-        command = 'python -u run_exp_from_shared.py'
+#     if args.shared:
+#         command = 'python -u ../CubeML/src/script/run_exp_from_shared.py'
+#         command = 'python -u run_exp_from_shared.py'
 
-        save_shared_exp_folder_command(command)
+#         save_shared_exp_folder_command(command)
     
     if args.run:
         if args.test:

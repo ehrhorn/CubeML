@@ -2,12 +2,19 @@ import matplotlib as mpl
 from src.modules.constants import *
 from src.modules.helper_functions import get_time
 
-def update_ylabels(ax, keyword='num2k', func=None):
+def update_ylabels(ax, keyword='num2k', func=None, minor=False):
     if keyword == 'num2k':
-        ylabels = [str(int(label/1000))+'k' for label in ax.get_yticks()]
+        ylabels = [str(int(label/1000))+'k' for label in ax.get_yticks(minor=minor)]
     elif keyword == 'func':
-        ylabels = [func(label) for label in ax.get_yticks()]
-    ax.set_yticklabels(ylabels)
+        ylabels = [func(label) for label in ax.get_yticks(minor=minor)]
+    ax.set_yticklabels(ylabels, minor=minor)
+
+def update_xlabels(ax, keyword='num2k', func=None):
+    if keyword == 'num2k':
+        ylabels = [str(int(label/1000))+'k' for label in ax.get_xticks()]
+    elif keyword == 'func':
+        ylabels = [func(label) for label in ax.get_xticks()]
+    ax.set_xticklabels(ylabels)
 
 
 def save_thesis_pgf(path, f, save_pgf=False):
@@ -52,6 +59,8 @@ def get_frac_of_textwidth(keyword='single_fig', rows=None, cols=None):
         frac = 0.65
     elif keyword == 'subplots':
         frac = 1.3
+    elif keyword == 'broad_fig':
+        frac = 1.6
     else:
         raise KeyError('Unknown keyword (%s) given to get_frac_of_textwidth!'%(keyword))
     return frac

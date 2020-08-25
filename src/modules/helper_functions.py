@@ -1104,6 +1104,11 @@ def get_mads_keys(keys):
         mads_keys.append(new_keys[key])
     return mads_keys
 
+def get_fig_pickle_name(path_str):
+    path_obj = Path(path_str)
+    pickle_name = str(path_obj.parent) + '/pickle_' + path_obj.stem + '.pickle'
+    return pickle_name
+
 def get_set_length(dataloader):
     '''Determines the set length given a custom setholder for Torch's dataloader. Defaults to returning len(dataloader).
     '''
@@ -1775,6 +1780,15 @@ def nonnormed_gauss(x, N, mu, sigma):
     # const = N
     exponent = -0.5*(x-mu)*(x-mu)/(sigma*sigma)
     return const*np.exp(exponent)
+
+def num2str(num, type='float'):
+    if abs(num) > 100:
+        res = f'{num:.4}'
+    elif abs(num) > 5.0:
+        res = f'{num:.4}'
+    else:
+        res = f'{num:.4}'
+    return res
 
 def print_progress(start_time, progress, total):
     """Prints elapsed time in hours and minutes since start of program.

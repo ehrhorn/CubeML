@@ -431,7 +431,6 @@ class SqliteFetcher:
         ):
         
         n_events = len(ids)
-
         # Ensure some events are passed
         if n_events == 0:
             raise ValueError('NO EVENTS PASSED TO SQLFETCHER')
@@ -439,13 +438,18 @@ class SqliteFetcher:
         # If events are not strings, convert them
         if not isinstance(ids[0], str):
             raise ValueError('Events must be IDs as strings')
+        
+        if weights == []:
+            NO_WEIGHTS = True
+        else:
+            NO_WEIGHTS = False
 
         # Prepare single-number queries
         scalar_cols = ['scalar.'+e for e in scalars]
-        if reg_type is None:
-            target_cols = ['scalar.'+e for e in targets]  
-        elif reg_type in CLASSIFICATION:
+        if reg_type in CLASSIFICATION:
             target_cols = ['meta.particle_code']
+        else:
+            target_cols = ['scalar.'+e for e in targets]
 
         lengths_key = ['meta.split_in_ice_pulses_event_length']
         weights_col = ['scalar.'+e for e in weights]
@@ -510,7 +514,11 @@ class SqliteFetcher:
                 target_arr = np.array(
                     singles[i_event][n_scalars:n_scalars+n_targets]
                     )
-            weight = singles[i_event][-2]
+                    
+            if NO_WEIGHTS:
+                weight = 1.0
+            else:
+                weight = singles[i_event][-2]
             
             # Make sequential array
             # Since each DOM is stored as a row, we first get the to- and 
@@ -784,8 +792,7 @@ class SqliteLoader(data.Dataset):
         # 'SRTInIcePulses' corresponds to Icecubes cleaned doms
         self.dom_mask = [dom_mask]
         self.keyword = keyword
-
-        self.weights = [weights] # To be determined in get_meta_information
+        self.weights = [weights] if weights != 'None' else [] # To be determined in get_meta_information
         self.len = None # To be determined in get_meta_information
         self.indices = None # To be determined in get_meta_information
 
@@ -1358,7 +1365,18 @@ class AttentionBlock2(nn.Module):
 
 class RnnBlock(nn.Module):
     
-    def __init__(self, n_in, n_out, n_parallel, num_layers, rnn_type='LSTM', bidir=False, residual=False, batch_first=True, learn_init=False, dropout=0.0):
+    def __init__(
+        self, 
+        n_in, 
+        n_out, 
+        n_parallel, 
+        num_layers, 
+        rnn_type='LSTM', 
+        bidir=False, 
+        residual=False, 
+        batch_first=True, 
+        learn_init=False, 
+        dropout=0.0):
                 
         super(RnnBlock, self).__init__()
 
@@ -1380,8 +1398,16 @@ class RnnBlock(nn.Module):
         
         if rnn_type == 'LSTM':
             for i_par in range(n_parallel):
-                self.par_RNNs.append(nn.LSTM(input_size=n_in, hidden_size=n_out, bidirectional=bidir, 
-                num_layers=num_layers, batch_first=batch_first, dropout=self.dropout))
+                self.par_RNNs.append(
+                    nn.LSTM(
+                        input_size=n_in, 
+                        hidden_size=n_out, 
+                        bidirectional=bidir, 
+                        num_layers=num_layers, 
+                        batch_first=batch_first, 
+                        dropout=self.dropout
+                    )
+                )
                 if self.learn_init:
                     n_parameters = self.n_dirs*self.hidden_size*self.n_layers
                     self.init_hidden_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
@@ -1389,12 +1415,36 @@ class RnnBlock(nn.Module):
 
         elif rnn_type == 'GRU':
             for i_par in range(n_parallel):
-                self.par_RNNs.append(nn.GRU(input_size=n_in, hidden_size=n_out, bidirectional=bidir, 
-                num_layers=num_layers, batch_first=batch_first, dropout=self.dropout))
+                self.par_RNNs.append(
+                    nn.GRU(
+                        input_size=n_in,
+                        hidden_size=n_out,
+                        bidirectional=bidir, 
+                        num_layers=num_layers, 
+                        batch_first=batch_first, 
+                        dropout=self.dropout
+                    )
+                )
                 if self.learn_init:
                     n_parameters = self.n_dirs*self.hidden_size*self.n_layers
                     self.init_hidden_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
                     # self.init_cell_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
+        elif rnn_type == 'Vanilla':
+            for i_par in range(n_parallel):
+                self.par_RNNs.append(
+                    nn.RNN(
+                        input_size=n_in,
+                        hidden_size=n_out,
+                        bidirectional=bidir, 
+                        num_layers=num_layers, 
+                        batch_first=batch_first, 
+                        dropout=self.dropout,
+                    )
+                )
+                if self.learn_init:
+                    n_parameters = self.n_dirs*self.hidden_size*self.n_layers
+                    self.init_hidden_states.append(nn.Parameter(torch.empty(n_parameters).normal_(mean=0,std=1.0)))
+        
         else:
             raise KeyError('UNKNOWN RNN TYPE (%s) PASSED TO MAKEMODEL'%(rnn_type))
     
@@ -1424,7 +1474,7 @@ class RnnBlock(nn.Module):
                     hidden = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
                     cell = self.init_cell_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
                     h = (hidden, cell)
-                elif self.rnn_type == 'GRU':
+                elif self.rnn_type in ['GRU', 'Vanilla']:
                     h = self.init_hidden_states[i_par].view(self.n_layers*self.n_dirs, 1, -1).expand(-1, batch_size, -1).contiguous()
 
             else:
@@ -1438,7 +1488,7 @@ class RnnBlock(nn.Module):
             # when multiple directions and layers, h_out is weird - needs careful treatment
             if self.rnn_type == 'LSTM':
                 h_out = h_par[0].view(self.n_layers, self.n_dirs, batch_size, self.hidden_size)
-            elif self.rnn_type == 'GRU':
+            elif self.rnn_type in ['GRU', 'Vanilla']:
                 h_out = h_par.view(self.n_layers, self.n_dirs, batch_size, self.hidden_size)
             
             if self.bidir:
@@ -1489,10 +1539,10 @@ class MakeModel(nn.Module):
     # Input must be a tuple to be unpacked!
     def forward(self, batch):
         # Get device on each forward-pass to be compatible with training on multiple GPUs. An error is raised if no GPU available --> use except
-        try:
-            device = get_device(torch.cuda.current_device())
-        except AssertionError:
-            device = None
+        # try:
+        #     device = get_device(torch.cuda.current_device())
+        # except AssertionError:
+        #     device = None
 
         # For linear layers
         if len(batch) == 1: 
@@ -1507,8 +1557,10 @@ class MakeModel(nn.Module):
             # 'Reshape' input (batch first), torch wants a certain form..
             # seq = seq.view(batch_size, -1, n_seq_vars)
         
+        # Get device on each forward-pass to be compatible with training on multiple GPUs. An error is raised if no GPU available --> use excep
+        device = 'cuda:'+str(seq.get_device())
+
         for layer_name, entry in zip(self.layer_names, self.mods):
-            
             # Handle different layers in different ways! 
             if layer_name == 'Linear':
 
@@ -1542,7 +1594,6 @@ class MakeModel(nn.Module):
             # Many to one! Therefore outputs x
             elif layer_name == 'ManyToOneAttention':
                 x = entry(seq, lengths, device=device)
-            
             # The MaxPool-layer is used after sequences have been treated 
             # -> prepare for linear decoding.
             elif layer_name == 'MaxPool':
@@ -1648,7 +1699,14 @@ class ManyToOneAttention(nn.Module):
         q = self.Q(seq)
         
         # Attention -> potential norm and residual connection
-        post_attention = self._calc_self_attention(q, seq, lengths, max_length, batch_first=self._batch_first, device=device)
+        post_attention = self._calc_self_attention(
+            q, 
+            seq, 
+            lengths, 
+            max_length, 
+            batch_first=self._batch_first, 
+            device=device
+        )
         
         return post_attention.squeeze(1)
 
@@ -1838,7 +1896,15 @@ class SelfAttention(nn.Module):
         k = self.K(seq)
         
         # Attention
-        output = self._calc_self_attention(q, k, seq, lengths, max_length, batch_first=self._batch_first, device=device)
+        output = self._calc_self_attention(
+            q, 
+            k, 
+            seq, 
+            lengths, 
+            max_length, 
+            batch_first=self._batch_first, 
+            device=device
+        )
 
         return output
 

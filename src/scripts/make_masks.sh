@@ -11,4 +11,14 @@ python data_prep/combine_masks.py --masks muon_neutrino electron_neutrino tau_ne
 python data_prep/sqlite_weight_calc.py --name nue_numu_balanced --masks nue_numu
 python data_prep/sqlite_weight_calc.py --name nue_numu_nutau_balanced --masks nue_numu_nutau
 python data_prep/sqlite_weight_calc.py --name inverse_performance_muon_energy --masks muon_neutrino
-python data_prep/sqlite_weight_calc.py --masks energy_interval_min0.0_max3.0 --name energy_balanced --make_plot
+python data_prep/sqlite_weight_calc.py --masks energy_interval_min0.0_max3.0 --name energy_balanced --make_plot --save_interpolator
+python data_prep/sqlite_weight_calc.py --masks energy_interval_min0.0_max3.0 --name energy_balanced --make_plot --save_interpolator --alpha 0.7
+python data_prep/sqlite_weight_calc.py --masks energy_interval_min0.0_max3.0 --name uniform_direction_weights --make_plot
+python data_prep/sqlite_weight_calc.py --masks muon_neutrino --name inverse_performance_muon_energy --make_plot --save_interpolator
+
+python data_prep/make_low_E_high_E_interpolators.py
+python data_prep/sqlite_weight_calc.py --masks energy_interval_min0.0_max3.0 --name inverse_low_E --make_plot --interpolator
+python data_prep/sqlite_weight_calc.py --masks energy_interval_min0.0_max3.0 --name inverse_high_E --make_plot --interpolator
+
+# If wanted, do ensemble predictions
+python -u make_ensemble_predictions.py --path 2020-07-03-20.15.14 2020-07-06-00.25.23 2020-07-06-00.25.38 --prediction_keys true_primary_energy

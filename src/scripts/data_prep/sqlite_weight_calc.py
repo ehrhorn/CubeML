@@ -2,6 +2,7 @@ import numpy as np
 import sys
 import argparse
 import joblib
+import pickle
 
 from multiprocessing import Pool, cpu_count
 from scipy import interpolate
@@ -43,6 +44,22 @@ parser.add_argument(
     '--make_plot', 
     action='store_true', 
     help='Sets the kind of weights to calculate. Options: geomean_muon_energy_entry, inverse_performance_muon_energy')
+
+parser.add_argument(
+    '--save_interpolator', 
+    action='store_true', 
+    help='Saves interpolator used during weight creation.')
+
+parser.add_argument(
+    '--interpolator', 
+    action='store_true', 
+    help='Set to true if a precalculated interpolator is to be used.')
+
+parser.add_argument(
+    '--alpha', 
+    default=1.0, 
+    type=float, 
+    help='Sets the power the pdf is raised to.')
 
 args = parser.parse_args()
 
@@ -131,14 +148,6 @@ def assign_energy_balanced_weights_multiprocess(
         weights = p.map(calc_weights_multiprocess, packed)
     weights_combined = flatten_list_of_lists(weights)
     
-    # # Make a dictionary with weights - put nan where mask didn't apply
-    # event_ids = db.ids
-    # all_weights_dict = {str(event_id): np.nan for event_id in event_ids}
-    # weights_dict = {
-    #     str(event_id): weight for event_id, weight in zip(ids, weights_combined)
-    # }
-    # all_weights_dict.update(weights_dict)
-    
     return weights_combined
 
 def energy_balanced(
@@ -147,29 +156,29 @@ def energy_balanced(
     db, 
     multiprocess=True, 
     debug=False,
-    interpolator=None
+    interpolator=None,
+    alpha=1.0
     ):
 
     # Get indices used for interpolator-calculation
     if not interpolator:
         n_events = min(len(ids), USE_N_EVENTS)
         event_ids = ids[:n_events]
-        print(get_time(), 'Calculating direction bins..')
+        print(get_time(), 'Calculating energy bins..')
         x, counts = calc_energy_balanced_weights(event_ids, db)
-        weights_unscaled = 1.0/np.array(counts)
+        weights_unscaled = np.power(1.0/np.array(counts), alpha)
         print(get_time(), 'Bins calculated!')
         
         print(get_time(), 'Fitting interpolator')
         # In this case, MAX 10 for better gradients
-        weights_unscaled = np.sqrt(weights_unscaled)
         interpolator = make_scaled_interpolator(weights_unscaled, counts, x)
-        print(get_time(), 'Interprolator fitted!')
+        print(get_time(), 'Interpolator fitted!')
 
     # Loop over all events using multiprocessing
     print(get_time(), 'Assigning energy weights...')
     if multiprocess:
-        weights = assign_uniform_direction_weights_multiprocess(
-            ids, db, interpolator, true_key=['true_primary_direction_z'], debug=debug
+        weights = assign_energy_balanced_weights_multiprocess(
+            ids, db, interpolator, true_key=['true_primary_energy'], debug=debug
         )
     print(get_time(), 'Energy weights assigned!')
 
@@ -279,7 +288,6 @@ def calc_energy_performance_weights(ids, db):
     # Sort w.r.t. true energy and bin
     bin_edges = np.linspace(0.0, 4.0, N_BINS_WEIGHTS+1)
     counts, bin_edges = np.histogram(true_logE[true_key], bins=bin_edges)
-
     # Calculate performance and weights
     retro_sigmas, _, _, _, _ = calc_width_as_fn_of_data(true_logE[true_key], perf, bin_edges)
     bin_centers = calc_bin_centers(bin_edges)
@@ -338,7 +346,29 @@ def geomean_muon_energy_entry_weights(masks, dataset_path, multiprocess=True,  d
     
     return weights_list, interpolator_quadratic
 
-def inverse_performance_muon_energy(name, 
+def inverse_low_E(
+    name, 
+    masked_ids, 
+    db, 
+    debug=False, 
+    multiprocess=True,
+    interpolator=None
+    ):
+    if interpolator == None:
+        raise ValueError('Not implemented yet - interpolator must be supplied')
+    
+    # Loop over all events using multiprocessing
+    print(get_time(), 'Assigning energy weights...')
+    if multiprocess:
+        weights = assign_energy_balanced_weights_multiprocess(
+            ids, db, interpolator, true_key=['true_primary_energy'], debug=debug
+        )
+    print(get_time(), 'Energy weights assigned!')
+
+    return weights, interpolator
+
+def inverse_performance_muon_energy(
+    name, 
     ids, 
     db, 
     multiprocess=True, 
@@ -376,8 +406,8 @@ def inverse_performance_muon_energy(name,
         print(get_time(), 'Performance calculated!')
         
         print(get_time(), 'Fitting interpolator')
-        interpolator= make_scaled_interpolator(weights_unscaled, counts, x)
-        print(get_time(), 'Interprolator fitted!')
+        interpolator = make_scaled_interpolator(weights_unscaled, counts, x)
+        print(get_time(), 'Interpolator fitted!')
 
     # Loop over all events using multiprocessing
     print(get_time(), 'Assigning energy weights...')
@@ -402,36 +432,54 @@ def make_scaled_interpolator(weights, counts, bin_centers):
     
     return interpolator
 
-def make_weights(name, masked_ids, db, debug=False, interpolator=None):
+def make_weights(
+    name, masked_ids, db, debug=False, interpolator=None, alpha=1.0
+    ):
     
     if name == 'geomean_muon_energy_entry':
         weights, interpolator = geomean_muon_energy_entry_weights(
             name, masked_ids, db, debug=debug, interpolator=interpolator
             )
+        savename = name
     elif name == 'inverse_performance_muon_energy':
         weights, interpolator = inverse_performance_muon_energy(
             name, masked_ids, db, debug=debug, interpolator=interpolator
             )
+        savename = name
     elif name == 'energy_balanced':
         weights, interpolator = energy_balanced(
-            name, masked_ids, db, debug=debug, interpolator=interpolator
+            name, masked_ids, db, debug=debug, interpolator=interpolator, alpha=alpha
             )
+        savename = name + '_alpha%d'%(alpha*100)
     elif name == 'uniform_direction_weights':
         weights, interpolator = uniform_direction(
             name, masked_ids, db, debug=debug, interpolator=interpolator
             )
+        savename = name
     elif name == 'nue_numu_balanced':
         weights, interpolator = nue_numu_balanced(
             name, masked_ids, db, debug=debug
         )
+        savename = name
     elif name == 'nue_numu_nutau_balanced':
         weights, interpolator = nue_numu_nutau_balanced(
             name, masked_ids, db, debug=debug
         )
+        savename = name
+    elif name == 'inverse_low_E':
+        weights, interpolator = inverse_low_E(
+            name, masked_ids, db, debug=debug, interpolator=interpolator
+        )
+        savename = name
+    elif name == 'inverse_high_E':
+        weights, interpolator = inverse_low_E(
+            name, masked_ids, db, debug=debug, interpolator=interpolator
+        )
+        savename = name
     else:
         raise NameError('Unknown mask calc requested (%s)'%(name))
 
-    return weights, interpolator 
+    return weights, interpolator, savename
 
 def nue_numu_balanced(name, masked_ids, db, debug=False, interpolator=None):
     # Load data
@@ -542,14 +590,19 @@ if __name__ == '__main__':
     names = args.name
     if not names:
         raise KeyError('Names must be supplied!')
-
+    
     # Ensure weight directory exists
     weights_dir = '/'.join([PATH_DATA_OSCNEXT, 'weights'])
     if not Path(weights_dir).exists():
         Path(weights_dir).mkdir()
 
     for name in names:
-        interpolator = None
+        if args.interpolator:
+            path = PATH_DATA_OSCNEXT + '/weights/' + name + '.pickle'
+            interpolator = pickle.load(open(path, 'rb'))
+        else:
+            interpolator = None
+
         all_weights = {}
         for path, keyword in zip(
             [PATH_TRAIN_DB, PATH_VAL_DB], 
@@ -572,17 +625,18 @@ if __name__ == '__main__':
             
             # Calculate weights and potentially interpolator
             if not interpolator:
-                weights, interpolator = make_weights(
-                    name, ids, db, debug=args.dev
+                weights, interpolator, savename = make_weights(
+                    name, ids, db, debug=args.dev, alpha=args.alpha
                 )
             else:
-                weights, interpolator = make_weights(
-                name, ids, db, debug=args.dev, interpolator=interpolator
+                weights, interpolator, savename = make_weights(
+                name, ids, db, debug=args.dev, interpolator=interpolator, alpha=args.alpha
             )
+
             # Save in DB
             ids_strings = [str(idx) for idx in ids]
-            print(get_time(), 'Writing %s to database'%(name))
-            db.write('scalar', name, ids_strings, weights)
+            print(get_time(), 'Writing %s to database'%(savename))
+            db.write('scalar', savename, ids_strings, weights)
             print(get_time(), 'Weights saved!')
 
 
@@ -594,6 +648,12 @@ if __name__ == '__main__':
                 x = np.linspace(0.0, 3.0)
             y = interpolator(x)
             d = {'x': [x], 'y': [y]}
-            d['savefig'] = '/'.join([get_project_root(), 'reports/plots', name+'.png'])
+            d['savefig'] = '/'.join([get_project_root(), 'reports/plots', savename+'.png'])
             d['yscale'] = 'log'
             _ = make_plot(d)
+        
+        if args.save_interpolator:
+            path = PATH_DATA_OSCNEXT + '/weights/' + savename + '.pickle'
+            with open(path, 'wb') as f:
+                pickle.dump(interpolator, f)
+

@@ -573,25 +573,24 @@ def run_experiment(file, log=True, debug_mode=False, gpu_id=None):
         if log:
             evaluate_model(model_dir, wandb_ID=wandb_ID)
 
-def run_experiments(log=True, newest_first=False):
+def run_experiments(log=True, newest_first=False, gpu=None):
     """Loops over the experiment-defining files in ~/CubeML/experiments/ and runs each one of them using run_experiment. Continously checks if new experiments have been added. 
     
     Keyword Arguments:
         log {bool} -- Whether to log plots, performance etc. locally and to W&B (default: {True})
     """
 
-    exp_dir = get_project_root() + '/experiments'
+    exp_dir = get_project_root() + '/experiments_gpu' + str(gpu)
     exps = sorted(Path(exp_dir).glob('*.json'), reverse=newest_first)
     n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
-    
     # ! Someone online set to add next line to ensure CUDA works...
     # multiprocessing.set_start_method('spawn')
     while n_exps>0:
         
         for exp in exps:
             run_experiment(exp, log=log)
-        
-        exp_dir = get_project_root() + '/experiments/'
+
+        exp_dir = get_project_root() + '/experiments_gpu' + str(gpu)
         exps = Path(exp_dir).glob('*.json')
         n_exps = len([str(exp) for exp in Path(exp_dir).glob('*.json')])
 

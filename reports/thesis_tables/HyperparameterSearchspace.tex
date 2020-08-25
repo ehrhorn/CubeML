@@ -1,0 +1,22 @@
+\begin{tabular}{lll}
+\toprule\toprule
+       Hyperparameter & $\,$ &                                 Searchspace \\
+\midrule
+            Batchsize &      &                       32, 64, 128, 256, 512 \\
+            Optimizer &      &                              SGD, Adam, NAG \\
+          LR schedule &      &                     Inverse decay w. warmup \\
+         Layer Widths &      &                     64, 128, 256, 512, 1028 \\
+   Decoding ResBlocks &      &                         0, 1, 2, 3, 4, 5, 6 \\
+ Encoding Att. Blocks &      &                      0, 1, 2, 3, 4, 5, 6, 7 \\
+  Encoding RNN layers &      &                               0, 1, 2, 3, 4 \\
+    Encoding RNN type &      &           Vanilla, GRU, LSTM, BiGRU, BiLSTM \\
+         Nonlinearity &      &                             LeakyReLU, Mish \\
+       Encoding norm. &      &                             None, LayerNorm \\
+       Decoding norm. &      &                             None, BatchNorm \\
+       Regularization &      &  None, Dropout($p\in [30\%,\,50\%,\,80\%])$ \\
+      Regression loss &      &                             L1, L2, logcosh \\
+  Classification loss &      &                                CrossEntropy \\
+          Many-to-One &      &                  MaxPool, AvePool, KeepLast \\
+         Weight init. &      &                                     Kaiming \\
+\bottomrule
+\end{tabular}

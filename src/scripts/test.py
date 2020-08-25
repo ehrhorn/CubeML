@@ -25,16 +25,13 @@ from src.modules.classes import *
 import numpy as np
 import pickle
 
-x = np.arange(10)
-y = np.arange(10)
-path = get_project_root() + '/LOL.png'
-pathpickle = get_project_root() + '/pickle_LOL.pickle'
+from src.modules.reporting import *
+from src.modules.constants import *
+from matplotlib import pyplot as plt
+from src.modules.classes import SqliteFetcher
+from src.modules.thesis_plotting import *
+import os
 
-d = {'x': [x], 'y': [y], 'savefig': path}
-fig = make_plot(d)
-
-h_fig = pickle.load(open(pathpickle, 'rb'))
-ax = h_fig.gca()
-ax.set_title('WHAT IS UP')
-h_fig.savefig(path)
-print(type(h_fig))
+path = get_project_root() + '/models/oscnext-genie-level5-v01-01-pass2/regression/full_reg/2020-04-20-08.19.33/data/FeaturePermutationImportance.pickle'
+obj = pickle.load(open(path, 'rb'))
+print(obj.feature_importances)

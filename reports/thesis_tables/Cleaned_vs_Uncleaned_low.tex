@@ -1,0 +1,11 @@
+\begin{tabular}{lcccc}
+\toprule
+{} &  $W\left(\log_{10} \left[ \frac{E_{pred}}{E_{true}} \right]\right)$ &  $U(|\vec{x}_{reco}-\vec{x}_{true}|)$ [m] &  $U\left(\Delta\Psi\right)$ [deg] &  $W(\Delta t)$ [ns] \\
+\midrule
+$RNN^{SRT}(4, 128, 2)$ &                                             0.1413 &                                     20.77 &                             61.66 &               28.86 \\
+$RNN^{SRT}(3, 128, 2)$ &                                             0.1457 &                                     20.82 &                             61.69 &               28.91 \\
+$RNN(3, 256, 2)$       &                                             0.1419 &                                     20.77 &                             61.97 &               28.67 \\
+$RNN(3, 128, 2)$       &                                             0.1415 &                                     20.86 &                             61.87 &               29.30 \\
+$RNN(2, 256, 4)$       &                                             0.1436 &                                     20.93 &                             62.53 &               28.99 \\
+\bottomrule
+\end{tabular}

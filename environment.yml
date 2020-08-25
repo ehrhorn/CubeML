@@ -20,5 +20,6 @@ dependencies:
   - ignite
   - numpy
   - pillow
+  - plotly
   - pip:
     - wandb

@@ -29,4 +29,3 @@ for setname, suffix in zip(['train', 'val'], ['_train.pickle', '_val.pickle']):
         cut = set(pmask) & set(energy) & set(srt)
         print('With cut:', setname, particle, len(list(cut)))
     print('')
-
