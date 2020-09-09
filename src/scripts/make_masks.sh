@@ -6,6 +6,7 @@ python data_prep/make_sqlite_mask.py --name dom_interval_SRTInIcePulses --min_do
 python data_prep/make_sqlite_mask.py --name energy_interval --min_energy 0.0 --max_energy 3.0
 
 python data_prep/combine_masks.py --masks muon_neutrino electron_neutrino --name nue_numu
+python data_prep/combine_masks.py --masks tau_neutrino electron_neutrino --name nue_nutau
 python data_prep/combine_masks.py --masks muon_neutrino electron_neutrino tau_neutrino --name nue_numu_nutau
 
 python data_prep/sqlite_weight_calc.py --name nue_numu_balanced --masks nue_numu
@@ -21,4 +22,4 @@ python data_prep/sqlite_weight_calc.py --masks energy_interval_min0.0_max3.0 --n
 python data_prep/sqlite_weight_calc.py --masks energy_interval_min0.0_max3.0 --name inverse_high_E --make_plot --interpolator
 
 # If wanted, do ensemble predictions
-python -u make_ensemble_predictions.py --path 2020-07-03-20.15.14 2020-07-06-00.25.23 2020-07-06-00.25.38 --prediction_keys true_primary_energy
+python -u make_ensemble_predictions.py --predefined full_reg

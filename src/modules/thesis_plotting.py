@@ -17,9 +17,12 @@ def update_xlabels(ax, keyword='num2k', func=None):
     ax.set_xticklabels(ylabels)
 
 
-def save_thesis_pgf(path, f, save_pgf=False):
+def save_thesis_pgf(path, f, save_pgf=False, png_name=None):
     all_figs_path = str(path.parent.parent) + '/all_pgf/' + str(path.parent.stem) + '.pgf'
-    f.savefig(str(path.parent) + '/fig.png', bbox_inches='tight')
+    if png_name:
+        f.savefig(str(path.parent) + '/' + png_name + '.png', bbox_inches='tight')
+    else:
+        f.savefig(str(path.parent) + '/fig.png', bbox_inches='tight')
     print(get_time(), 'Saved .png')
     if save_pgf:
         f.savefig(all_figs_path, bbox_inches='tight')

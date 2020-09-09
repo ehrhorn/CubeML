@@ -32,6 +32,26 @@ from src.modules.classes import SqliteFetcher
 from src.modules.thesis_plotting import *
 import os
 
-path = get_project_root() + '/models/oscnext-genie-level5-v01-01-pass2/regression/full_reg/2020-04-20-08.19.33/data/FeaturePermutationImportance.pickle'
-obj = pickle.load(open(path, 'rb'))
-print(obj.feature_importances)
+
+
+x = np.linspace(10, 20)
+y = np.linspace(10, 20)
+
+d = {
+    'x': [x],
+    'y': [y],
+    'label': ['lol']
+}
+
+f = make_plot(d)
+axes = f.axes
+labels = []
+lines = []
+for ax in axes:
+    new_lines, new_labels = ax.get_legend_handles_labels()
+    lines = lines + new_lines
+    labels = labels + new_labels
+    print(labels)
+print(axes)
+
+

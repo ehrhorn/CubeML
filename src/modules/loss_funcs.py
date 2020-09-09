@@ -2,7 +2,8 @@ import torch
 import numpy as np
 
 PROBABILISTIC_LOSS_FUNCS = [
-    'logscore'
+    'logscore',
+    'logscore_UnitVectorPenalty'
 ]
 POINTLIKE_LOSS_FUNCS = [
     'cosine_loss', 
@@ -365,13 +366,10 @@ class logcosh(torch.nn.Module):
             [torch.Tensor] -- Averaged, weighted loss over batch.
         """      
           
-        # Unpack into targets and weights
         targets, weights = y
 
-        # Calculate actual loss
         ave_logcosh = torch.mean(torch.log(torch.cosh(x-targets)), dim=-1)
 
-        # Now weigh it
         loss_weighted = weights*ave_logcosh
         
         # Mean over the batch
@@ -423,7 +421,7 @@ class logcosh_full_weighted(torch.nn.Module):
         return loss
 
 class logscore(torch.nn.Module):
-    def __init__(self, weights=None, device=None):
+    def __init__(self, weights=None, device=None, unit_vec_pen=False):
         super(logscore, self).__init__()
 
         if not device:
@@ -435,6 +433,9 @@ class logscore(torch.nn.Module):
 
         weights_normed = np.array(weights)/np.sum(weights)
         self._weights = torch.tensor(weights_normed, device=device)
+        self._unit_vec_pen = unit_vec_pen
+        if self._unit_vec_pen:
+            self._pen_term = UnitVectorPenalty(device=device)
 
     def forward(self, x, y, predict=False):
         """Computes the empirical expected score using a normal distribution.
@@ -464,54 +465,76 @@ class logscore(torch.nn.Module):
                 '2*targets.shape[-1] (%d)'%(pred_shape[-1], 2*n_features)
         )
 
-        # Calculate negative score - this is what we want to minimize.
-        # log(normal) = c1/sigma + c2*((x-mu)/sigma)^2
         mean = x[:, :n_features]
         sigma = x[:, n_features:]
-        neg_score = torch.log(sigma*np.sqrt(2*3.14159)) + 0.5*((targets-mean)/sigma)*((targets-mean)/sigma)
         
-        if not predict:
-            loss = torch.mean(neg_score, dim=0)
-        else:
-            loss = neg_score
-        
-        # Now weigh it
-        loss_weighted = torch.sum(self._weights*loss, dim=-1)
+        ave_neg_score = torch.mean(
+            torch.log(sigma*np.sqrt(2*3.14159)) 
+            + 0.5*((targets-mean)/sigma)*((targets-mean)/sigma),
+            dim=-1
+        )
 
-        return loss_weighted
+        if self._unit_vec_pen:
+            ave_neg_score = ave_neg_score + self._pen_term(mean)
+        
+        weighted_loss = weights*ave_neg_score
+        if not predict:
+            loss = torch.mean(weighted_loss)
+        else:
+            loss = weighted_loss
+            
+        return loss
+
+class UnitVectorPenalty(torch.nn.Module):
+    def __init__(self, device=None, eps=1e-3):
+        super(UnitVectorPenalty, self).__init__()
+        self.eps = eps
+        if not device:
+            raise ValueError('A device must be supplied to the loss function'
+            'logscore')
+
+    def forward(self, x):  
+        length = torch.sqrt(
+            torch.sum(x*x, dim=-1) + self.eps*self.eps
+        )
+        penalty = (1.0 - length) * (1.0 - length)
+        return penalty
 
 def get_loss_func(name, weights=None, device=None):
     if name == 'L1': 
-        return L1()
+        loss_func = L1()
     elif name == 'L1_UnitVectorPenalty':
-        return L1_UnitVectorPenalty()
+        loss_func = L1_UnitVectorPenalty()
     elif name == 'angle_loss':
-        return angle_loss()
+        loss_func = angle_loss()
     elif name == 'Huber':
-        return torch.nn.SmoothL1Loss()
+        loss_func = torch.nn.SmoothL1Loss()
     elif name == 'L2':
-        return L2()
+        loss_func = L2()
     elif name == 'logcosh':
-        return logcosh()
+        loss_func = logcosh()
     elif name == 'logcosh_full_weighted':
-        return logcosh_full_weighted(weights=weights, device=device)
+        loss_func = logcosh_full_weighted(weights=weights, device=device)
     elif name == 'angle_squared_loss':
-        return angle_squared_loss()
+        loss_func = angle_squared_loss()
     elif name == 'angle_squared_loss_with_L2':
-        return angle_squared_loss_with_L2()
+        loss_func = angle_squared_loss_with_L2()
     elif name == 'logscore':
-        return logscore(weights=weights, device=device)
+        loss_func = logscore(weights=weights, device=device)
+    elif name == 'logscore_UnitVectorPenalty':
+        loss_func = logscore(weights=weights, device=device, unit_vec_pen=True)
     elif name == 'cosine_loss':
-        return cosine_loss()
+        loss_func = cosine_loss()
     elif name == 'cosine_similarity':
-        return cosine_similarity()
+        loss_func = cosine_similarity()
     elif name == 'cosine_similarity_UnitVectorPenalty':
-        return cosine_similarity_UnitVectorPenalty()
+        loss_func = cosine_similarity_UnitVectorPenalty()
     elif name == 'CrossEntropyLoss':
-        return CrossEntropyLoss()
+        loss_func = CrossEntropyLoss()
     else:
         raise ValueError('Unknown loss function requested!')
 
+    return loss_func
 def is_probabilistic(loss_name):
 
     if loss_name in PROBABILISTIC_LOSS_FUNCS:

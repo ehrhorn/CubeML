@@ -46,18 +46,37 @@ N_BINS_CLASS_PLOTS = 6
 # Set ensemble
 ENSEMBLE = {
     'direction_reg': [
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-28-16.25.11?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-28-22.42.34?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-01-11.14.08?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-02-00.33.27?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-02-13.20.30?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-02-19.57.38?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-03-06.05.26?workspace=user-bjoernmoelvig'
+    ],
+
+    'energy_vertex_reg': [
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-07-21-15.26.17?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-30-19.47.16?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-31-04.03.42?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-31-11.21.01?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-31-18.21.51?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-03-14.53.28?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-03-22.12.38?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-04-05.14.55?workspace=user-bjoernmoelvig'
     ],
 
     'energy_reg': [
-        # https://app.wandb.ai/cubeml/cubeml/runs/2020-07-03-20.15.14/overview?workspace=user-bjoernmoelvig
-        '2020-07-03-20.15.14',
-
-        # https://app.wandb.ai/cubeml/cubeml/runs/2020-07-06-00.25.23/overview?workspace=user-bjoernmoelvig
-        '2020-07-06-00.25.23',
-
-        # https://app.wandb.ai/cubeml/cubeml/runs/2020-07-06-00.25.38/overview?workspace=user-bjoernmoelvig
-        '2020-07-06-00.25.38'
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-07-21-15.26.17?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-30-19.47.16?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-31-04.03.42?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-31-11.21.01?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-08-31-18.21.51?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-03-14.53.28?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-03-22.12.38?workspace=user-bjoernmoelvig',
+        'https://app.wandb.ai/cubeml/cubeml/runs/2020-09-04-05.14.55?workspace=user-bjoernmoelvig'
     ]
+
 }
 
 CLASSIFICATION = ['nue_numu', 'nue_numu_nutau']

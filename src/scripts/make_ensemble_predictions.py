@@ -32,26 +32,63 @@ parser.add_argument(
     default=np.inf, 
     help='Number of wanted predictions'
     )
+
+parser.add_argument(
+    '--predefined', 
+    type=str,
+    default='None', 
+    help='Number of wanted predictions'
+    )
 args = parser.parse_args()
+
+def webpage_to_modelname(webpage):
+    modelname = webpage.split('/')[-1].split('?')[0]
+    return modelname
 
 if __name__ == '__main__':
     
-    model_dirs = args.path
+    if args.predefined == 'None':
+        model_dirs = args.path
+    else:
+        if args.predefined == 'full_reg':
+            model_dirs = [
+                webpage_to_modelname(webpage) for webpage in ENSEMBLE['full_reg']
+            ]
+        elif args.predefined == 'direction_reg':
+            model_dirs = [
+                webpage_to_modelname(webpage) for webpage in ENSEMBLE['direction_reg']
+            ]
+        else:
+            raise KeyError('Undefined ensemble wanted')
     
     if len(model_dirs) == 0:
         raise ValueError('No models supplied!')
     if args.prediction_keys is None:
-        raise ValueError('Wanted prediction keys must be supplied!')
+        if args.predefined == 'full_reg':
+            args.prediction_keys = [
+                'true_primary_energy', 
+                'true_primary_position_x', 
+                'true_primary_position_y', 
+                'true_primary_position_z', 
+                'true_primary_time', 
+            ]
+        elif args.predefined == 'direction_reg':
+            args.prediction_keys = [
+                'true_primary_direction_x', 
+                'true_primary_direction_y', 
+                'true_primary_direction_z', 
+            ]
+        else:
+            raise ValueError('Wanted prediction keys must be supplied!')
 
     for model_dir in model_dirs:
-        
+
         # Locate the model directory
         model = locate_model(model_dir)
         model_name = Path(model_dir).name
         
         print('')
         print(get_time(), 'Used model: %s'%(model_name))
-
         
         for path in [PATH_TRAIN_DB, PATH_VAL_DB]:
             preds, indices = calc_raw_predictions(

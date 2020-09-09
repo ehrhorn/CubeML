@@ -117,7 +117,7 @@ class Performance:
         [type] -- Instance of class.
     """    
 
-    def __init__(self, model_dir, wandb_ID=None):
+    def __init__(self, model_dir, wandb_ID=None, run_perf_eval=True):
         hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
         self.model_dir = get_path_from_root(model_dir)
         self.data_pars = data_pars
@@ -139,25 +139,27 @@ class Performance:
         self._target_keys = get_target_keys(self.data_pars, self.meta_pars)
 
         self.wandb_ID = wandb_ID
-        energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss, raw_pred_dict, raw_target_dict = self._get_data_dicts()
 
-        energy_transformed = inverse_transform(
-            energy_dict, get_project_root()+self.model_dir
-            )
-        # We want energy as array
-        energy_arr = np.array(
-            convert_to_proper_list(energy_transformed[self._energy_key[0]])
-            )
+        if run_perf_eval:
+            energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss, raw_pred_dict, raw_target_dict = self._get_data_dicts()
 
-        if self.meta_pars['group'] in CLASSIFICATION:
-            self._make_PIDhist_ROC_ConfMatrix(
-                raw_pred_dict, raw_target_dict, energy_arr
+            energy_transformed = inverse_transform(
+                energy_dict, get_project_root()+self.model_dir
                 )
-        else:
-            self._make_predictions_histograms(raw_pred_dict, raw_target_dict)
-            self._calculate_performance(energy_arr, pred_dict, crs_dict, true_dict, n_doms)
-            self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
-            self.loss_error_correlations = self._calculate_loss_error_corrs(pred_dict, loss)
+            # We want energy as array
+            energy_arr = np.array(
+                convert_to_proper_list(energy_transformed[self._energy_key[0]])
+                )
+
+            if self.meta_pars['group'] in CLASSIFICATION:
+                self._make_PIDhist_ROC_ConfMatrix(
+                    raw_pred_dict, raw_target_dict, energy_arr
+                    )
+            else:
+                self._make_predictions_histograms(raw_pred_dict, raw_target_dict)
+                self._calculate_performance(energy_arr, pred_dict, crs_dict, true_dict, n_doms)
+                self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
+                self.loss_error_correlations = self._calculate_loss_error_corrs(pred_dict, loss)
 
     def _calculate_loss_error_corrs(self, pred_d, loss):
 
@@ -196,35 +198,21 @@ class Performance:
 
         # Make barh-plots
         bar_pos = np.arange(0, len(corrs)) + 0.5
-        names = [key for key in corrs]
+        names = [self._get_losscorrelation_ylabels(key) for key in corrs]
         data = [data for key, data in corrs.items()]
         d = {'keyword': 'barh', 'y': bar_pos, 'width': data, 'height': 0.7, 'names': names}
-        d['title'] = 'Correlation coefficients w.r.t. %s-loss'%(self.loss_func)
+        d['title'] = 'Correlation w. loss-value'
         d['xlabel'] = 'Correlation'
         d['savefig'] = get_project_root()+self.model_dir+'/figures/CorrCoeff.png'
         fig = make_plot(d)
 
-        # # Save a histogram of loss values aswell
-        # d = {'data': [loss]}
-        # d['xlabel'] = 'Loss value (%s)'%(self.loss_func)
-        # d['ylabel'] = 'Count'
-        # d['log'] = [True]
-        # d['savefig'] = get_project_root()+self.model_dir+'/figures/loss_vals.png'
-        # _ = make_plot(d)
-        # plt.close('all')
-
         return corrs
 
     def _calculate_onenum_performance(self, data_dict=None):
-        # Performance for each variable in names is calculated as the 
-        # geometric mean of the bin-values. Finally, they are combined as
-        # a geometric mean of all the geometric means. This has the
-        # advantage that a fractional decrease of x percent in any of 
-        # them contributes equally to the final performance
         
         if self.meta_pars['group'] == 'vertex_reg':
             names = ['len_error_68th', 'vertex_t_error_sigma']
-        if self.meta_pars['group'] == 'vertex_reg_no_time':
+        elif self.meta_pars['group'] == 'vertex_reg_no_time':
             names = ['len_error_68th']
         elif (
             self.meta_pars['group'] == 'direction_reg' or
@@ -234,8 +222,18 @@ class Performance:
         elif self.meta_pars['group'] == 'energy_reg':
             names = ['log_frac_E_error_sigma']
         elif self.meta_pars['group'] == 'full_reg':
-            names = ['len_error_68th', 'directional_error_68th',
-                    'vertex_t_error_sigma', 'log_frac_E_error_sigma']
+            names = [
+                'len_error_68th', 
+                'directional_error_68th',
+                'vertex_t_error_sigma', 
+                'log_frac_E_error_sigma'
+            ]
+        elif self.meta_pars['group'] == 'energy_vertex_reg':
+            names = [
+                'len_error_68th',
+                'vertex_t_error_sigma', 
+                'log_frac_E_error_sigma'
+            ]
         else:
             raise KeyError(
             'Unknown regression type (%s) enountered!'%(self.meta_pars['group'])
@@ -251,7 +249,6 @@ class Performance:
 
     def _calculate_performance(self, energy, pred_dict, crs_dict, true_dict, n_doms):
         
-        # Transform back and extract values into list
         true_transformed = inverse_transform(
             true_dict, get_project_root()+self.model_dir
             )
@@ -274,16 +271,10 @@ class Performance:
             self._performance_keys
             ):
             
-            # We calculate 2 different forms of performance measures: One
-            # kind as the width of the distribution (for unbounded
-            # distributions), another as the upper 68th percentile 
-            # of the distribution (for distributions with a lower bound of 0)
             print(get_time(), 'Calculating %s performance...'%(name))
 
-            # Performance as a function of energy
             error = func(crs_dict, true_transformed, reporting=True)
 
-            # Make Wilcoxon signed-rank test
             diff = np.array(error)-pred_dict[model_key]
             test_statistic, p_val = wilcoxon(diff, alternative='greater')
             self.wilcoxon[model_key] = p_val
@@ -300,7 +291,6 @@ class Performance:
                 setattr(self, name+'_84th', upper_perc)
                 setattr(self, name+'_16th', lower_perc)
 
-                # Performance as a function of number of doms
                 sigma, sigmaerr, median, upper_perc, lower_perc =\
                     calc_width_as_fn_of_data(n_doms, error, self.dom_bin_edges)
                 setattr(self, 'dom_'+name+'_sigma', sigma)
@@ -312,7 +302,6 @@ class Performance:
             else:
                 percentiles = [68, 50, 32]
                 
-                # As a function of energy
                 vals, errs = calc_percentiles_as_fn_of_data(
                     energy, error, self.bin_edges, percentiles)
                 
@@ -329,7 +318,6 @@ class Performance:
                     setattr(self, 'dom_%s_err%sth'%(name, str(perc)), err)
             
             print(get_time(), 'Calculation finished!')
-            print('')
                 
         # Calculate performance for our predictions
         for (key, data), i3_key in zip(pred_dict.items(), self._icecube_perf_keys):
@@ -381,7 +369,6 @@ class Performance:
                     setattr(self, 'dom_%s_err%sth'%(key, str(perc)), err)
             
             print(get_time(), 'Calculation finished!')
-            print('')
 
         # Calculate the relative improvement - e_diff/I3_error. Report decrease in error as a positive 
         for model_key, retro_key in zip(self._performance_keys, self._icecube_perf_keys):
@@ -402,7 +389,12 @@ class Performance:
                 retro_sigmaerr = getattr(self, retro_key+'_err68th')
                 model_sigmaerr = getattr(self, model_key+'_err68th')
 
-                rel_e, sigma_rel = calc_relative_error(retro_sigma, model_sigma, retro_sigmaerr, model_sigmaerr)
+                rel_e, sigma_rel = calc_relative_error(
+                    retro_sigma, 
+                    model_sigma, 
+                    retro_sigmaerr, 
+                    model_sigmaerr
+                    )
                 setattr(self, model_key+'_RI', -rel_e)
                 setattr(self, model_key+'_RIerr', sigma_rel)
 
@@ -422,6 +414,8 @@ class Performance:
             keys = []
         elif self.meta_pars['group'] == 'full_reg':
             keys = ['len_error', 'directional_error', 'retro_len_error', 'retro_directional_error']
+        elif self.meta_pars['group'] == 'energy_vertex_reg':
+            keys = ['len_error', 'retro_len_error']
         elif self.meta_pars['group'] in ['nue_numu', 'nue_numu_nutau']:
             keys = []
         else:
@@ -473,6 +467,34 @@ class Performance:
         
         return keys
     
+    def _get_losscorrelation_ylabels(self, key):
+        
+        if key == 'vertex_t_error':
+            label = r'$\left\vert\Delta t\right\vert$'
+        elif key == 'vertex_x_error':
+            label = r'$\left\vert\Delta x_{IV}\right\vert$'
+        elif key == 'vertex_y_error':
+            label = r'$\left\vert\Delta y_{IV}\right\vert$'
+        elif key == 'vertex_z_error':
+            label = r'$\left\vert\Delta z_{IV}\right\vert$'
+        elif key == 'azi_error':
+            label = r'$\left\vert\Delta \phi\right\vert$'
+        elif key == 'polar_error':
+            label = r'$\left\vert\Delta \theta\right\vert$'
+        elif key == 'relative_E_error':
+            label = r'$\left\vert\frac{E_{pred}-E_{true}}{E_{true}}\right\vert$'
+        elif key == 'log_frac_E_error':
+            label = r'$\left\vert\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)\right\vert$'
+        elif key == 'len_error':
+            label = r'$\left\vert\vec{x}_{reco}-\vec{x}_{true}\right\vert$'
+        elif key == 'directional_error':
+            label = r'$\Delta\Psi$'
+
+        else:
+            raise KeyError('PerformanceClass._get_losscorrelation_ylabels: Unknown key (%s)given!'%(key))
+
+        return label
+
     def _get_data_dicts(self):
         data_dir = self.data_pars['data_dir']
 
@@ -555,7 +577,6 @@ class Performance:
         n_doms = self._get_n_doms(event_ids)
         # Indices have done, what we wanted them to do - delete them
         print(get_time(), 'Number of DOMs found!')
-        print('')
         del pred_dict['indices']
         del raw_pred_dict['indices']
 
@@ -568,9 +589,19 @@ class Performance:
         return d
 
     def _get_energy_dict(self):
-        d = {'data': [self.bin_edges[:-1]], 'bins': [self.bin_edges], 
-        'weights': [self.counts], 'histtype': ['step'], 'log': [True], 
-        'color': ['gray'], 'twinx': True, 'grid': False, 'ylabel': 'Events'}
+        d = {
+            'data': [self.bin_edges[:-1]], 
+            'bins': [self.bin_edges], 
+            'weights': [self.counts*8], 
+            'histtype': ['step'], 
+            'log': [True], 
+            'color': ['gray'], 
+            'twinx': True, 
+            'grid': False, 
+            'label': ['Training Events'],
+            'combine_labels': True,
+            'ylabel': 'Training Events'
+        }
         return d
     
     def _get_energy_key(self):
@@ -627,7 +658,18 @@ class Performance:
                 retro_azi_error, 
                 retro_polar_error,
                 retro_directional_error
-                ]
+            ]
+        
+        elif self.meta_pars['group'] == 'energy_vertex_reg':
+            funcs = [
+                retro_relE_error, 
+                retro_log_frac_E_error, 
+                retro_x_error, 
+                retro_y_error, 
+                retro_z_error, 
+                retro_t_error,
+                retro_len_error, 
+            ]
 
         elif self.meta_pars['group'] in ['nue_numu', 'nue_numu_nutau']:
             funcs = []
@@ -642,7 +684,7 @@ class Performance:
 
         if key == 'relative_E_error':
             clip_vals = [-4.0, 4.0]
-            d2['ylabel'] = r'$(\mathrm{E}_{reco}-\mathrm{E}_{true})/\mathrm{E}_{true}$ [%]'
+            d2['ylabel'] = r'$(\mathrm{E}_{reco}-\mathrm{E}_{true})/\mathrm{E}_{true}$'
             d2['title'] = r'Energy reconstruction performance'
 
         elif key == 'log_frac_E_error':
@@ -704,16 +746,23 @@ class Performance:
     
     def _get_loss_clip_vals(self):
 
-        if (self.loss_func == 'logcosh' or 
-            self.loss_func == 'logcosh_full_weighted' or
-            self.loss_func == 'L1' or 
-            self.loss_func == 'L1_UnitVectorPenalty'):
+        if self.loss_func in [
+            'logcosh', 
+            'logcosh_full_weighted',
+            'L1', 
+            'L1_UnitVectorPenalty'
+        ]:
             clip_vals = [0.0, 0.2]
-        elif self.loss_func == 'logscore':
+        elif self.loss_func in [
+            'logscore',
+            'logscore_UnitVectorPenalty'
+        ]:
             clip_vals = [-np.inf, np.inf]
-        elif (self.loss_func == 'cosine_loss' or
-            self.loss_func == 'cosine_similarity' or
-            self.loss_func == 'cosine_similarity_UnitVectorPenalty'):
+        elif self.loss_func in [
+            'cosine_loss',
+            'cosine_similarity',
+            'cosine_similarity_UnitVectorPenalty'
+        ]:
             clip_vals = [0.0, 0.5]
         else:
             raise KeyError('Performance._get_loss_clip_vals: Undefined loss'\
@@ -753,10 +802,19 @@ class Performance:
         label = self._get_ylabel(model_key)
         title = self._get_perf_plot_title(model_key)
 
-        d = {'edges': [self.bin_edges, self.bin_edges], 'y': [metric, reco_metric], 
-        'yerr': [metricerr, reco_metricerr], 'xlabel': r'log(E) [E/GeV]', 
-        'ylabel': label, 'grid': False, 'label': [r'$RNN$', 'Retro'], 
-        'yrange': {'bottom': 0.001}, 'title': title}
+        d = {
+            'edges': [self.bin_edges, self.bin_edges], 
+            'y': [metric, reco_metric], 
+            'yerr': [metricerr, reco_metricerr], 
+            'xlabel': r'log(E) [E/GeV]', 
+            'ylabel': label, 
+            'grid': False, 
+            'label': [r'$RNN$', 'Retro'], 
+            'yrange': {'bottom': 0.001}, 
+            'title': title,
+            'markersize': 0.8,
+            'linewidth': 1.2,
+        }
 
         return d
     
@@ -828,7 +886,8 @@ class Performance:
             'energy_reg',
             'full_reg',
             'nue_numu',
-            'nue_numu_nutau'
+            'nue_numu_nutau',
+            'energy_vertex_reg'
         ]
         if self.meta_pars['group'] in reg_types:
             keys = self._get_prediction_keys()
@@ -902,6 +961,14 @@ class Performance:
                     'retro_crs_prefit_azimuth', 
                     'retro_crs_prefit_zenith'
                     ]
+            elif self.meta_pars['group'] == 'energy_vertex_reg':
+                reco_keys = [
+                    'retro_crs_prefit_energy', 
+                    'retro_crs_prefit_x', 
+                    'retro_crs_prefit_y', 
+                    'retro_crs_prefit_z', 
+                    'retro_crs_prefit_time', 
+                    ]
             elif self.meta_pars['group'] in ['nue_numu', 'nue_numu_nutau']:
                 reco_keys = []
 
@@ -943,7 +1010,7 @@ class Performance:
         elif key == 'polar_error':
             label = r'$W(\Delta \theta)$ [deg]'
         elif key == 'relative_E_error':
-            label = r'$W\left( \frac{E_{pred}-E_{true}}{E_{true}} \right)$ [%]'
+            label = r'$W\left( \frac{E_{pred}-E_{true}}{E_{true}} \right)$'
         elif key == 'log_frac_E_error':
             label = r'$W\left(\log_{10} \left[ \frac{E_{pred}}{E_{true}} \right]\right)$'
         elif key == 'len_error':
@@ -983,6 +1050,7 @@ class Performance:
             d['label'] = ['84th percentile', '50th percentile', '16th percentile']
             d['color'] = ['red','red', 'red']
             d['zorder'] = [1, 1, 1]
+            d['axhline'] = [0.0]
         else:
             d['x'] = [self.bin_centers, self.bin_centers, self.bin_centers, 
                       self.bin_centers, self.bin_centers, self.bin_centers]
@@ -995,6 +1063,7 @@ class Performance:
             d['color'] = ['red','red', 'red', 'forestgreen', 'forestgreen', 
                           'forestgreen']
             d['zorder'] = [1, 1, 1, 1, 1, 1]
+            d['axhline'] = [0.0]
         img_address = get_project_root()+self.model_dir+'/figures/'+key+'_2DPerformance.png'
         d['savefig'] = img_address
         f3 = make_plot(d, h_figure=f2)
@@ -1154,7 +1223,6 @@ class Performance:
         ])
         }
         _ = make_plot(d)
-
 
     def _make_predictions_histograms(self, raw_pred, raw_target):
         
@@ -1850,6 +1918,10 @@ def make_plot(
     else:
         if isinstance(axes_index, int):
             h_axis = h_figure.get_axes()[axes_index]
+        # elif isinstance(axes_index, tuple):
+            # h_axis = h_figure.get_axes()
+            # print(h_axis)
+            # a+=1
         else:
             h_axis = h_figure.gca()
 
@@ -1871,7 +1943,15 @@ def make_plot(
         for i_set, dataset in enumerate(plot_dict['y']):
             # Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
             plot_keys = [
-                'label', 'drawstyle', 'color', 'zorder', 'linestyle', 'yerr', 'fmt'
+                'label', 
+                'drawstyle', 
+                'color', 
+                'zorder', 
+                'linestyle', 
+                'yerr', 
+                'fmt', 
+                'markersize'
+                'linewidth',
                 ]
             # Set baseline
             d = {'linewidth': 1.5}
@@ -1882,8 +1962,9 @@ def make_plot(
             else:
                 h_axis.plot(plot_dict['x'][i_set], dataset, **d)
             
-        if 'label' in plot_dict: 
-            h_axis.legend()
+        # if 'label' in plot_dict:
+        #     loc = plot_dict.get('legend_loc', None) 
+        #     h_axis.legend(loc=loc)
         
     elif 'data' in plot_dict:
         if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
@@ -1910,13 +1991,21 @@ def make_plot(
             n_bins = int((upper_bound - lower_bound) / bin_width) 
         for i_set, data in enumerate(plot_dict['data']):
             
-            plot_keys = ['label', 'alpha', 'density', 'bins', 'weights', 'histtype', 'log', 'color', 'stacked']
-            
+            plot_keys = [
+                'label', 
+                'density', 
+                'bins', 
+                'weights', 
+                'histtype', 
+                'log', 
+                'color', 
+                'stacked',
+            ]
             # Set baseline
             if len(plot_dict['data']) > 1:
-                d = {'alpha': 0.6, 'density': False, 'bins': 'fd'}
+                d = {'alpha': 0.6, 'density': False, 'bins': 'fd', 'histtype': 'stepfilled'}
             else:
-                d = {'alpha': 1.0, 'density': False, 'bins': 'fd'}
+                d = {'alpha': 1.0, 'density': False, 'bins': 'fd', 'histtype': 'stepfilled'}
 
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
@@ -1924,12 +2013,18 @@ def make_plot(
             if plot_dict.get('calc_bin_width', False):
                 d['range'] = (lower_bound, upper_bound)
                 d['bins'] = n_bins
+            if 'linewidth' in plot_dict:
+                d['linewidth'] = plot_dict['linewidth']
+            if 'alpha' in plot_dict:
+                d['alpha'] = plot_dict['alpha']
             if 'range' in plot_dict:
                 data = np.clip(data, plot_dict['range'][0], plot_dict['range'][1])
                 d['range'] = plot_dict['range']
             h_axis.hist(data, **d)
 
-            if 'label' in plot_dict: h_axis.legend()
+            # if 'label' in plot_dict: 
+            #     loc = plot_dict.get('legend_loc', None) 
+            #     h_axis.legend(loc=loc)
         
     elif 'hist2d' in plot_dict:
 
@@ -1949,9 +2044,16 @@ def make_plot(
             _, widths2 = np.histogram(set2, bins='fd')
 
             # Rescale 
-            widths1 = np.linspace(min(widths1), max(widths1), int(0.5 + widths1.shape[0]/4.0))
-            widths2 = np.linspace(min(widths2), max(widths2), int(0.5 + widths2.shape[0]/4.0))
-            plt.hist2d(set1, set2, bins=[widths1, widths2], range=binrange, zorder=plot_dict.get('zorder', 0), cmap='Oranges')
+            widths1 = np.linspace(min(widths1), max(widths1), int(0.5 + min(96, widths1.shape[0]/4.0)))
+            widths2 = np.linspace(min(widths2), max(widths2), int(0.5 + min(96, widths2.shape[0]/4.0)))
+            plt.hist2d(
+                set1, 
+                set2, 
+                bins=[widths1, widths2], 
+                range=binrange, 
+                zorder=plot_dict.get('zorder', 0), 
+                cmap='Oranges'
+            )
         else:
             bins = plot_dict['n_bins']
             plt.hist2d(set1, set2, bins=bins, range=binrange, zorder=plot_dict.get('zorder', 0), cmap='Oranges')
@@ -2023,20 +2125,20 @@ def make_plot(
 
             plot_keys = ['label']
             # Set baseline
-            d = {'linewidth': 1.5}
+            d = {'linewidth': 1.2, 'markersize': 0.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
             
             plt.errorbar(x, y, yerr=yerr, xerr=xerr, fmt='.', **d)
             
-        if 'label' in plot_dict: h_axis.legend()
+        # if 'label' in plot_dict: 
+        #     h_axis.legend()
 
     elif plot_dict.get('keyword', 'None') == 'barh':
         h_axis.barh(plot_dict['y'], plot_dict['width'], xerr=plot_dict.get('errors', None))
         h_axis.set_yticklabels(plot_dict['names'])
         h_axis.set_yticks(plot_dict['y'])
         h_axis.set_ylim((0, len(plot_dict['y'])))
-        # plt.tight_layout()
     
     elif 'confusion_matrix' in plot_dict:
         # expects confusion matrix whose i-th row and j-th column entry
@@ -2079,47 +2181,6 @@ def make_plot(
         h_axis.xaxis.set_label_position('top')
         h_axis.xaxis.set_ticks_position('top')
         h_axis.set_title('Confusion Matrix', loc='left')
-
-    # elif 'parallel_coords' in plot_dict:
-    #     data = plot_dict['parallel_coords'] + 0.0
-    #     n_pars = data.shape[1]
-    #     n_models = data.shape[0]
-    #     names = plot_dict['names']
-    #     color_index = plot_dict['color_index']
-
-    #     # Sort wrt correlation with loss
-    #     d_max = np.max(data, axis=0)
-    #     d_min = np.min(data, axis=0)
-    #     d_interval = d_max - d_min
-    #     data_scaled = (data-d_min)/(d_interval + 1e-6)
-    #     # corr = np.corrcoef(data_scaled, rowvar=False)
-    #     # print(corr)
-    #     # print(data_scaled)
-    #     x = np.arange(n_pars)
-    #     for i_model in range(n_models):
-    #         c = (1-data_scaled[i_model, color_index])*0.8
-    #         color = mpl.cm.plasma(
-    #             c
-    #         )
-    #         h_axis.plot(x, data_scaled[i_model, :], color=color, alpha=0.8)
-    #     h_axis.set_xticks(x)
-    #     for i_name in range(len(names)):
-    #         names[i_name] = '%.3f \n'%(d_min[i_name]) + r'\textbf{'+names[i_name] + r'}'
-    #     h_axis.set_xticklabels(names)
-    #     h_axis.set_yticks([])
-
-    #     # Set upper ticks
-    #     h_upper = h_axis.twiny()
-    #     h_upper.plot(x, np.zeros(len(x)), alpha=0.0)
-    #     h_upper.set_xticks(x)
-    #     upper_ticks = []
-    #     for i_val in range(len(d_max)):
-    #         upper_ticks.append('%.3f'%(d_max[i_val]))
-    #     h_upper.set_xticklabels(upper_ticks)
-
-    #     # # Make vertical lines
-    #     for vline in x:
-    #         h_axis.axvline(x=vline, color='k', linewidth=0.5, alpha=0.1)
 
     elif 'parallel_plot' in plot_dict:
         data = plot_dict['parallel_plot'] + 0.0
@@ -2282,6 +2343,25 @@ def make_plot(
     if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
     if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
 
+    if 'label' in plot_dict: 
+        loc = plot_dict.get('legend_loc', None) 
+        if plot_dict.get('combine_labels', False):
+            axes = h_figure.axes
+            labels = []
+            lines = []
+            for ax in axes:
+                new_lines, new_labels = ax.get_legend_handles_labels()
+                leg = ax.get_legend()
+                try: 
+                    leg.remove()
+                except AttributeError:
+                    pass
+                lines = lines + new_lines
+                labels = labels + new_labels
+            h_axis.legend(lines, labels, loc=loc)
+        else:
+            h_axis.legend(loc=loc)
+    
     if 'savefig' in plot_dict: 
         path_obj = Path(plot_dict['savefig'])
         fig_name = path_obj.name

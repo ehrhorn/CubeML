@@ -361,7 +361,7 @@ class SqliteFetcher:
             base_query = 'SELECT {features} FROM {table} WHERE event_no '\
             'IN ({events})'
             base_seq_query = 'SELECT {features} FROM {table} WHERE event '\
-            'IN ({events})'
+                'IN ({events})'
             
             fetched_scalar, fetched_sequential, fetched_meta = [], [], []
             
@@ -908,7 +908,7 @@ def load_data(
     seq_features = data_pars['seq_feat'] # feature names in sequences (if using LSTM-like network)
     scalar_features = data_pars['scalar_feat'] # feature names
     targets = get_target_keys(data_pars, meta_pars) # target names
-    particle_code = get_particle_code(data_pars['particle'])
+    # particle_code = get_particle_code(data_pars['particle'])
     # how much data should be trained on?
     train_frac = data_pars.get('train_frac', None) 
     # how much data should be used for validation?
@@ -940,32 +940,32 @@ def load_data(
         prefix = 'transform'+str(file_keys.get('transform', 'None'))+'/'
         if file_keys['transform'] == -1:
             prefix = 'raw/'
-
-    if 'LstmLoader' == data_pars['dataloader']:
-        dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
-    elif 'SeqScalarTargetLoader' == data_pars['dataloader']:
-        prefix = 'transform'+str(file_keys['transform'])+'/'
-        dataloader = SeqScalarTargetLoader(data_dir, seq_features, 
-                        scalar_features, targets, keyword, train_frac, 
-                        val_frac, test_frac, prefix=prefix)
-    elif 'FullBatchLoader' == data_pars['dataloader']:
-        dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, 
-                        targets, keyword, train_frac, val_frac, test_frac,
-                        batch_size, prefix=prefix, n_events_wanted=n_events_wanted,
-                        particle_code=particle_code, file_list=file_list, 
-                        mask_name=mask_name, drop_last=drop_last, 
-                        debug_mode=debug_mode)
-    elif 'PickleLoader' == data_pars['dataloader']:
-        prefix = 'transform'+str(file_keys['transform'])
-        if file_keys['transform'] == -1:
-            prefix = 'raw'
-        dataloader = PickleLoader(data_dir, seq_features, scalar_features, 
-                                targets, keyword, train_frac, val_frac, 
-                                test_frac, prefix=prefix, n_events_wanted=n_events_wanted, 
-                                masks=mask_names, weights=weights,
-                                dom_mask=dom_mask, max_seq_len=max_seq_len
-        )
-    elif 'SqliteLoader' == data_pars['dataloader']:
+    ### Deprecated stuff ###
+    # if 'LstmLoader' == data_pars['dataloader']:
+    #     dataloader = LstmLoader(data_dir, file_keys, targets, scalar_features, seq_features, keyword, train_frac, val_frac, test_frac)
+    # elif 'SeqScalarTargetLoader' == data_pars['dataloader']:
+    #     prefix = 'transform'+str(file_keys['transform'])+'/'
+    #     dataloader = SeqScalarTargetLoader(data_dir, seq_features, 
+    #                     scalar_features, targets, keyword, train_frac, 
+    #                     val_frac, test_frac, prefix=prefix)
+    # elif 'FullBatchLoader' == data_pars['dataloader']:
+    #     dataloader = FullBatchLoader(data_dir, seq_features, scalar_features, 
+    #                     targets, keyword, train_frac, val_frac, test_frac,
+    #                     batch_size, prefix=prefix, n_events_wanted=n_events_wanted,
+    #                     particle_code=particle_code, file_list=file_list, 
+    #                     mask_name=mask_name, drop_last=drop_last, 
+    #                     debug_mode=debug_mode)
+    # elif 'PickleLoader' == data_pars['dataloader']:
+    #     prefix = 'transform'+str(file_keys['transform'])
+    #     if file_keys['transform'] == -1:
+    #         prefix = 'raw'
+    #     dataloader = PickleLoader(data_dir, seq_features, scalar_features, 
+    #                             targets, keyword, train_frac, val_frac, 
+    #                             test_frac, prefix=prefix, n_events_wanted=n_events_wanted, 
+    #                             masks=mask_names, weights=weights,
+    #                             dom_mask=dom_mask, max_seq_len=max_seq_len
+    #    )
+    if 'SqliteLoader' == data_pars['dataloader']:
         dataloader = SqliteLoader(
             data_dir, 
             seq_features, 

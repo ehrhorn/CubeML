@@ -130,9 +130,6 @@ if __name__ == '__main__':
     if error_func == 'None':
         raise KeyError('A loss function must be chosen! Use flag --loss')
 
-    # Options: 'electron_neutrino', 'muon_neutrino', 'tau_neutrino'
-    particle = 'muon_neutrino'
-
     # Options: 'all', 'dom_interval_min<VAL>_max<VAL>' 
     # (keywords: 'min_doms', 'max_doms')
     mask_names = args.masks
@@ -192,21 +189,28 @@ if __name__ == '__main__':
                  }
     
 #     optimizer = hyper_pars['optimizer']['optimizer']
-    meta_pars = {'tags':                [regression_type, dataset, error_func, 
-                                        particle, *mask_names, args.weights, 
-                                        args.dom_mask, *args.tags, args.optimizer],
-                'group':                regression_type,
-                'project':              project,
-                'objective':            objective,
-                'log_every':            500000 if not args.dev else 50,
-                'lr_scan':              args.scan_lr, 
-                'gpu':                  args.gpu,
-                'n_workers':            args.n_workers 
+    meta_pars = {
+        'tags': [
+            regression_type, 
+            dataset, 
+            error_func, 
+            *mask_names, 
+            args.weights, 
+            args.dom_mask, 
+            *args.tags, 
+            args.optimizer
+        ],
+        'group':                regression_type,
+        'project':              project,
+        'objective':            objective,
+        'log_every':            500000 if not args.dev else 50,
+        'lr_scan':              args.scan_lr, 
+        'gpu':                  args.gpu,
+        'n_workers':            args.n_workers 
                 }
 
     data_pars = {'data_dir':     data_dir,
                 'masks':         mask_names,
-                'particle':      particle,
                 'weights':       args.weights,
                 'dom_mask':      args.dom_mask,
                 'max_seq_len':   args.max_seq_len,
@@ -215,32 +219,9 @@ if __name__ == '__main__':
                                 'dom_y', 
                                 'dom_z', 
                                 'dom_time', 
-                                
-                                # 'dom_charge_significance',
-                                # 'dom_frac_of_n_doms',
-                                # 'dom_d_to_prev',
-                                # 'dom_v_from_prev',
-                                # 'dom_d_minkowski_to_prev',
-                                # 'dom_d_closest',
-                                # 'dom_d_minkowski_closest',
-                                
                                 'dom_atwd',
                                 'dom_pulse_width',
-                                # 'dom_closest1_x',
-                                # 'dom_closest1_y',
-                                # 'dom_closest1_z',
-                                # 'dom_closest1_time',
-                                # 'dom_closest1_charge',
-                                # 'dom_closest2_x',
-                                # 'dom_closest2_y',
-                                # 'dom_closest2_z',
-                                # 'dom_closest2_time',
-                                # 'dom_closest2_charge'
-                                ],
-                                # 'dom_d_vertex',
-                                # 'dom_d_minkowski_vertex',
-                                # 'dom_charge_over_vertex',
-                                # 'dom_charge_over_vertex_sqr'], 
+                ],
                                 
                 'scalar_feat': [#'tot_charge',
                                 #'dom_timelength_fwhm',
@@ -265,7 +246,6 @@ if __name__ == '__main__':
     ):
         raise NameError('Keep in mind that some features are not transformed yet!')
     
-    # Load ensemble (if wanted)
     ensemble_preds = (
             [] if not args.ensemble 
             else get_ensemble_predictions(data_pars, meta_pars)
@@ -285,7 +265,7 @@ if __name__ == '__main__':
         #                      'n_hidden':           128,
         #                      'residual':           False,
         #                      'learn_init':         False}},
-        {'ResBlock':        {'input_sizes':       [n_seq_feat, 64],
+        {'ResBlock':        {'input_sizes':       [n_seq_feat, 64], 
                              'norm':              'LayerNorm',
                              'type':              'seq'}},
         {'RnnBlock':        {'n_in':             64,
@@ -333,7 +313,7 @@ if __name__ == '__main__':
         layers.append({'Angle2Unitvector': []})
     elif regression_type == 'nue_numu':
         layers.append({'Tanh': {'scale': 10}})
-    elif args.loss == 'logscore':
+    elif args.loss in PROBABILISTIC_LOSS_FUNCS:
         layers.append({'SoftPlusSigma': []})
 
     arch_pars =         {'nonlin':             {'func':     args.nonlin},
@@ -359,12 +339,6 @@ if __name__ == '__main__':
     exp_name = exp_dir+base_name+'.json'
     with open(exp_name, 'w') as name:
         json.dump(json_dict, name)
-    
-#     if args.shared:
-#         command = 'python -u ../CubeML/src/script/run_exp_from_shared.py'
-#         command = 'python -u run_exp_from_shared.py'
-
-#         save_shared_exp_folder_command(command)
     
     if args.run:
         if args.test:

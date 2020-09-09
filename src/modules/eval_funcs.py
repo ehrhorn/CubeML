@@ -26,12 +26,32 @@ def get_eval_functions(meta_pars):
     if regression_type == 'direction_reg' or regression_type == 'angle_reg':
         eval_funcs = [azi_error, polar_error, directional_error]
     elif regression_type == 'full_reg':
-        eval_funcs = [relative_E_error, log_frac_E_error, vertex_x_error,
-                    vertex_y_error, vertex_z_error, vertex_t_error, len_error, 
-                    azi_error, polar_error, directional_error]
+        eval_funcs = [
+            relative_E_error, 
+            log_frac_E_error, 
+            vertex_x_error,
+            vertex_y_error, 
+            vertex_z_error, 
+            vertex_t_error, 
+            len_error, 
+            azi_error, 
+            polar_error, 
+            directional_error
+        ]
     elif regression_type == 'vertex_reg':
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error,
                       vertex_t_error, len_error]
+
+    elif regression_type == 'energy_vertex_reg':
+        eval_funcs = [
+            relative_E_error, 
+            log_frac_E_error, 
+            vertex_x_error,
+            vertex_y_error, 
+            vertex_z_error, 
+            vertex_t_error, 
+            len_error, 
+        ]
     elif regression_type == 'vertex_reg_no_time':
         eval_funcs = [vertex_x_error, vertex_y_error, vertex_z_error, len_error]
     elif regression_type == 'energy_reg':
@@ -582,7 +602,6 @@ def retro_len_error(pred, truth, reporting=False):
     direrr = torch.sqrt(sqr(xerr)+sqr(yerr)+sqr(zerr))
 
     return direrr
-
 
 def retro_directional_error(pred, truth, units='degrees', reporting=False):
 

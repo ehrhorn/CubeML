@@ -877,7 +877,9 @@ def get_ensemble_predictions(data_pars, meta_pars):
     """    
     # Get models
     try:
-        models = ENSEMBLE[meta_pars['group']]
+        models = [
+            webpage_to_modelname(webpage) for webpage in ENSEMBLE[meta_pars['group']]
+        ]
     except KeyError:
         raise ValueError('No ensemble for %s has been setup'%(meta_pars['group']))
 
@@ -1211,10 +1213,14 @@ def get_n_events_per_dir(data_dir):
 def get_n_targets(data_pars, meta_pars, loss_func_name):
     n_targets = len(get_target_keys(data_pars, meta_pars))
 
-    if loss_func_name == 'logscore':
+    if loss_func_name in [
+        'logscore',
+        'logscore_UnitVectorPenalty'
+    ]:
         n_targets *= 2
     elif loss_func_name == 'cosine_loss':
         n_targets = 2
+    
     
     return n_targets
 
@@ -1269,7 +1275,7 @@ def get_optimizer(model_pars, d_opt):
         if 'weight_decay' in d_opt: weight_decay = d_opt['eps']
         else: weight_decay = 0 # default Adam par
         
-        optimizer = optim.Adam(model_pars, lr = lr, betas = betas, eps = eps, weight_decay = weight_decay)
+        optimizer = optim.Adam(model_pars, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
     
     elif d_opt['optimizer'] == 'SGD':
         _ = d_opt.pop('optimizer')
@@ -1404,10 +1410,32 @@ def get_target_keys(data_pars, meta_pars):
             target_keys = ['true_primary_energy']
         
         elif meta_pars['group'] == 'full_reg':
-            target_keys = ['true_primary_energy', 'true_primary_position_x', 'true_primary_position_y', 'true_primary_position_z', 'true_primary_time', 'true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
+            target_keys = [
+                'true_primary_energy', 
+                'true_primary_position_x', 
+                'true_primary_position_y', 
+                'true_primary_position_z', 
+                'true_primary_time', 
+                'true_primary_direction_x', 
+                'true_primary_direction_y', 
+                'true_primary_direction_z'
+            ]
+        
+        elif meta_pars['group'] == 'energy_vertex_reg':
+            target_keys = [
+                'true_primary_energy', 
+                'true_primary_position_x', 
+                'true_primary_position_y', 
+                'true_primary_position_z', 
+                'true_primary_time', 
+            ] 
         
         elif meta_pars['group'] == 'angle_reg':
-            target_keys = ['true_primary_direction_x', 'true_primary_direction_y', 'true_primary_direction_z']
+            target_keys = [
+                'true_primary_direction_x', 
+                'true_primary_direction_y', 
+                'true_primary_direction_z'
+            ]
 
         elif meta_pars['group'] == 'nue_numu':
             target_keys = ['p_nue', 'p_numu']
@@ -1978,7 +2006,6 @@ def read_pickle_predicted_h5_data_v2(file_address, keys):
         
         for key in keys:
             preds[key] = np.squeeze(f[key][:])
-    
     return preds
 
 def read_pickle_data(data_dir, indices, keys, prefix='raw', multiprocess=True):
@@ -2364,3 +2391,6 @@ def update_model_pars(new_hyper_pars, new_data_pars, meta_pars):
 
     return model_dir, hyper_pars, data_pars, arch_pars
     
+def webpage_to_modelname(webpage):
+    modelname = webpage.split('/')[-1].split('?')[0]
+    return modelname
