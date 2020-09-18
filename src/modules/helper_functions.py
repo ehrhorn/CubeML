@@ -1767,7 +1767,7 @@ def make_model_dir(reg_type, data_folder_address, clean_keys, project, particle=
 
     return model_dir
 
-def make_multiprocess_pack(discriminator, *stuff):
+def make_multiprocess_pack(discriminator, *stuff, enumerate_processes=False):
     """Packs the object to multiprocess with copies of important stuff put in a list.
     
     Parameters
@@ -1786,6 +1786,8 @@ def make_multiprocess_pack(discriminator, *stuff):
     lists = [discriminator]
     for entry in stuff:
         lists.append([entry]*n_copies)
+    if enumerate_processes:
+        lists.append(list(range(n_copies)))
     return zip(*lists)
 
 def mask_union(data_dir, masks):

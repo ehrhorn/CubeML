@@ -204,6 +204,89 @@ class AziPolarPerformance:
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
 
+class AziPolarHists:
+    '''A class to create azimuthal and polar error plots - one 2D-histogram and two performance plots.
+    '''
+
+    def __init__(self, model_dir, wandb_ID=None):
+        _, data_pars, _, meta_pars = load_model_pars(model_dir)
+
+        self.model_dir = get_path_from_root(model_dir)
+        self.data_pars = data_pars
+        self.data_dir = data_pars['data_dir']
+        self.wandb_ID = wandb_ID
+        self.meta_pars = meta_pars
+        self.pred_dict, self.true_dict = self._get_data_dict()
+
+    def _get_data_dict(self):
+        full_pred_address = self._get_pred_path()
+        keys = self._get_keys()
+        pred_dict, true_dict = read_predicted_h5_data(full_pred_address, keys, self.data_pars, [])
+        return pred_dict, true_dict
+    
+    def _get_pred_path(self):
+        path_to_data = get_project_root() + self.model_dir + '/data'
+        for file in Path(path_to_data).iterdir():
+            if file.suffix == '.h5':
+                path = str(file)
+        return path
+    
+    def _get_keys(self):
+        funcs = get_eval_functions(self.meta_pars)
+        keys = []
+
+        for func in funcs:
+            keys.append(func.__name__)
+        
+        return keys
+
+    def _exclude_azi_polar(self):
+        azi_max_dev = 15
+        polar_max_dev = 15
+        
+        # exclude errors outside of first interval
+        azi_sorted, polar_sorted = sort_pairs(self.pred_dict['azi_error'], self.pred_dict['polar_error'])
+        i_azi = np.searchsorted(azi_sorted, [-azi_max_dev, azi_max_dev])
+        azi_sorted = azi_sorted[i_azi[0]:i_azi[1]]
+        polar_sorted = polar_sorted[i_azi[0]:i_azi[1]]
+
+        # exclude errors outside of second interval
+        polar_sorted, azi_sorted = sort_pairs(polar_sorted, azi_sorted)
+        i_polar = np.searchsorted(polar_sorted, [-polar_max_dev, polar_max_dev])
+        azi_sorted = azi_sorted[i_polar[0]:i_polar[1]]
+        polar_sorted = polar_sorted[i_polar[0]:i_polar[1]]
+
+        return azi_sorted, polar_sorted
+
+    def save(self):
+        
+        # Save standard histograms first
+        for key, pred in self.pred_dict.items():
+            img_address = get_project_root() + self.model_dir+'/figures/'+str(key)+'.png'
+            figure = make_plot({'data': [pred], 'xlabel': str(key), 'savefig': img_address}, for_thesis=True)
+
+            # Load img with PIL - png format can be logged
+            if self.wandb_ID is not None:
+                im = PIL.Image.open(img_address)
+                wandb.log({str(key): wandb.Image(im, caption=key)}, commit=False)
+                im.close()
+
+        # Save 2D-histogram
+        img_address = get_project_root() + self.model_dir+'/figures/azi_vs_polar.png'
+        azi, polar = self._exclude_azi_polar()
+
+        plot_dict = {'hexbin': [azi, polar],
+                    'xlabel': 'Azimuthal error [deg]',
+                    'ylabel': 'Polar error [deg]',
+                    'savefig': img_address}
+        fig = make_plot(plot_dict)
+
+        if fig != -1:
+            if self.wandb_ID is not None:
+                im = PIL.Image.open(img_address)
+                wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit=False)
+                im.close()
+
 class EnergyPerformance:
     """A class to create and save performance plots for energy predictions. If available, the relative improvement compared to Icecubes reconstruction is plotted aswell. Furthermore, the median of the relative error is logged as a one-number performance measure.  
     

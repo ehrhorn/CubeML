@@ -12,95 +12,7 @@ from torch.utils import data
 from scipy.stats import wilcoxon
 from src.modules.main_funcs import *
 from src.modules.helper_functions import strip_nans
-from src.modules.thesis_plotting import setup_pgf_plotting
-
-# ======================================================================== 
-# PERFORMANCE CLASSES
-# ========================================================================
-
-
-class AziPolarHists:
-    '''A class to create azimuthal and polar error plots - one 2D-histogram and two performance plots.
-    '''
-
-    def __init__(self, model_dir, wandb_ID=None):
-        _, data_pars, _, meta_pars = load_model_pars(model_dir)
-
-        self.model_dir = get_path_from_root(model_dir)
-        self.data_pars = data_pars
-        self.data_dir = data_pars['data_dir']
-        self.wandb_ID = wandb_ID
-        self.meta_pars = meta_pars
-        self.pred_dict, self.true_dict = self._get_data_dict()
-
-    def _get_data_dict(self):
-        full_pred_address = self._get_pred_path()
-        keys = self._get_keys()
-        pred_dict, true_dict = read_predicted_h5_data(full_pred_address, keys, self.data_pars, [])
-        return pred_dict, true_dict
-    
-    def _get_pred_path(self):
-        path_to_data = get_project_root() + self.model_dir + '/data'
-        for file in Path(path_to_data).iterdir():
-            if file.suffix == '.h5':
-                path = str(file)
-        return path
-    
-    def _get_keys(self):
-        funcs = get_eval_functions(self.meta_pars)
-        keys = []
-
-        for func in funcs:
-            keys.append(func.__name__)
-        
-        return keys
-
-    def _exclude_azi_polar(self):
-        azi_max_dev = 15
-        polar_max_dev = 15
-        
-        # exclude errors outside of first interval
-        azi_sorted, polar_sorted = sort_pairs(self.pred_dict['azi_error'], self.pred_dict['polar_error'])
-        i_azi = np.searchsorted(azi_sorted, [-azi_max_dev, azi_max_dev])
-        azi_sorted = azi_sorted[i_azi[0]:i_azi[1]]
-        polar_sorted = polar_sorted[i_azi[0]:i_azi[1]]
-
-        # exclude errors outside of second interval
-        polar_sorted, azi_sorted = sort_pairs(polar_sorted, azi_sorted)
-        i_polar = np.searchsorted(polar_sorted, [-polar_max_dev, polar_max_dev])
-        azi_sorted = azi_sorted[i_polar[0]:i_polar[1]]
-        polar_sorted = polar_sorted[i_polar[0]:i_polar[1]]
-
-        return azi_sorted, polar_sorted
-
-    def save(self):
-        
-        # Save standard histograms first
-        for key, pred in self.pred_dict.items():
-            img_address = get_project_root() + self.model_dir+'/figures/'+str(key)+'.png'
-            figure = make_plot({'data': [pred], 'xlabel': str(key), 'savefig': img_address}, for_thesis=True)
-
-            # Load img with PIL - png format can be logged
-            if self.wandb_ID is not None:
-                im = PIL.Image.open(img_address)
-                wandb.log({str(key): wandb.Image(im, caption=key)}, commit=False)
-                im.close()
-
-        # Save 2D-histogram
-        img_address = get_project_root() + self.model_dir+'/figures/azi_vs_polar.png'
-        azi, polar = self._exclude_azi_polar()
-
-        plot_dict = {'hexbin': [azi, polar],
-                    'xlabel': 'Azimuthal error [deg]',
-                    'ylabel': 'Polar error [deg]',
-                    'savefig': img_address}
-        fig = make_plot(plot_dict)
-
-        if fig != -1:
-            if self.wandb_ID is not None:
-                im = PIL.Image.open(img_address)
-                wandb.log({'azi_vs_polar': wandb.Image(im, caption='azi_vs_polar')}, commit=False)
-                im.close()
+from src.modules.thesis_plotting import setup_pgf_plotting, save_png_pgf
 
 class Performance:
     """A class to create and save performance plots for interaction vertex 
@@ -117,7 +29,14 @@ class Performance:
         [type] -- Instance of class.
     """    
 
-    def __init__(self, model_dir, wandb_ID=None, run_perf_eval=True):
+    def __init__(
+        self, 
+        model_dir, 
+        wandb_ID=None, 
+        run_perf_eval=True, 
+        mask=None
+        ):
+
         hyper_pars, data_pars, arch_pars, meta_pars = load_model_pars(model_dir)
         self.model_dir = get_path_from_root(model_dir)
         self.data_pars = data_pars
@@ -139,6 +58,7 @@ class Performance:
         self._target_keys = get_target_keys(self.data_pars, self.meta_pars)
 
         self.wandb_ID = wandb_ID
+        self._mask = mask
 
         if run_perf_eval:
             energy_dict, pred_dict, crs_dict, true_dict, n_doms, loss, raw_pred_dict, raw_target_dict = self._get_data_dicts()
@@ -247,7 +167,15 @@ class Performance:
 
         return one_num
 
-    def _calculate_performance(self, energy, pred_dict, crs_dict, true_dict, n_doms):
+    def _calculate_performance(
+        self, 
+        energy, 
+        pred_dict, 
+        crs_dict, 
+        true_dict, 
+        n_doms,
+        save_2D_perf_plot=True
+        ):
         
         true_transformed = inverse_transform(
             true_dict, get_project_root()+self.model_dir
@@ -340,7 +268,18 @@ class Performance:
                 i3_med = getattr(self, i3_key+'_50th')
                 i3_upper = getattr(self, i3_key+'_84th')
                 i3_lower = getattr(self, i3_key+'_16th')
-                self._make_I3_perf_plot(key, energy, data, median, upper_perc, lower_perc, i3_med=i3_med, i3_upper=i3_upper, i3_lower=i3_lower)
+                if save_2D_perf_plot:
+                    self._make_I3_perf_plot(
+                        key, 
+                        energy, 
+                        data, 
+                        median, 
+                        upper_perc, 
+                        lower_perc, 
+                        i3_med=i3_med, 
+                        i3_upper=i3_upper, 
+                        i3_lower=i3_lower
+                    )
 
                 # Performance as a function of number of doms
                 sigma, sigmaerr, median, upper_perc, lower_perc = calc_width_as_fn_of_data(n_doms, data, self.dom_bin_edges)
@@ -495,7 +434,7 @@ class Performance:
 
         return label
 
-    def _get_data_dicts(self):
+    def _get_data_dicts(self, mask=None):
         data_dir = self.data_pars['data_dir']
 
         # Load loss aswell
@@ -509,6 +448,31 @@ class Performance:
         pred_dict = read_pickle_predicted_h5_data_v2(
             self._pred_path, keys
         )
+
+        if mask!=None:
+            print(get_time(), 'Applying supplied mask to predictions...')
+            mask_indices = np.array(
+                load_sqlite_mask(
+                    PATH_DATA_OSCNEXT, [mask], 'val'
+                )
+            )
+
+            overlapping_ids = np.array(
+                sorted(
+                    list(
+                        set(mask_indices) & set(pred_dict['indices'])
+                    )
+                )
+            )
+            overlap_mask = np.in1d(pred_dict['indices'], overlapping_ids)
+            for key in pred_dict:
+                if key == 'indices':
+                    continue
+                pred_dict[key] = pred_dict[key][overlap_mask]
+            pred_dict['indices'] = overlapping_ids
+            print(get_time(), 'Mask applied.')
+
+            
         event_ids = [str(idx) for idx in pred_dict['indices']]
         scalar_feats = (
             self._energy_key+self._reco_keys+self._true_keys+self._target_keys
@@ -527,7 +491,7 @@ class Performance:
                 all_events=event_ids, 
                 scalar_features=scalar_feats,
             )
-        
+
         energy_dict = {
             key: np.zeros(len(event_ids)) for key in self._energy_key
         }
@@ -544,7 +508,6 @@ class Performance:
             for key in self._energy_key:
                 energy_dict[key][i_event] = fetched[idx][key]
             for key in self._true_keys:
-                # Again - handle classification differently
                 if self.meta_pars['group'] in CLASSIFICATION:
                     code = fetched[idx]['particle_code']
                     if (
@@ -939,7 +902,7 @@ class Performance:
                 reco_keys = [
                     'retro_crs_prefit_x', 
                     'retro_crs_prefit_y', 
-                    'retro_crs_prefit_z'
+                        'retro_crs_prefit_z'
                     ]
             
             elif (self.meta_pars['group'] == 'direction_reg' or
@@ -983,9 +946,15 @@ class Performance:
         rel_imp = getattr(self, key+'_RI')
         rel_imp_err = getattr(self, key+'_RIerr')
 
-        d = {'edges': [self.bin_edges], 'y': [rel_imp], 'yerr': [rel_imp_err], 
-            'xlabel': r'$\log_{10}(E)$ [$E$/GeV]', 'ylabel': 'Rel. Imp.', 'grid': True, 
-            'y_minor_ticks_multiple': 0.2}
+        d = {
+            'edges': [self.bin_edges], 
+            'y': [rel_imp], 
+            'yerr': [rel_imp_err],  
+            'xlabel': r'$\log_{10}(E)$ [$E$/GeV]', 
+            'ylabel': 'Rel. Imp.', 
+            'grid': True, 
+            'y_minor_ticks_multiple': 0.2
+        }
         
         yrange_d = {}
         if max(-0.5, min(rel_imp)) == -0.5:
@@ -1025,6 +994,27 @@ class Performance:
 
         return label
 
+    def _get_zscore_title(self, name):
+        if name == 'true_primary_energy':
+            title = r'$\log_{10} E/$GeV' 
+        elif name == 'true_primary_position_x':
+            title = r'$x_{IV}$'
+        elif name == 'true_primary_position_y':
+            title = r'$y_{IV}$'
+        elif name == 'true_primary_position_z':
+            title = r'$z_{IV}$'
+        elif name == 'true_primary_time':
+            title = r'$t_{IV}$'
+        elif name == 'true_primary_direction_x':
+            title = r'$r_x$'
+        elif name == 'true_primary_direction_y':
+            title = r'$r_y$'
+        elif name == 'true_primary_direction_z':
+            title = r'$r_z$'
+        else:
+            title = 'UNKNOWN TITLE'
+        
+        return title
     def _make_I3_perf_plot(self, key, energy, data, median, upper_perc, 
                            lower_perc, i3_med=None, i3_upper=None, i3_lower=None):
         
@@ -1267,11 +1257,9 @@ class Performance:
             for pred_key, sigma_key, target_key in zip(
                 raw_pred, sigma_dict, raw_target
             ):
-                # Calculate z-scores
                 z = (raw_pred[pred_key] - raw_target[target_key]) / \
                     (sigma_dict[sigma_key])
                 z_clipped = np.clip(z, -z_clip_val, z_clip_val)
-                # print((np.percentile(z, 84)-np.percentile(z, 16))/2)
                 
                 # Fit a gaussian
                 p, cov, chisquare, p_val = fit_nonnormed_gauss(z_clipped)
@@ -1289,19 +1277,40 @@ class Performance:
                 # Save plot of distribution
                 x = np.linspace(-z_clip_val, z_clip_val, 500)
                 y = nonnormed_gauss(x, *p)
-                d1 = {'data': [z_clipped]}
+
+            
+                d1 = {
+                    'data': [z_clipped],
+                    'label': ['z-scores']
+                }
                 fig = make_plot(d1)
-                d2 = {'x': [x], 'y': [y]}
-                d2['title'] = pred_key + ' z-score distribution'
+                d2 = {
+                    'x': [x], 
+                    'y': [y]
+                }
+                d2['title'] = self._get_zscore_title(pred_key)
                 d2['ylabel'] = 'Count'
                 d2['xlabel'] = 'z-score'
-                d2['label'] = ['fit: Area=%3.2e, mean=%3.2e, sigma=%3.2e' % tuple(p)]
-                d2['savefig'] = '/'.join([
-                    base_path, 'z_score_'+pred_key+'.png'
+                d2['label'] = [r'$\chi^2$-Fit']
+                d2['combine_labels'] = True
+                savepath = '/'.join([
+                    base_path, 'z_score_'+pred_key
                 ])
-                _ = make_plot(d2, h_figure=fig)
+                s = [
+                    '$\mu = $ %.3f'%(p[1]),
+                    '$\sigma = $ %.3f'%(p[2]),
+                    'prob = $%.3f'%(p_val),
+                    '$N$ = %d$\cdot 10^3$'%(len(z_clipped)/1000)
+                ]
+                pos = (0.7, 0.7 )
 
-                # Save sigma-distribution
+                d2['text'] = s
+                d2['text_pos'] = [(pos[0], pos[1]-0.09*i) for i in range(4)]
+
+
+                f = make_plot(d2, h_figure=fig, for_thesis=True)
+                save_png_pgf(savepath, f, height=0.8, width=0.8)
+
                 d = {
                     'data': [
                         np.clip(sigma_dict[sigma_key], 0, 1.0)
@@ -1312,6 +1321,7 @@ class Performance:
                     'ylabel': 'Count',
                     'xlabel': sigma_key,
                     'title': sigma_key+' distribution'
+                    
                 }
                 _ = make_plot(d)
 
@@ -1320,9 +1330,11 @@ class Performance:
 
         self.onenumber_performance = self._calculate_onenum_performance(pred_dict)
 
-    def save(self):
+    def save(self, path=None):
         
-        perf_savepath = get_project_root() + self.model_dir + '/data/Performance.pickle'
+        if path == None:
+            perf_savepath = get_project_root() + self.model_dir + '/data/Performance.pickle'
+        
         with open(perf_savepath, 'wb') as f:
             pickle.dump(self, f)
 
@@ -1879,6 +1891,7 @@ def make_plot(
     plot_dict, 
     h_figure=None, 
     axes_index=None, 
+    h_axis=None,
     position=[0.125, 0.11, 0.775, 0.77],
     for_thesis=True,
     save_pickle=True
@@ -1916,12 +1929,10 @@ def make_plot(
         h_axis = h_figure.add_axes(position)
         print()
     else:
-        if isinstance(axes_index, int):
+        if h_axis != None:
+            pass
+        elif isinstance(axes_index, int):
             h_axis = h_figure.get_axes()[axes_index]
-        # elif isinstance(axes_index, tuple):
-            # h_axis = h_figure.get_axes()
-            # print(h_axis)
-            # a+=1
         else:
             h_axis = h_figure.gca()
 
@@ -1937,8 +1948,6 @@ def make_plot(
         h_axis = h_figure.add_axes(position, sharex=h_figure.axes[0])
     
     if 'x' in plot_dict and 'y' in plot_dict:
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
         
         for i_set, dataset in enumerate(plot_dict['y']):
             # Drawstyle can be 'default', 'steps-mid', 'steps-pre' etc.
@@ -1962,13 +1971,7 @@ def make_plot(
             else:
                 h_axis.plot(plot_dict['x'][i_set], dataset, **d)
             
-        # if 'label' in plot_dict:
-        #     loc = plot_dict.get('legend_loc', None) 
-        #     h_axis.legend(loc=loc)
-        
     elif 'data' in plot_dict:
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
         
         if plot_dict.get('calc_bin_width', False):
             lower_bound = np.inf
@@ -2022,15 +2025,7 @@ def make_plot(
                 d['range'] = plot_dict['range']
             h_axis.hist(data, **d)
 
-            # if 'label' in plot_dict: 
-            #     loc = plot_dict.get('legend_loc', None) 
-            #     h_axis.legend(loc=loc)
-        
     elif 'hist2d' in plot_dict:
-
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
 
         set1 = plot_dict['hist2d'][0]
         set2 = plot_dict['hist2d'][1]
@@ -2060,9 +2055,6 @@ def make_plot(
         plt.colorbar()
 
     elif 'hexbin' in plot_dict:
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
 
         set1 = plot_dict['hexbin'][0]
         set2 = plot_dict['hexbin'][1]
@@ -2105,9 +2097,6 @@ def make_plot(
         plt.colorbar()
         
     elif 'edges' in plot_dict:
-        if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-
-        if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
 
         # Calculate bin centers and 'x-error'
         centers = []
@@ -2123,17 +2112,14 @@ def make_plot(
             yerr = plot_dict['yerr'][i_set]
             edges = plot_dict['edges'][i_set]
 
-            plot_keys = ['label']
+            plot_keys = ['label', 'color']
             # Set baseline
             d = {'linewidth': 1.2, 'markersize': 0.5}
             for key in plot_dict:
                 if key in plot_keys: d[key] = plot_dict[key][i_set] 
             
-            plt.errorbar(x, y, yerr=yerr, xerr=xerr, fmt='.', **d)
+            h_axis.errorbar(x, y, yerr=yerr, xerr=xerr, fmt='.', **d)
             
-        # if 'label' in plot_dict: 
-        #     h_axis.legend()
-
     elif plot_dict.get('keyword', 'None') == 'barh':
         h_axis.barh(plot_dict['y'], plot_dict['width'], xerr=plot_dict.get('errors', None))
         h_axis.set_yticklabels(plot_dict['names'])
@@ -2190,29 +2176,12 @@ def make_plot(
         color_index = plot_dict['color_index']
         labels = plot_dict.get('labels', [None for name in names])
 
-        # # Sort wrt highest correlation
-        # corr = np.corrcoef(data_unsorted, rowvar=False)[color_index_unsorted, :]
-        # _, ids = sort_pairs(corr, np.arange(n_pars))
-        # data = data_unsorted + 0.0
-        # names = []
-        # labels = []
-        # for new, old in zip(np.arange(n_pars), ids):
-        #     data[:, new] = data_unsorted[:, old] + 0.0
-        #     names.append(names_unsorted[old])
-        #     labels.append(labels_old[old])
-        
-        # Make the lines
         d_max = np.max(data, axis=0)
         d_min = np.min(data, axis=0)
         d_interval = d_max - d_min
         data_scaled = (data-d_min)/(d_interval + 1e-6)
 
-        # logdata = np.log(data[:, -1])
-        # d_log_max = np.max(logdata)
-        # d_log_min = np.min(logdata)
-        # logdata_scaled = (logdata - d_log_min)/(d_log_max-d_log_min + 1e-6)
         x = np.arange(n_pars)
-        # plt.style.use('seaborn-darkgrid')
         for i_model in range(n_models):
             c = (1-data_scaled[i_model, -1])*0.8 + 0.1
             c = (1-min(data_scaled[i_model, -1]*5, 1))*0.35
@@ -2286,24 +2255,18 @@ def make_plot(
             h_y.set_yticklabels(tickvals)
 
 
-        # Remove the 'box' around the figure
         h_axis.axis('off')
         
-        # h_y.plot(x, np.zeros(len(x)), alpha=0.0)
-        # h_y.set_xticks(x)
-
     else:
         raise ValueError('Unknown plot wanted!')
     
-    # Plot vertical lines if wanted
     if 'axvline' in plot_dict:
         for vline in plot_dict['axvline']:
-            h_axis.axvline(x=vline, color = 'k', ls = ':')
+            h_axis.axvline(x=vline, color='k', ls=':', linewidth=0.8)
     
-    # ... And horizontal lines
     if 'axhline' in plot_dict:
         for hline in plot_dict['axhline']:
-            h_axis.axhline(y=hline, color = 'k', ls = '--')
+            h_axis.axhline(y=hline, color='k', ls='--', linewidth=0.8)
 
     if grid_on:
         if 'y_major_ticks_multiple' in plot_dict:
@@ -2317,9 +2280,13 @@ def make_plot(
         h_axis.grid(alpha=alpha)
         h_axis.grid(True, which='minor', alpha=alpha, linestyle=':')
 
-    if 'text' in plot_dict:
-        plt.text(*plot_dict['text'], transform=h_axis.transAxes)
+    # if 'text' in plot_dict:
+    #     plt.text(*plot_dict['text'], transform=h_axis.transAxes)
     
+    if 'text' in plot_dict:
+        for s, pos in zip(plot_dict['text'], plot_dict['text_pos']):
+            h_axis.text(pos[0], pos[1], s, transform=h_axis.transAxes)
+
     if 'title' in plot_dict:
         h_axis.set_title(plot_dict['title'], loc='left')
 
@@ -2338,13 +2305,18 @@ def make_plot(
                 left=plot_dict['xrange'][0],right=plot_dict['xrange'][1]
                 )
 
-    if 'xlabel' in plot_dict: h_axis.set_xlabel(plot_dict['xlabel'])
-    if 'ylabel' in plot_dict: h_axis.set_ylabel(plot_dict['ylabel'])
-    if 'xscale' in plot_dict: h_axis.set_xscale(plot_dict['xscale'])
-    if 'yscale' in plot_dict: h_axis.set_yscale(plot_dict['yscale'])
+    if 'xlabel' in plot_dict: 
+        h_axis.set_xlabel(plot_dict['xlabel'])
+    if 'ylabel' in plot_dict: 
+        h_axis.set_ylabel(plot_dict['ylabel'])
+    if 'xscale' in plot_dict: 
+        h_axis.set_xscale(plot_dict['xscale'])
+    if 'yscale' in plot_dict: 
+        h_axis.set_yscale(plot_dict['yscale'])
 
     if 'label' in plot_dict: 
         loc = plot_dict.get('legend_loc', None) 
+        frameon = plot_dict.get('frameon', True) 
         if plot_dict.get('combine_labels', False):
             axes = h_figure.axes
             labels = []
@@ -2358,9 +2330,9 @@ def make_plot(
                     pass
                 lines = lines + new_lines
                 labels = labels + new_labels
-            h_axis.legend(lines, labels, loc=loc)
+            h_axis.legend(lines, labels, loc=loc, frameon=frameon)
         else:
-            h_axis.legend(loc=loc)
+            h_axis.legend(loc=loc, frameon=frameon)
     
     if 'savefig' in plot_dict: 
         path_obj = Path(plot_dict['savefig'])

@@ -16,9 +16,25 @@ def update_xlabels(ax, keyword='num2k', func=None):
         ylabels = [func(label) for label in ax.get_xticks()]
     ax.set_xticklabels(ylabels)
 
+def save_png_pgf(path, f, width=1.0, height=1.0):
+    FOTW = get_frac_of_textwidth(keyword='single_fig')
+    w = get_figure_width(frac_of_textwidth=FOTW)
+    h = get_figure_height(width=w)
+    f.set_size_inches(w*width, h*height)
 
-def save_thesis_pgf(path, f, save_pgf=False, png_name=None):
-    all_figs_path = str(path.parent.parent) + '/all_pgf/' + str(path.parent.stem) + '.pgf'
+    name = path.split('/')[-1]
+    f.savefig(path+'.png', bbox_inches='tight')
+    print(get_time(), 'Saved %s.png'%(name))
+    f.savefig(path+'.pgf', bbox_inches='tight')
+    print(get_time(), 'Saved %s.pgf'%(name))
+
+def save_thesis_pgf(path, f, save_pgf=False, png_name=None, pgf_name=None):
+    if pgf_name == None:
+        pgf = str(path.parent.stem)
+    else:
+        pgf = str(path.parent.stem) + '_' + pgf_name
+
+    all_figs_path = str(path.parent.parent) + '/all_pgf/' + pgf + '.pgf'
     if png_name:
         f.savefig(str(path.parent) + '/' + png_name + '.png', bbox_inches='tight')
     else:
@@ -26,7 +42,7 @@ def save_thesis_pgf(path, f, save_pgf=False, png_name=None):
     print(get_time(), 'Saved .png')
     if save_pgf:
         f.savefig(all_figs_path, bbox_inches='tight')
-        print(get_time(), str(path.parent.stem) + ' saved.')
+        print(get_time(), pgf + ' saved.')
 
 def setup_pgf_plotting(fontsize=10):
     # Setup saving of pgf-plots for thesis

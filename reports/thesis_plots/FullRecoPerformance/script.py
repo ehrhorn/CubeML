@@ -20,7 +20,7 @@ wanted_plots = [
     'len_error_performance',
     'vertex_t_error_performance',   
     'polar_error_2DPerformance',
-    'relative_E_error_2DPerformance' 
+    'log_frac_E_error_2DPerformance' 
 ]
 
 plotnames = [
@@ -31,7 +31,7 @@ plotnames = [
     '_vert_dist',
     '_vert_t',
     '_polar_2D',
-    '_rel_E_2D'
+    '_log_frac_E_2D'
 ]
 
 save_path = get_project_root() + '/reports/thesis_plots/all_pgf/FullRecoPerformance'

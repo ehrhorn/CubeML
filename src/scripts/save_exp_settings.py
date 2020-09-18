@@ -52,17 +52,30 @@ parser.add_argument(
         type=float, 
         help='Sets the end learning rate for the learning rate finder.'
         )
-parser.add_argument('--lr_finder_epochs', default=1, type=int, 
-        help='Sets the number of epochs the learning rate finder should run.')
-parser.add_argument('--max_seq_len', default=np.inf, type=int, 
+parser.add_argument(
+        '--lr_finder_epochs', 
+        default=1, 
+        type=int, 
+        help='Sets the number of epochs the learning rate finder should run.'
+        )
+parser.add_argument(
+        '--max_seq_len', 
+        default=np.inf, 
+        type=int, 
         help='Sets the maximum sequence length to use. If max_seq_len is' 
-        'larger than the actualy sequence length, a random subsample of the'\
+        'larger than the actualy sequence length, a random subsample of the'
         'sequence is chosen')
-parser.add_argument('--regression', default='None', type=str, 
-        help='Sets the regression type to run. Options: full_reg,' \
-        'direction_reg, vertex_reg, vertex_reg_no_time, energy_reg, ' \
+parser.add_argument(
+        '--regression', 
+        default='None', 
+        type=str, 
+        help='Sets the regression type to run. Options: full_reg,' 
+        'direction_reg, vertex_reg, vertex_reg_no_time, energy_reg, ' 
         'nue_numu')
-parser.add_argument('--loss', default='None', type=str, 
+parser.add_argument(
+        '--loss', 
+        default='None', 
+        type=str, 
         help='Sets the loss function to use. Options: L2, logcosh')
 parser.add_argument('--masks', nargs='+', default='None', type=str, 
         help='Sets the masks to choose data. Options:'\
@@ -126,8 +139,7 @@ if __name__ == '__main__':
 
     # Options: 'angle_loss', 'L1', 'L2', 'logcosh', 'angle_squared_loss',
     # 'cosine_loss'
-    error_func = args.loss
-    if error_func == 'None':
+    if args.loss == 'None':
         raise KeyError('A loss function must be chosen! Use flag --loss')
 
     # Options: 'all', 'dom_interval_min<VAL>_max<VAL>' 
@@ -193,7 +205,7 @@ if __name__ == '__main__':
         'tags': [
             regression_type, 
             dataset, 
-            error_func, 
+            args.loss, 
             *mask_names, 
             args.weights, 
             args.dom_mask, 
@@ -208,7 +220,12 @@ if __name__ == '__main__':
         'gpu':                  args.gpu,
         'n_workers':            args.n_workers 
                 }
-
+                
+    if args.ensemble:
+        meta_pars['tags'].append('ensemble')
+    if args.loss in PROBABILISTIC_LOSS_FUNCS:
+        meta_pars['tags'].append('probabilistic')
+        
     data_pars = {'data_dir':     data_dir,
                 'masks':         mask_names,
                 'weights':       args.weights,
@@ -318,7 +335,7 @@ if __name__ == '__main__':
 
     arch_pars =         {'nonlin':             {'func':     args.nonlin},
 
-                        'loss_func':           error_func,
+                        'loss_func':           args.loss,
                         'loss_func_weights':   loss_func_weights,
                         'norm':                {'norm':      'BatchNorm1D',
                                                 'momentum':  0.9 },

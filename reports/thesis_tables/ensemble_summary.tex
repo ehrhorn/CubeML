@@ -1,0 +1,14 @@
+\begin{tabular}{lcccccccc}
+  \toprule
+    & & Energy + IV & & & & Direction & \\
+  \cmidrule{2-4} \cmidrule{6-8} 
+    & Loss & Weights & $N$ & & Loss & Weights & $N$ & \\
+    \cmidrule{2-4} \cmidrule{6-8} 
+   & logcosh & $w_{blinding}$ & 2 & & logcosh & $w_{blinding}$ & 2 & \\
+   & logcosh & $w_{balanced}^{\alpha=0.7}$ & 2 & & L1+ penalty & $w_{blinding}$ & 2 & \\
+   & logcosh & $w_{low}$ & 2 & & L1+ penalty & $w_{Direction}$ & 2 & \\
+   & logcosh & $w_{high}$ & 2 & & L1 & $w_{Direction}$ & 2 & \\
+  \midrule \midrule 
+  & $N_{total}$ & & 8 & & &  & 8 &\\
+  \bottomrule 
+\end{tabular}
