@@ -1,9 +1,38 @@
 import torch
 from src.modules.helper_functions import *
+from src.modules.retro_funcs import *
 
-#*======================================================================== 
-#* HELPER FUNCTIONS
-#*======================================================================== 
+def calculate_corrected_retro_energy(fetched, event_ids, e_key):
+    print(get_time(), 'Calculating corrected Retro energies')
+    with open(PATH_DATA_OSCNEXT + '/matched_val.pickle', 'rb') as f:
+        matched_events = pickle.load(f) 
+    _, GMS_LEN2EN, _ = generate_gms_table_converters(losses="all")
+    total_missing = 0
+    for counter, idx in enumerate(event_ids):
+        if counter%10000==0:
+            print(counter)
+        try:
+            event = matched_events[idx]
+        except KeyError:
+            total_missing += 1
+
+
+        # if idx in matched_events:
+        # _, _, fetched[idx][e_key], _ = convert_retro_reco_energy_to_neutrino_energy(
+        #     event['cascade_energy'], 
+        #     event['length'],
+        #     GMS_LEN2EN=GMS_LEN2EN
+        # )
+    #     else:
+    if total_missing != 0:
+        print(
+            get_time(), 'WARNING! %d missing values out of %d'%(
+                total_missing, len(event_ids)
+            )
+        )
+    print(get_time(), 'Finished conversion to correct Retro recos.')
+    return fetched
+    
 
 def sqr(x):
     return x*x
@@ -62,10 +91,6 @@ def get_eval_functions(meta_pars):
         raise ValueError('eval_funcs: Unknown regression type (%s) encountered!'%(regression_type))
 
     return eval_funcs    
-
-#*======================================================================== 
-#* EVAL FUNCTIONS
-#*======================================================================== 
 
 def relative_E_error(pred, truth):
     """Calculates the relative energy error on model predictions.
@@ -446,7 +471,13 @@ def retro_relE_error(retro_dict, true_dict, reporting=False):
 
     return relE_error
 
-def retro_log_frac_E_error(retro_dict, true_dict, reporting=False, eps=1e-3):
+def retro_log_frac_E_error(
+    retro_dict, 
+    true_dict, 
+    reporting=False, 
+    eps=1e-3, 
+    calculate_corrected_energy=True
+    ):
     """Calculates $\log_{10} \left( \frac{E_{pred}}{E_{true}} \right)$
     
     This error measure puts predictions that are either twice as big or small on an equal footing.
@@ -466,7 +497,7 @@ def retro_log_frac_E_error(retro_dict, true_dict, reporting=False, eps=1e-3):
     -------
     array
         log of fraction of energies
-    """    
+    """
     E_pred = np.clip(retro_dict['retro_crs_prefit_energy'], eps, np.inf)
     logE_true = np.array(convert_to_proper_list(true_dict['true_primary_energy']))
     

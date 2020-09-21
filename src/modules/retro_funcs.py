@@ -70,7 +70,11 @@ def convert_EM_to_hadronic_cascade_energy(E_em):
     return HD_casc_interpolated
 
 
-def convert_retro_reco_energy_to_neutrino_energy(em_cascade_energy, track_length) :
+def convert_retro_reco_energy_to_neutrino_energy(
+    em_cascade_energy, 
+    track_length,
+    GMS_LEN2EN=None
+    ):
     '''
     Function to convert from the RetroReco fitted variables:
       a) EM cascade energy
@@ -102,7 +106,8 @@ def convert_retro_reco_energy_to_neutrino_energy(em_cascade_energy, track_length
     '''
 
     # from retro.i3processing.retro_recos_to_i3files import GMS_LEN2EN
-    _, GMS_LEN2EN, _ = generate_gms_table_converters(losses="all")
+    if GMS_LEN2EN == None:
+        _, GMS_LEN2EN, _ = generate_gms_table_converters(losses="all")
     cascade_hadronic_energy = convert_EM_to_hadronic_cascade_energy(em_cascade_energy)
     
     # Apply a fudge factor for overall cascade energy

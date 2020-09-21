@@ -34,5 +34,55 @@ import os
 from src.modules.retro_funcs import *
 import time
 
+PATH_META_DB = PATH_DATA_OSCNEXT + '/epsilon_bjorn.db'
 with open(PATH_DATA_OSCNEXT + '/matched_val.pickle', 'rb') as f:
     found = pickle.load(f)
+
+muons_path = PATH_DATA_OSCNEXT + '/masks/muon_neutrino_val.pickle'
+with open(muons_path, 'rb') as f:
+    muons = [str(e) for e in pickle.load(f)]
+
+# new_mask = []
+# for e in muons:
+#     if e in found:
+#         if found[e]['interaction_type'] == 1: # CC
+#             new_mask.append(int(e))
+
+# muons_CC_val_path = PATH_DATA_OSCNEXT + '/masks/muon_CC_neutrino_val.pickle'
+# with open(muons_CC_val_path, 'wb') as f:
+#     pickle.dump(new_mask, f)
+val_ids = []
+meta_ids = []
+for key, data in found.items():
+    val_ids.append(key)
+    meta_ids.append(data['event_no_meta'])
+
+print(len(val_ids)/len(muons))
+
+# wanted = [
+#     'true_primary_direction_x',
+#     'true_primary_direction_y',
+#     'true_primary_direction_z',
+#     'event_no'
+# ]
+# with sqlite3.connect(PATH_VAL_DB) as db:
+#     query = 'SELECT {features} FROM scalar WHERE event_no IN ({events})'.format(
+#         features=', '.join(wanted),
+#         events=', '.join(['?'] * len(val_ids))
+#         )
+#     cursor = db.cursor()
+#     cursor.execute(query, val_ids)
+#     data_val_tupled = cursor.fetchall()
+
+# with sqlite3.connect(PATH_META_DB) as db:
+#     query = 'SELECT {features} FROM features WHERE event_no IN ({events})'.format(
+#         features=', '.join(wanted),
+#         events=', '.join(['?'] * len(meta_ids))
+#         )
+#     cursor = db.cursor()
+#     cursor.execute(query, meta_ids)
+#     data_meta_tupled = cursor.fetchall()
+
+# for val, meta in zip(data_val_tupled, data_meta_tupled):
+#     print(val, meta)
+#     print('')

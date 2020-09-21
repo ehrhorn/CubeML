@@ -448,8 +448,10 @@ class Performance:
         pred_dict = read_pickle_predicted_h5_data_v2(
             self._pred_path, keys
         )
-
-        if mask!=None:
+        if mask != None and self.meta_pars['group'] in CLASSIFICATION:
+            # TODO: Ensure this works
+            mask = 'muon_CC_neutrino'
+        if mask != None:
             print(get_time(), 'Applying supplied mask to predictions...')
             mask_indices = np.array(
                 load_sqlite_mask(
@@ -504,6 +506,16 @@ class Performance:
         raw_targets_dict = {
             key: np.zeros(len(event_ids)) for key in self._target_keys
         }
+        
+        # Calculate corrected Retro energy
+        retro_e_key = 'retro_crs_prefit_energy'
+        if retro_e_key in self._reco_keys:
+            fetched = calculate_corrected_retro_energy(
+                fetched, 
+                event_ids, 
+                retro_e_key
+            )
+
         for i_event, idx in enumerate(event_ids):
             for key in self._energy_key:
                 energy_dict[key][i_event] = fetched[idx][key]
@@ -902,7 +914,7 @@ class Performance:
                 reco_keys = [
                     'retro_crs_prefit_x', 
                     'retro_crs_prefit_y', 
-                        'retro_crs_prefit_z'
+                    'retro_crs_prefit_z'
                     ]
             
             elif (self.meta_pars['group'] == 'direction_reg' or
